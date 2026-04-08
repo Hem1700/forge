@@ -126,7 +126,7 @@ A gauntlet every finding must survive before reaching a human gate:
 1. **Challenger Agent** — independently reproduces the finding from scratch
 2. **Context Agent** — verifies scope compliance, checks against known false positive patterns
 3. **Severity Agent** — independently assesses impact using CVSS + semantic app model
-4. **Confidence Scorer** — produces a final 0–1 confidence score; only findings above threshold proceed
+4. **Confidence Scorer** — produces a final 0–1 confidence score; only findings scoring ≥0.75 proceed to a human gate
 
 ### Data Flow — One Full Engagement
 
@@ -155,7 +155,7 @@ Target Input
 ### Strategic Brain
 | Component | Technology | Why |
 |---|---|---|
-| LLM backbone | Claude claude-sonnet-4-6 via Anthropic API | Best reasoning for semantic modeling and campaign planning |
+| LLM backbone | Claude Sonnet 4.6 via Anthropic API | Best reasoning for semantic modeling and campaign planning |
 | Local LLM option | Ollama + Llama 3.3 70B | Privacy-first option for sensitive engagements |
 | Vector DB | Qdrant | Fast semantic search, self-hostable, excellent Python SDK |
 | Graph DB | Neo4j | Industry standard for attack chain relationship modeling |
@@ -262,7 +262,7 @@ Brain
 
 - Every agent emits a signal score after each action: 0 (dead end) to 1 (promising)
 - Signal scores tracked over a rolling window
-- Rolling average drops below 0.2 for N consecutive actions → automatic termination
+- Rolling average drops below 0.2 for 5 consecutive actions → automatic termination
 - Final state written to knowledge graph before termination
 - Resources reallocated to highest-priority open tasks
 
