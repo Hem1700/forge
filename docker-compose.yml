@@ -41,6 +41,9 @@ services:
       NEO4J_AUTH: neo4j/forge_password
       NEO4J_PLUGINS: '["apoc"]'
     ports:
+      # NOTE: Host ports remapped from 7474->17474 and 7687->17687
+      # due to port conflict with an existing local Neo4j container.
+      # Update NEO4J_URL in your .env to: bolt://localhost:17687
       - "17474:7474"
       - "17687:7687"
     volumes:
