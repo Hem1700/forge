@@ -1,7 +1,6 @@
 # backend/app/knowledge/query.py
 from app.knowledge.vector_store import VectorStore
 from app.knowledge.graph_store import GraphStore
-from app.config import settings
 
 
 class KnowledgeQuery:
