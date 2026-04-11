@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.api import engagements, gates, knowledge, system
 from app.config import settings
+from app.ws.stream import stream_manager
 
 
 @asynccontextmanager
@@ -30,3 +33,14 @@ app.add_middleware(
 @app.get("/api/v1/health")
 async def health():
     return {"status": "ok", "version": "0.1.0"}
+
+
+app.include_router(engagements.router)
+app.include_router(gates.router)
+app.include_router(knowledge.router)
+app.include_router(system.router)
+
+
+@app.websocket("/ws/{engagement_id}")
+async def websocket_endpoint(engagement_id: str, websocket: WebSocket):
+    await stream_manager.handle(engagement_id, websocket)
