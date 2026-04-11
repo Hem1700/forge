@@ -1,10 +1,13 @@
 export type EngagementStatus = 'pending' | 'running' | 'paused_at_gate' | 'complete' | 'aborted'
 export type GateStatus = 'gate_1' | 'gate_2' | 'gate_3' | 'complete'
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info'
+export type TargetType = 'web' | 'local_codebase' | 'binary'
 
 export interface Engagement {
   id: string
   target_url: string
+  target_type: TargetType
+  target_path: string | null
   status: EngagementStatus
   gate_status: GateStatus
   created_at: string
