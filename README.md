@@ -1,13 +1,13 @@
 # FORGE — Framework for Offensive Reasoning, Generation and Exploitation
 
-A multi-agent autonomous pentesting platform. FORGE uses a Strategic Brain + Tactical Swarm architecture to plan, execute, and validate security assessments — with human-in-the-loop gates at key decision points.
+A multi-agent autonomous pentesting platform. FORGE supports web applications, local codebases, and CLI tools — with a Strategic Brain + Tactical Swarm architecture, human-in-the-loop gates, and live WebSocket streaming.
 
 ---
 
 ## Architecture
 
-- **Strategic Brain** — semantic app modeler, campaign planner, evasion strategist, memory engine (LangChain + Claude)
-- **Tactical Swarm** — autonomous agents (recon, probe, evasion, logic modeler, deep exploit, child) coordinated by an auction-based scheduler
+- **Strategic Brain** — semantic app modeler, codebase modeler, campaign planner, evasion strategist, memory engine (LangChain + Claude)
+- **Tactical Swarm** — autonomous agents (recon, probe, evasion, code analyzer, dependency scanner, fuzzer, deep exploit) coordinated by an auction-based scheduler
 - **Adversarial Validator** — challenger, context filter, severity scorer, confidence threshold gate
 - **Knowledge Base** — Qdrant vector store + Neo4j graph store for cross-engagement learning
 - **REST API + WebSocket** — FastAPI backend with live swarm event streaming
@@ -20,7 +20,7 @@ A multi-agent autonomous pentesting platform. FORGE uses a Strategic Brain + Tac
 - Docker + Docker Compose
 - Node.js 18+
 - Python 3.10+
-- An Anthropic API key
+- An Anthropic API key (for LLM-powered analysis)
 
 ---
 
@@ -32,7 +32,7 @@ A multi-agent autonomous pentesting platform. FORGE uses a Strategic Brain + Tac
 docker compose up -d
 ```
 
-This starts PostgreSQL, Redis, Qdrant, and Neo4j.
+Starts PostgreSQL, Redis, Qdrant, and Neo4j.
 
 ### 2. Configure environment
 
@@ -48,6 +48,15 @@ QDRANT_URL=http://localhost:6333
 REDIS_URL=redis://localhost:6379
 ```
 
+Create `frontend/.env`:
+
+```env
+VITE_API_URL=http://localhost:8080
+VITE_WS_URL=ws://localhost:8080
+```
+
+> Neither `.env` file is committed to git.
+
 ### 3. Run migrations and start the backend
 
 ```bash
@@ -55,39 +64,114 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 alembic upgrade head
-uvicorn app.main:app --reload
+uvicorn app.main:app --port 8080
 ```
 
-Backend runs at `http://localhost:8000`. Interactive API docs at `http://localhost:8000/docs`.
+Backend runs at `http://localhost:8080`. Interactive API docs at `http://localhost:8080/docs`.
+
+> Use `--reload` during development, but avoid it during active pentests — uvicorn reloads kill running background pipelines.
 
 ### 4. Start the frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev -- --port 5174
 ```
 
-Frontend runs at `http://localhost:5173`.
+Frontend runs at `http://localhost:5174`.
 
 ---
 
-## Running an Engagement
+## Running a Pentest
 
-1. Open `http://localhost:5173`
-2. Click **+ New Engagement** and enter a target URL (e.g. `https://example.com`)
-3. Click into the engagement — it starts in `pending` status
-4. Kick off the swarm by patching its status to `running`:
+### Via the UI
+
+1. Open `http://localhost:5174`
+2. Click **+ New Engagement**
+3. Select your target type and fill in the details (see below)
+4. Click **Create Engagement**
+5. Click **▶ Start Pentest** on the card
+6. Click into the engagement to open the live **Swarm Monitor**
+7. Approve or reject **Human Gates** when prompted
+8. View findings in the **Findings Panel** and export via **Report Viewer**
+
+### Via the API
 
 ```bash
-curl -X PATCH http://localhost:8000/api/v1/engagements/{id}/status \
+# 1. Create engagement
+curl -X POST http://localhost:8080/api/v1/engagements/ \
   -H "Content-Type: application/json" \
-  -d '{"status": "running"}'
+  -d '{"target_url": "https://example.com", "target_type": "web"}'
+
+# 2. Start pentest
+curl -X POST http://localhost:8080/api/v1/engagements/{id}/start
+
+# 3. Check status
+curl http://localhost:8080/api/v1/engagements/{id}
+
+# 4. Check findings count
+curl http://localhost:8080/api/v1/system/stats
 ```
 
-5. The **Swarm Monitor** tab shows live events streamed over WebSocket as agents report in
-6. When the engagement hits a **Human Gate** (`paused_at_gate`), the UI presents Approve / Reject buttons
-7. Findings appear in the **Findings Panel**; use **Export JSON** in the Report Viewer to download results
+---
+
+## Target Types
+
+FORGE supports three target types:
+
+### Web Application
+
+Tests HTTP endpoints — crawls the app, builds a semantic model, runs probe/recon/evasion agents.
+
+```json
+{
+  "target_url": "https://example.com",
+  "target_type": "web",
+  "target_scope": ["/api", "/admin"],
+  "target_out_of_scope": ["/static"]
+}
+```
+
+### Local Codebase
+
+Analyzes source code on the FORGE server's filesystem. Runs three agents in parallel:
+- **CodeAnalyzer** — LLM-powered review for SQLi, command injection, path traversal, hardcoded secrets, prompt injection, sandbox escapes, and more
+- **DependencyScanner** — checks `requirements.txt` / `package.json` / `go.mod` against the [OSV CVE database](https://osv.dev) (no API key needed)
+- **Fuzzer** — generates malformed inputs, runs the CLI, detects crashes and hangs
+
+```json
+{
+  "target_url": "local",
+  "target_type": "local_codebase",
+  "target_path": "/absolute/path/to/project"
+}
+```
+
+```bash
+# Example: test a local Python project
+curl -X POST http://localhost:8080/api/v1/engagements/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_url": "local",
+    "target_type": "local_codebase",
+    "target_path": "/Users/you/Desktop/myproject"
+  }'
+
+curl -X POST http://localhost:8080/api/v1/engagements/{id}/start
+```
+
+### Binary
+
+Analyzes a compiled binary file (ELF, PE, Mach-O). Same agents as local codebase, focused on the binary file and any surrounding source.
+
+```json
+{
+  "target_url": "local",
+  "target_type": "binary",
+  "target_path": "/absolute/path/to/binary"
+}
+```
 
 ---
 
@@ -99,15 +183,16 @@ curl -X PATCH http://localhost:8000/api/v1/engagements/{id}/status \
 | `POST` | `/api/v1/engagements/` | Create engagement |
 | `GET` | `/api/v1/engagements/` | List engagements |
 | `GET` | `/api/v1/engagements/{id}` | Get engagement |
-| `PATCH` | `/api/v1/engagements/{id}/status` | Update status |
+| `PATCH` | `/api/v1/engagements/{id}/status` | Update status (`pending`, `running`, `aborted`) |
 | `DELETE` | `/api/v1/engagements/{id}` | Delete engagement |
-| `POST` | `/api/v1/gates/{id}/decide` | Approve or reject a gate |
-| `GET` | `/api/v1/knowledge/` | List knowledge entries |
-| `GET` | `/api/v1/knowledge/attack-class/{class}` | Filter by attack class |
+| `POST` | `/api/v1/engagements/{id}/start` | Launch the full pipeline |
+| `POST` | `/api/v1/gates/{id}/decide` | Approve or reject a human gate |
+| `GET` | `/api/v1/knowledge/` | List knowledge base entries |
+| `GET` | `/api/v1/knowledge/attack-class/{class}` | Filter knowledge by attack class |
 | `GET` | `/api/v1/system/stats` | Engagement / finding / knowledge counts |
 | `WS` | `/ws/{engagement_id}` | Live swarm event stream |
 
-Full interactive docs: `http://localhost:8000/docs`
+Full interactive docs: `http://localhost:8080/docs`
 
 ---
 
@@ -119,7 +204,7 @@ cd backend
 pytest -v
 ```
 
-48 tests covering models, APIs, brain components, swarm agents, and the validator.
+59 tests covering models, APIs, brain components, swarm agents, validator, and multi-target pipeline.
 
 ---
 
@@ -129,11 +214,12 @@ pytest -v
 FORGE/
 ├── backend/
 │   ├── app/
-│   │   ├── api/          # REST endpoints (engagements, gates, knowledge, system)
-│   │   ├── brain/        # Strategic Brain (semantic modeler, campaign planner, etc.)
+│   │   ├── api/          # REST endpoints (engagements, gates, knowledge, system, start)
+│   │   ├── brain/        # SemanticModeler, CodebaseModeler, CampaignPlanner, MemoryEngine
 │   │   ├── knowledge/    # Vector store (Qdrant) + graph store (Neo4j)
 │   │   ├── models/       # SQLAlchemy ORM models
 │   │   ├── swarm/        # Agents, scheduler, health monitor, task board
+│   │   │   └── agents/   # recon, probe, evasion, code_analyzer, dependency_scanner, fuzzer, deep_exploit
 │   │   ├── validator/    # Challenger, context filter, severity scorer
 │   │   └── ws/           # WebSocket stream manager
 │   ├── alembic/          # Database migrations
@@ -148,9 +234,3 @@ FORGE/
 │       └── types/        # Shared TypeScript types
 └── docker-compose.yml
 ```
-
----
-
-## What's Next
-
-The swarm agents and brain components are fully implemented but not yet wired to an orchestration entry point. A `POST /api/v1/engagements/{id}/start` route that launches the full pipeline (SemanticModeler → CampaignPlanner → Scheduler → Agents) is the natural next step.
