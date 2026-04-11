@@ -15,7 +15,7 @@ export function FindingsPanel() {
 
   const filtered = activeEngagement
     ? findings.filter((f) => f.engagement_id === activeEngagement.id)
-    : []
+    : findings
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
@@ -24,33 +24,35 @@ export function FindingsPanel() {
       {filtered.length === 0 ? (
         <p className="text-sm text-gray-500 text-center py-8">No findings yet</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 bg-gray-900">
               <tr className="text-left text-gray-400 border-b border-gray-800">
                 <th className="pb-2 pr-2">Severity</th>
-                <th className="pb-2 pr-2">Title</th>
-                <th className="pb-2 pr-2">Class</th>
-                <th className="pb-2 pr-2">Endpoint</th>
+                <th className="pb-2 pr-2">Vulnerability</th>
+                <th className="pb-2 pr-2">Location</th>
                 <th className="pb-2">Confidence</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((f) => (
-                <tr key={f.id} className="border-b border-gray-800/50">
-                  <td className="py-2 pr-2">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${SEVERITY_COLORS[f.severity]}`}>
-                      {f.severity}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-2 text-gray-200">{f.title}</td>
-                  <td className="py-2 pr-2 text-gray-400">{f.attack_class}</td>
-                  <td className="py-2 pr-2 text-gray-400 font-mono text-xs truncate max-w-[200px]">
-                    {f.endpoint}
-                  </td>
-                  <td className="py-2 text-gray-300">{(f.confidence_score * 100).toFixed(0)}%</td>
-                </tr>
-              ))}
+              {filtered.map((f) => {
+                const vulnClass = f.vulnerability_class ?? f.attack_class ?? f.title
+                const location = f.affected_surface ?? f.endpoint ?? ''
+                return (
+                  <tr key={f.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                    <td className="py-2 pr-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${SEVERITY_COLORS[f.severity]}`}>
+                        {f.severity}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-2 text-gray-200 max-w-[180px] truncate">{vulnClass}</td>
+                    <td className="py-2 pr-2 text-gray-400 font-mono text-xs truncate max-w-[160px]">
+                      {location}
+                    </td>
+                    <td className="py-2 text-gray-300 text-xs">{(f.confidence_score * 100).toFixed(0)}%</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

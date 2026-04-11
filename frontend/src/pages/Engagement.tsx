@@ -22,12 +22,17 @@ export function Engagement() {
   const navigate = useNavigate()
   const setActiveEngagement = useEngagementStore((s) => s.setActiveEngagement)
   const activeEngagement = useEngagementStore((s) => s.activeEngagement)
+  const setFindings = useEngagementStore((s) => s.setFindings)
 
   useEffect(() => {
     if (!id) return
     engagementsApi.get(id).then(setActiveEngagement).catch(console.error)
-    return () => setActiveEngagement(null)
-  }, [id, setActiveEngagement])
+    engagementsApi.findings(id).then(setFindings).catch(console.error)
+    return () => {
+      setActiveEngagement(null)
+      setFindings([])
+    }
+  }, [id, setActiveEngagement, setFindings])
 
   useSwarmStream(id ?? null)
 

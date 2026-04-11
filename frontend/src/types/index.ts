@@ -19,10 +19,13 @@ export interface Finding {
   engagement_id: string
   title: string
   severity: Severity
-  attack_class: string
-  endpoint: string
-  evidence: string
-  validated: boolean
+  // API returns these field names from the DB model
+  vulnerability_class?: string
+  attack_class?: string
+  affected_surface?: string
+  endpoint?: string
+  description?: string
+  evidence: string | string[]
   confidence_score: number
   created_at: string
 }
