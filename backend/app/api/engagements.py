@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.engagement import Engagement, EngagementStatus
+from app.models.finding import Finding
 
 router = APIRouter(prefix="/api/v1/engagements", tags=["engagements"])
 
@@ -93,6 +94,33 @@ async def update_engagement_status(
     await db.commit()
     await db.refresh(engagement)
     return EngagementResponse.model_validate(engagement)
+
+
+@router.get("/{engagement_id}/findings")
+async def get_engagement_findings(
+    engagement_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    engagement = await db.get(Engagement, engagement_id)
+    if engagement is None:
+        raise HTTPException(status_code=404, detail="Engagement not found")
+    result = await db.execute(select(Finding).where(Finding.engagement_id == engagement_id))
+    findings = result.scalars().all()
+    return [
+        {
+            "id": str(f.id),
+            "severity": f.severity.value,
+            "title": f.title,
+            "vulnerability_class": f.vulnerability_class,
+            "affected_surface": f.affected_surface,
+            "description": f.description,
+            "evidence": f.evidence,
+            "recommendation": "",
+            "confidence_score": f.confidence_score,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        }
+        for f in findings
+    ]
 
 
 @router.delete("/{engagement_id}", status_code=status.HTTP_204_NO_CONTENT)

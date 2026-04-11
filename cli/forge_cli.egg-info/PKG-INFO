@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: forge-cli
+Version: 0.1.0
+Summary: FORGE CLI — command-line interface for the FORGE pentesting platform
+Requires-Python: >=3.10
+Requires-Dist: click>=8.0
+Requires-Dist: rich>=13.0
+Requires-Dist: websockets>=12.0
