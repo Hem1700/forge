@@ -159,8 +159,9 @@ async def _run_web_pipeline(engagement_id: uuid.UUID) -> None:
         except Exception as e:
             await db.rollback()
             await _broadcast(eid, "campaign_complete", {"status": "error", "error": str(e)})
-        finally:
-            await _finalize(engagement_id, db, eid)
+            await _finalize(engagement_id, db, eid, success=False)
+            return
+        await _finalize(engagement_id, db, eid, success=True)
 
 
 async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
@@ -227,20 +228,24 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
         except Exception as e:
             await db.rollback()
             await _broadcast(eid, "campaign_complete", {"status": "error", "error": str(e)})
-        finally:
-            await _finalize(engagement_id, db, eid)
+            await _finalize(engagement_id, db, eid, success=False)
+            return
+        await _finalize(engagement_id, db, eid, success=True)
 
 
-async def _finalize(engagement_id: uuid.UUID, db: AsyncSession, eid: str) -> None:
+async def _finalize(engagement_id: uuid.UUID, db: AsyncSession, eid: str, success: bool = True) -> None:
     try:
         engagement = await db.get(Engagement, engagement_id)
         if engagement is not None:
-            engagement.status = EngagementStatus.complete
-            engagement.completed_at = datetime.now(timezone.utc)
+            if success:
+                engagement.status = EngagementStatus.complete
+                engagement.completed_at = datetime.now(timezone.utc)
+            else:
+                engagement.status = EngagementStatus.pending  # reset so it can be retried
             await db.commit()
     except Exception:
         await db.rollback()
-    await _broadcast(eid, "campaign_complete", {"status": "done", "engagement_id": eid})
+    await _broadcast(eid, "campaign_complete", {"status": "done" if success else "error", "engagement_id": eid})
 
 
 @router.post("/{engagement_id}/start", status_code=202)
