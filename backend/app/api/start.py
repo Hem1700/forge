@@ -234,17 +234,17 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
 
 
 async def _finalize(engagement_id: uuid.UUID, db: AsyncSession, eid: str, success: bool = True) -> None:
+    # Use a fresh session — the pipeline session may be in a stale/dirty state
     try:
-        engagement = await db.get(Engagement, engagement_id)
-        if engagement is not None:
-            if success:
-                engagement.status = EngagementStatus.complete
-                engagement.completed_at = datetime.now(timezone.utc)
-            else:
-                engagement.status = EngagementStatus.pending  # reset so it can be retried
-            await db.commit()
+        async with AsyncSessionLocal() as fresh_db:
+            engagement = await fresh_db.get(Engagement, engagement_id)
+            if engagement is not None:
+                engagement.status = EngagementStatus.complete if success else EngagementStatus.pending
+                if success:
+                    engagement.completed_at = datetime.now(timezone.utc)
+                await fresh_db.commit()
     except Exception:
-        await db.rollback()
+        pass
     await _broadcast(eid, "campaign_complete", {"status": "done" if success else "error", "engagement_id": eid})
 
 
