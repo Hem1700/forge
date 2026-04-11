@@ -100,3 +100,41 @@ async def test_child_agent_inherits_parent():
     assert child.parent_id == "parent-001"
     assert child.spawned_reason == "Found JS bundle, needs analysis"
     assert "js_analyzer" in child.tools
+
+
+from app.swarm.agents.logic_modeler import LogicModelerAgent
+from app.swarm.agents.probe import ProbeAgent
+
+
+@pytest.mark.asyncio
+async def test_logic_modeler_bids_on_business_flow_tasks():
+    agent = LogicModelerAgent(
+        agent_id=str(uuid.uuid4()),
+        engagement_id=str(uuid.uuid4()),
+        agent_type="logic_modeler",
+        tools=["playwright"],
+    )
+    task = {"task_id": str(uuid.uuid4()), "title": "Map checkout business flow", "surface": "/checkout", "required_confidence": 0.5, "priority": "high"}
+    bid = await agent.bid(task)
+    assert bid["confidence"] >= 0.6
+
+
+@pytest.mark.asyncio
+async def test_probe_agent_execute_returns_result():
+    agent = ProbeAgent(
+        agent_id=str(uuid.uuid4()),
+        engagement_id=str(uuid.uuid4()),
+        agent_type="probe",
+        tools=["httpx"],
+    )
+    task = {
+        "task_id": str(uuid.uuid4()),
+        "title": "Test IDOR on /api/users/1",
+        "surface": "https://httpbin.org/get",
+        "required_confidence": 0.6,
+        "priority": "high",
+        "description": "Check if user ID 1 returns data for unauthenticated request",
+    }
+    result = await agent.run(task)
+    assert "findings" in result
+    assert isinstance(result["findings"], list)
