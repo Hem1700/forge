@@ -69,3 +69,34 @@ async def test_agent_bid_returns_bid_dict():
     assert "basis" in bid
     assert "noise_level" in bid
     assert 0.0 <= bid["confidence"] <= 1.0
+
+
+from app.swarm.agents.recon import ReconAgent
+from app.swarm.agents.child import ChildAgent
+
+
+@pytest.mark.asyncio
+async def test_recon_agent_bids_high_on_recon_tasks():
+    agent = ReconAgent(
+        agent_id=str(uuid.uuid4()),
+        engagement_id=str(uuid.uuid4()),
+        agent_type="recon",
+        tools=["httpx", "subfinder"],
+    )
+    task = {"task_id": str(uuid.uuid4()), "title": "Subdomain enumeration", "surface": "example.com", "required_confidence": 0.5, "priority": "high"}
+    bid = await agent.bid(task)
+    assert bid["confidence"] >= 0.7
+
+
+@pytest.mark.asyncio
+async def test_child_agent_inherits_parent():
+    parent = ReconAgent(
+        agent_id="parent-001",
+        engagement_id=str(uuid.uuid4()),
+        agent_type="recon",
+        tools=["httpx"],
+    )
+    child = parent.spawn_child(reason="Found JS bundle, needs analysis", tools=["js_analyzer"])
+    assert child.parent_id == "parent-001"
+    assert child.spawned_reason == "Found JS bundle, needs analysis"
+    assert "js_analyzer" in child.tools
