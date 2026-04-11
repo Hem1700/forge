@@ -38,3 +38,37 @@ async def test_scheduler_tracks_lineage(scheduler):
     scheduler.register_agent(child)
     lineage = scheduler.get_lineage("parent-1")
     assert child.agent_id in lineage
+
+
+from app.swarm.health_monitor import HealthMonitor
+from app.swarm.agents.base import AgentState
+
+
+@pytest.mark.asyncio
+async def test_health_monitor_terminates_dead_agents():
+    engagement_id = str(uuid.uuid4())
+    agent = ProbeAgent(agent_id=str(uuid.uuid4()), engagement_id=engagement_id, agent_type="probe", tools=[])
+    for _ in range(6):
+        agent.emit_signal(0.05)
+    scheduler = SwarmScheduler(engagement_id=engagement_id)
+    scheduler.register_agent(agent)
+    agent.state = AgentState.RUNNING
+    monitor = HealthMonitor(scheduler)
+    terminated = await monitor.check_and_purge()
+    assert agent.agent_id in terminated
+    assert agent.state == AgentState.TERMINATED
+
+
+@pytest.mark.asyncio
+async def test_health_monitor_keeps_healthy_agents():
+    engagement_id = str(uuid.uuid4())
+    agent = ReconAgent(agent_id=str(uuid.uuid4()), engagement_id=engagement_id, agent_type="recon", tools=[])
+    agent.emit_signal(0.9)
+    agent.emit_signal(0.8)
+    agent.state = AgentState.RUNNING
+    scheduler = SwarmScheduler(engagement_id=engagement_id)
+    scheduler.register_agent(agent)
+    monitor = HealthMonitor(scheduler)
+    terminated = await monitor.check_and_purge()
+    assert agent.agent_id not in terminated
+    assert agent.state == AgentState.RUNNING
