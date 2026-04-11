@@ -3,7 +3,7 @@ import json
 import re
 import httpx
 from langchain_anthropic import ChatAnthropic
-from langchain.schema import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from app.config import settings
 
 
