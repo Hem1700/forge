@@ -83,6 +83,144 @@ Frontend runs at `http://localhost:5174`.
 
 ---
 
+## CLI (forge)
+
+The `forge` command-line tool lets you run pentests, stream live events, and export results — no browser required.
+
+### Installation
+
+```bash
+cd cli
+pip install -e .
+```
+
+Verify:
+
+```bash
+forge --help
+```
+
+Set the backend URL if it's not on `localhost:8080`:
+
+```bash
+export FORGE_API_URL=http://your-server:8080
+```
+
+### Commands
+
+#### `forge run <target>` — start a pentest
+
+Target type is auto-detected. Pass a URL for web apps, or a filesystem path for local codebases.
+
+```bash
+# Web application
+forge run https://example.com
+
+# Web with scope
+forge run https://example.com --scope /api --scope /admin --out-of-scope /static
+
+# Local codebase (auto-detected from path)
+forge run /Users/you/Desktop/myproject
+
+# Binary
+forge run /usr/bin/target-binary --type binary
+
+# Start and exit immediately (don't stream events)
+forge run https://example.com --no-stream
+```
+
+Live swarm events stream to the terminal. Press `Ctrl+C` to detach — the pipeline keeps running in the background.
+
+#### `forge list` — list all engagements
+
+```bash
+forge list
+```
+
+#### `forge status <id>` — engagement details
+
+```bash
+forge status <engagement-id>
+
+# Stream live events for a running engagement
+forge status <engagement-id> --watch
+```
+
+#### `forge findings <id>` — view findings
+
+```bash
+# Severity summary + findings table
+forge findings <engagement-id>
+
+# Filter by severity
+forge findings <engagement-id> --severity critical
+forge findings <engagement-id> --severity high
+
+# Output raw JSON
+forge findings <engagement-id> --json
+
+# Save to file
+forge findings <engagement-id> --output findings.json
+```
+
+#### `forge report <id>` — generate a markdown report
+
+```bash
+# Print to terminal
+forge report <engagement-id>
+
+# Save to file
+forge report <engagement-id> --output report.md
+```
+
+#### `forge gate approve/reject <id>` — human gate decisions
+
+```bash
+forge gate approve <engagement-id>
+forge gate approve <engagement-id> --notes "Reviewed recon output, safe to proceed"
+
+forge gate reject <engagement-id>
+forge gate reject <engagement-id> --notes "Out of scope targets detected"
+```
+
+#### `forge stats` — platform statistics
+
+```bash
+forge stats
+```
+
+#### `forge delete <id>` — delete an engagement
+
+```bash
+forge delete <engagement-id>
+
+# Skip confirmation prompt
+forge delete <engagement-id> --yes
+```
+
+### Typical workflow
+
+```bash
+# 1. Start a pentest and stream events live
+forge run /Users/you/Desktop/myproject
+
+# 2. (In another terminal, if you detached) check status
+forge list
+forge status <id>
+
+# 3. Approve a human gate when prompted
+forge gate approve <id>
+
+# 4. View findings when complete
+forge findings <id>
+forge findings <id> --severity critical
+
+# 5. Export full report
+forge report <id> --output report.md
+```
+
+---
+
 ## Running a Pentest
 
 ### Via the UI
