@@ -3,6 +3,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import engagements, gates, knowledge, system
+from app.api.start import router as start_router
 from app.config import settings
 from app.ws.stream import stream_manager
 
@@ -39,6 +40,7 @@ app.include_router(engagements.router)
 app.include_router(gates.router)
 app.include_router(knowledge.router)
 app.include_router(system.router)
+app.include_router(start_router)
 
 
 @app.websocket("/ws/{engagement_id}")

@@ -16,6 +16,8 @@ router = APIRouter(prefix="/api/v1/engagements", tags=["engagements"])
 
 class CreateEngagementRequest(BaseModel):
     target_url: str
+    target_type: str = "web"
+    target_path: str | None = None
     target_scope: list[str] = []
     target_out_of_scope: list[str] = []
 
@@ -29,6 +31,8 @@ class EngagementResponse(BaseModel):
 
     id: uuid.UUID
     target_url: str
+    target_type: str
+    target_path: str | None = None
     status: str
     gate_status: str
     created_at: datetime
@@ -42,6 +46,8 @@ async def create_engagement(
 ) -> EngagementResponse:
     engagement = Engagement(
         target_url=payload.target_url,
+        target_type=payload.target_type,
+        target_path=payload.target_path,
         target_scope=payload.target_scope,
         target_out_of_scope=payload.target_out_of_scope,
     )
