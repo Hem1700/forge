@@ -3,6 +3,8 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from app.brain.semantic_modeler import SemanticModeler
 from app.brain.campaign_planner import CampaignPlanner
+from app.brain.evasion_strategist import EvasionStrategist
+from app.brain.memory_engine import MemoryEngine
 
 
 @pytest.mark.asyncio
@@ -74,3 +76,56 @@ async def test_campaign_planner_returns_hypotheses():
     assert len(hypotheses) == 2
     assert hypotheses[0]["attack_class"] == "race_condition"
     assert hypotheses[0]["confidence"] == 0.82
+
+
+@pytest.mark.asyncio
+async def test_evasion_strategist_returns_guidelines():
+    strategist = EvasionStrategist()
+    mock_response = MagicMock()
+    mock_response.content = '''{
+        "waf_detected": true,
+        "waf_type": "cloudflare",
+        "rate_limit_detected": true,
+        "rate_limit_rps": 10,
+        "guidelines": [
+            "Use chunked encoding to bypass WAF body inspection",
+            "Space requests at least 200ms apart",
+            "Rotate User-Agent headers"
+        ],
+        "stealth_level": "quiet"
+    }'''
+    with patch.object(strategist._llm, "ainvoke", return_value=mock_response):
+        guidelines = await strategist.analyze(
+            target_url="https://example.com",
+            headers={"server": "cloudflare", "cf-ray": "abc123"},
+            response_codes=[200, 429, 403],
+        )
+    assert guidelines["waf_detected"] is True
+    assert len(guidelines["guidelines"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_memory_engine_write(tmp_path):
+    engine = MemoryEngine()
+    findings = [
+        {
+            "title": "IDOR in /api/users",
+            "vulnerability_class": "idor",
+            "affected_surface": "/api/users/{id}",
+            "severity": "high",
+            "confidence_score": 0.91,
+        }
+    ]
+    semantic_model = {
+        "app_type": "saas",
+        "tech_stack": ["nodejs", "postgresql"],
+    }
+    with patch.object(engine._kb.vector, "upsert", new_callable=AsyncMock) as mock_upsert, \
+         patch.object(engine._kb.graph, "upsert_technique", new_callable=AsyncMock):
+        await engine.write_back(
+            engagement_id="eng-001",
+            findings=findings,
+            semantic_model=semantic_model,
+            failed_hypotheses=[],
+        )
+        assert mock_upsert.called
