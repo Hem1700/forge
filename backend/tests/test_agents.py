@@ -138,3 +138,32 @@ async def test_probe_agent_execute_returns_result():
     result = await agent.run(task)
     assert "findings" in result
     assert isinstance(result["findings"], list)
+
+
+from app.swarm.agents.evasion import EvasionAgent
+from app.swarm.agents.deep_exploit import DeepExploitAgent
+
+
+@pytest.mark.asyncio
+async def test_evasion_agent_bids_on_defense_tasks():
+    agent = EvasionAgent(
+        agent_id=str(uuid.uuid4()),
+        engagement_id=str(uuid.uuid4()),
+        agent_type="evasion",
+        tools=["httpx"],
+    )
+    task = {"task_id": str(uuid.uuid4()), "title": "Fingerprint WAF and rate limits", "surface": "https://example.com", "required_confidence": 0.5, "priority": "medium"}
+    bid = await agent.bid(task)
+    assert bid["confidence"] >= 0.6
+    assert bid["noise_level"] == "low"
+
+
+def test_deep_exploit_agent_requires_gate_approval():
+    agent = DeepExploitAgent(
+        agent_id=str(uuid.uuid4()),
+        engagement_id=str(uuid.uuid4()),
+        agent_type="deep_exploit",
+        tools=["httpx"],
+        gate_approved=False,
+    )
+    assert agent.gate_approved is False
