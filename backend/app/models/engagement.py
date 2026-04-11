@@ -27,6 +27,8 @@ class Engagement(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     target_url: Mapped[str] = mapped_column(String, nullable=False)
+    target_type: Mapped[str] = mapped_column(String, default="web")
+    target_path: Mapped[str | None] = mapped_column(String, nullable=True)
     target_scope: Mapped[list] = mapped_column(JSON, default=list)
     target_out_of_scope: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[EngagementStatus] = mapped_column(SAEnum(EngagementStatus), default=EngagementStatus.pending)
