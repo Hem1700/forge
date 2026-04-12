@@ -39,4 +39,5 @@ class Finding(Base):
     validation_status: Mapped[ValidationStatus] = mapped_column(SAEnum(ValidationStatus), default=ValidationStatus.pending)
     validation_report: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     confidence_score: Mapped[float] = mapped_column(Float, default=0.0)
+    exploit_detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
