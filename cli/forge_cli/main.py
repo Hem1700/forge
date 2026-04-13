@@ -241,7 +241,7 @@ def findings(ctx, engagement_id, severity, as_json, output, show_exploit):
                 continue
             console.print(f"\n[dim]Generating exploit for {fid[:8]}…[/dim]")
             try:
-                exploit_data = client._request("POST", f"/api/v1/findings/{fid}/exploit")
+                exploit_data = client._request("POST", f"/api/v1/findings/{fid}/exploit", timeout=120)
                 render_exploit(f, exploit_data)
             except (APIError, ConnectionError) as e:
                 console.print(f"[red]Failed for {fid[:8]}: {e}[/red]")
@@ -305,7 +305,7 @@ def exploit(ctx, finding_id):
 
     with console.status("[bold orange1]Generating exploit intelligence…[/bold orange1]"):
         try:
-            exploit_data = client._request("POST", f"/api/v1/findings/{finding_id}/exploit")
+            exploit_data = client._request("POST", f"/api/v1/findings/{finding_id}/exploit", timeout=120)
         except APIError as e:
             err(str(e))
         except ConnectionError as e:
