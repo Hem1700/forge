@@ -157,3 +157,75 @@ def _fmt_dt(s: str) -> str:
         return datetime.fromisoformat(s.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M")
     except Exception:
         return s[:16]
+
+
+import re as _re
+
+
+def mermaid_to_ascii(source: str) -> str:
+    """Parse Mermaid graph LR syntax into ASCII arrow lines."""
+    lines = []
+    for line in source.split('\n'):
+        line = line.strip()
+        # Match: NodeA -->|label| NodeB  OR  NodeA --> NodeB
+        m = _re.match(r'(\w+)\s*-->\|?"?([^|"]*)"?\|?\s*(\w+)', line)
+        if m:
+            src = m.group(1).strip()
+            label = m.group(2).strip()
+            dst = m.group(3).strip()
+            if label:
+                lines.append(f"  {src} ──[{label}]──► {dst}")
+            else:
+                lines.append(f"  {src} ──────────► {dst}")
+    return '\n'.join(lines) if lines else "  (no path data)"
+
+
+def render_exploit(finding: dict, exploit: dict) -> None:
+    """Print a Rich-formatted exploit report to the console."""
+    from rich.panel import Panel as _Panel
+    from rich.rule import Rule
+    from rich.syntax import Syntax
+
+    sev = finding.get('severity', 'info').upper()
+    vuln = finding.get('vulnerability_class') or finding.get('title', 'Finding')
+    location = finding.get('affected_surface', '')
+    confidence = finding.get('confidence_score', 0)
+    difficulty = exploit.get('difficulty', 'unknown')
+
+    diff_color = {'easy': 'red', 'medium': 'yellow', 'hard': 'green'}.get(difficulty, 'white')
+
+    console.print(_Panel(
+        f"[bold orange1]Severity:[/bold orange1]    {sev}\n"
+        f"[bold orange1]Location:[/bold orange1]    [cyan]{location}[/cyan]\n"
+        f"[bold orange1]Confidence:[/bold orange1]  {int(float(confidence) * 100)}%\n"
+        f"[bold orange1]Difficulty:[/bold orange1]  [{diff_color}]{difficulty}[/{diff_color}]",
+        title=f"[bold]{vuln}[/bold]",
+        border_style="orange1",
+    ))
+
+    # Walkthrough
+    console.print(Rule("[bold orange1]EXPLOIT WALKTHROUGH[/bold orange1]"))
+    for step in exploit.get('walkthrough', []):
+        console.print(f"\n[bold]Step {step['step']} · {step['title']}[/bold]")
+        console.print(f"  {step['detail']}")
+        if step.get('code'):
+            console.print(Syntax(step['code'], "bash", theme="monokai", padding=(0, 2)))
+
+    # Impact
+    console.print(Rule("[bold orange1]IMPACT[/bold orange1]"))
+    console.print(f"  {exploit.get('impact', '')}\n")
+
+    # Prerequisites
+    prereqs = exploit.get('prerequisites', [])
+    if prereqs:
+        console.print(Rule("[bold orange1]PREREQUISITES[/bold orange1]"))
+        for p in prereqs:
+            console.print(f"  [dim]•[/dim] {p}")
+        console.print()
+
+    # Attack path
+    mermaid_src = exploit.get('attack_path_mermaid', '')
+    if mermaid_src:
+        console.print(Rule("[bold orange1]ATTACK PATH[/bold orange1]"))
+        console.print(mermaid_to_ascii(mermaid_src))
+        console.print()
