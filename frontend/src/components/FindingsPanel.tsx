@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useEngagementStore } from '../store/engagement'
 import type { Severity } from '../types'
 
@@ -39,13 +40,20 @@ export function FindingsPanel() {
                 const vulnClass = f.vulnerability_class ?? f.attack_class ?? f.title
                 const location = f.affected_surface ?? f.endpoint ?? ''
                 return (
-                  <tr key={f.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                  <tr key={f.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer">
                     <td className="py-2 pr-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${SEVERITY_COLORS[f.severity]}`}>
                         {f.severity}
                       </span>
                     </td>
-                    <td className="py-2 pr-2 text-gray-200 max-w-[180px] truncate">{vulnClass}</td>
+                    <td className="py-2 pr-2 text-gray-200 max-w-[180px] truncate">
+                      <Link
+                        to={`/engagements/${f.engagement_id}/findings/${f.id}`}
+                        className="hover:text-orange-400 transition-colors"
+                      >
+                        {vulnClass}
+                      </Link>
+                    </td>
                     <td className="py-2 pr-2 text-gray-400 font-mono text-xs truncate max-w-[160px]">
                       {location}
                     </td>
