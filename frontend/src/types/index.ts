@@ -42,3 +42,24 @@ export interface SwarmEvent {
   payload: Record<string, unknown>
   timestamp: string
 }
+
+export interface ExploitStep {
+  step: number
+  title: string
+  detail: string
+  code?: string | null
+}
+
+export interface ExploitDetail {
+  walkthrough: ExploitStep[]
+  attack_path_mermaid: string
+  impact: string
+  prerequisites: string[]
+  difficulty: 'easy' | 'medium' | 'hard'
+}
+
+export interface FindingDetail extends Finding {
+  exploit_detail?: ExploitDetail | null
+  reproduction_steps?: string[]
+  validation_status?: string
+}
