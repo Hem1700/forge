@@ -1,17 +1,18 @@
 # FORGE — Framework for Offensive Reasoning, Generation and Exploitation
 
-A multi-agent autonomous pentesting platform. FORGE supports web applications, local codebases, and CLI tools — with a Strategic Brain + Tactical Swarm architecture, human-in-the-loop gates, and live WebSocket streaming.
+A multi-agent autonomous pentesting platform. FORGE supports web applications, local codebases, and CLI tools — with a Strategic Brain + Tactical Swarm architecture, per-finding exploit intelligence, human-in-the-loop gates, and live WebSocket streaming.
 
 ---
 
 ## Architecture
 
 - **Strategic Brain** — semantic app modeler, codebase modeler, campaign planner, evasion strategist, memory engine (LangChain + Claude)
+- **Exploit Engine** — on-demand LLM-generated exploit walkthroughs, Mermaid attack path diagrams, impact analysis, and difficulty scoring per finding
 - **Tactical Swarm** — autonomous agents (recon, probe, evasion, code analyzer, dependency scanner, fuzzer, deep exploit) coordinated by an auction-based scheduler
 - **Adversarial Validator** — challenger, context filter, severity scorer, confidence threshold gate
 - **Knowledge Base** — Qdrant vector store + Neo4j graph store for cross-engagement learning
 - **REST API + WebSocket** — FastAPI backend with live swarm event streaming
-- **React Frontend** — real-time engagement dashboard with human gate UI
+- **React Frontend** — real-time engagement dashboard, per-finding detail pages, attack path visualization, and human gate UI
 
 ---
 
@@ -156,12 +157,29 @@ forge findings <engagement-id>
 forge findings <engagement-id> --severity critical
 forge findings <engagement-id> --severity high
 
+# Generate and display exploit walkthroughs for all findings
+forge findings <engagement-id> --exploit
+
 # Output raw JSON
 forge findings <engagement-id> --json
 
 # Save to file
 forge findings <engagement-id> --output findings.json
 ```
+
+#### `forge exploit <finding-id>` — exploit walkthrough for a finding
+
+Generate a step-by-step exploit walkthrough, attack path diagram, impact analysis, and difficulty rating for a specific finding. Result is cached — subsequent calls return instantly.
+
+```bash
+forge exploit <finding-id>
+```
+
+Output includes:
+- Numbered exploit steps with PoC code snippets
+- ASCII attack path diagram (`Attacker ──[crafted request]──► WebServer`)
+- Impact summary and prerequisites
+- Difficulty rating (easy / medium / hard)
 
 #### `forge report <id>` — generate a markdown report
 
@@ -172,6 +190,8 @@ forge report <engagement-id>
 # Save to file
 forge report <engagement-id> --output report.md
 ```
+
+When exploit walkthroughs have been generated, the report includes them automatically under each finding.
 
 #### `forge gate approve/reject <id>` — human gate decisions
 
@@ -215,7 +235,10 @@ forge gate approve <id>
 forge findings <id>
 forge findings <id> --severity critical
 
-# 5. Export full report
+# 5. Drill into a specific finding's exploit walkthrough
+forge exploit <finding-id>
+
+# 6. Export full report (includes exploit walkthroughs if generated)
 forge report <id> --output report.md
 ```
 
@@ -232,7 +255,9 @@ forge report <id> --output report.md
 5. Click **▶ Start Pentest** on the card
 6. Click into the engagement to open the live **Swarm Monitor**
 7. Approve or reject **Human Gates** when prompted
-8. View findings in the **Findings Panel** and export via **Report Viewer**
+8. View findings in the **Findings Panel** — click any finding row to open its detail page
+9. On the finding detail page, click **Generate Exploit** to produce a step-by-step walkthrough and visual attack path diagram
+10. Export the full report via **Report Viewer**
 
 ### Via the API
 
@@ -325,6 +350,8 @@ Analyzes a compiled binary file (ELF, PE, Mach-O). Same agents as local codebase
 | `DELETE` | `/api/v1/engagements/{id}` | Delete engagement |
 | `POST` | `/api/v1/engagements/{id}/start` | Launch the full pipeline |
 | `POST` | `/api/v1/gates/{id}/decide` | Approve or reject a human gate |
+| `GET` | `/api/v1/findings/{id}` | Get full finding detail (includes `exploit_detail` if generated) |
+| `POST` | `/api/v1/findings/{id}/exploit` | Generate (or return cached) exploit walkthrough |
 | `GET` | `/api/v1/knowledge/` | List knowledge base entries |
 | `GET` | `/api/v1/knowledge/attack-class/{class}` | Filter knowledge by attack class |
 | `GET` | `/api/v1/system/stats` | Engagement / finding / knowledge counts |
@@ -342,7 +369,7 @@ cd backend
 pytest -v
 ```
 
-59 tests covering models, APIs, brain components, swarm agents, validator, and multi-target pipeline.
+68 tests covering models, APIs, brain components (including ExploitEngine), swarm agents, validator, and multi-target pipeline.
 
 ---
 
@@ -352,8 +379,8 @@ pytest -v
 FORGE/
 ├── backend/
 │   ├── app/
-│   │   ├── api/          # REST endpoints (engagements, gates, knowledge, system, start)
-│   │   ├── brain/        # SemanticModeler, CodebaseModeler, CampaignPlanner, MemoryEngine
+│   │   ├── api/          # REST endpoints (engagements, findings, gates, knowledge, system, start)
+│   │   ├── brain/        # SemanticModeler, CodebaseModeler, CampaignPlanner, ExploitEngine, MemoryEngine
 │   │   ├── knowledge/    # Vector store (Qdrant) + graph store (Neo4j)
 │   │   ├── models/       # SQLAlchemy ORM models
 │   │   ├── swarm/        # Agents, scheduler, health monitor, task board
@@ -364,10 +391,10 @@ FORGE/
 │   └── tests/
 ├── frontend/
 │   └── src/
-│       ├── api/          # Typed API clients
-│       ├── components/   # EngagementDashboard, SwarmMonitor, HumanGate, FindingsPanel, ReportViewer
+│       ├── api/          # Typed API clients (engagements, findings)
+│       ├── components/   # EngagementDashboard, SwarmMonitor, HumanGate, FindingsPanel, ExploitWalkthrough, AttackPathDiagram
 │       ├── hooks/        # useSwarmStream
-│       ├── pages/        # Home, Engagement
+│       ├── pages/        # Home, Engagement, FindingDetail
 │       ├── store/        # Zustand engagement store
 │       └── types/        # Shared TypeScript types
 └── docker-compose.yml
