@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import engagements, gates, knowledge, system
+from app.api import engagements, findings, gates, knowledge, system
 from app.api.start import router as start_router
 from app.config import settings
 from app.ws.stream import stream_manager
@@ -37,6 +37,7 @@ async def health():
 
 
 app.include_router(engagements.router)
+app.include_router(findings.router)
 app.include_router(gates.router)
 app.include_router(knowledge.router)
 app.include_router(system.router)
