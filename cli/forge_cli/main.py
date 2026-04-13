@@ -188,8 +188,10 @@ def status(ctx, engagement_id, watch):
               help="Filter by severity")
 @click.option("--json", "as_json", is_flag=True, help="Output raw JSON")
 @click.option("--output", "-o", type=click.Path(), help="Save JSON to file")
+@click.option("--exploit", "show_exploit", is_flag=True,
+              help="Generate and show exploit walkthrough for each finding")
 @click.pass_context
-def findings(ctx, engagement_id, severity, as_json, output):
+def findings(ctx, engagement_id, severity, as_json, output, show_exploit):
     """Show findings for an engagement."""
     client = get_client(ctx)
 
@@ -230,6 +232,20 @@ def findings(ctx, engagement_id, severity, as_json, output):
     console.print(severity_summary(all_findings))
     console.print(findings_table(all_findings))
 
+    # If --exploit flag: generate and print exploit for each finding
+    if show_exploit and all_findings and not as_json and not output:
+        from forge_cli.display import render_exploit
+        for f in all_findings:
+            fid = f.get('id')
+            if not fid:
+                continue
+            console.print(f"\n[dim]Generating exploit for {fid[:8]}…[/dim]")
+            try:
+                exploit_data = client._request("POST", f"/api/v1/findings/{fid}/exploit")
+                render_exploit(f, exploit_data)
+            except (APIError, ConnectionError) as e:
+                console.print(f"[red]Failed for {fid[:8]}: {e}[/red]")
+
 
 # ── forge gate ───────────────────────────────────────────────────────────────
 
@@ -264,6 +280,39 @@ def gate_reject(ctx, engagement_id, notes):
         console.print(f"[red]✗[/red] Gate rejected — status: [bold]{eng['status']}[/bold]")
     except (APIError, ConnectionError) as e:
         err(str(e))
+
+
+# ── forge exploit ─────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.argument("finding_id")
+@click.pass_context
+def exploit(ctx, finding_id):
+    """Generate and display exploit walkthrough for a finding.
+
+    \b
+    Examples:
+      forge exploit <finding-id>
+    """
+    client = get_client(ctx)
+
+    try:
+        finding = client._request("GET", f"/api/v1/findings/{finding_id}")
+    except APIError as e:
+        err(str(e))
+    except ConnectionError as e:
+        err(str(e))
+
+    with console.status("[bold orange1]Generating exploit intelligence…[/bold orange1]"):
+        try:
+            exploit_data = client._request("POST", f"/api/v1/findings/{finding_id}/exploit")
+        except APIError as e:
+            err(str(e))
+        except ConnectionError as e:
+            err(str(e))
+
+    from forge_cli.display import render_exploit
+    render_exploit(finding, exploit_data)
 
 
 # ── forge report ─────────────────────────────────────────────────────────────
@@ -341,6 +390,25 @@ def report(ctx, engagement_id, output):
                 lines += [f"**Evidence:**", f"```", ev[:500], f"```", ""]
             if rec:
                 lines += [f"**Recommendation:** {rec}", ""]
+            # Exploit walkthrough (if generated)
+            exploit_detail = f.get("exploit_detail")
+            if exploit_detail:
+                lines += [f"**Difficulty:** {exploit_detail.get('difficulty', 'unknown')}", ""]
+                lines += [f"**Impact:** {exploit_detail.get('impact', '')}", ""]
+                prereqs = exploit_detail.get('prerequisites', [])
+                if prereqs:
+                    lines += ["**Prerequisites:**"]
+                    for p in prereqs:
+                        lines += [f"- {p}"]
+                    lines += [""]
+                walkthrough = exploit_detail.get('walkthrough', [])
+                if walkthrough:
+                    lines += ["**Exploit Walkthrough:**", ""]
+                    for step in walkthrough:
+                        lines += [f"**Step {step['step']}: {step['title']}**", ""]
+                        lines += [step['detail'], ""]
+                        if step.get('code'):
+                            lines += [f"```bash", step['code'], f"```", ""]
             lines.append("---")
             lines.append("")
 
