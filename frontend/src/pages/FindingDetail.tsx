@@ -80,7 +80,7 @@ export function FindingDetailPage() {
       {/* Header */}
       <header className="border-b border-gray-800 px-6 py-4 flex items-center gap-4">
         <button
-          onClick={() => navigate(`/engagements/${engagementId}`)}
+          onClick={() => navigate(`/engagement/${engagementId}`)}
           className="text-gray-400 hover:text-gray-100 transition-colors"
         >
           &larr; Back to Engagement

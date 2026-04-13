@@ -48,7 +48,7 @@ export function FindingsPanel() {
                     </td>
                     <td className="py-2 pr-2 text-gray-200 max-w-[180px] truncate">
                       <Link
-                        to={`/engagements/${f.engagement_id}/findings/${f.id}`}
+                        to={`/engagement/${f.engagement_id}/findings/${f.id}`}
                         className="hover:text-orange-400 transition-colors"
                       >
                         {vulnClass}
