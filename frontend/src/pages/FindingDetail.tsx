@@ -238,6 +238,9 @@ export function FindingDetailPage() {
               >
                 {pocLoading ? 'Generating…' : 'Generate PoC'}
               </button>
+              {error && (
+                <p className="text-red-400 text-xs">{error}</p>
+              )}
             </div>
           )}
         </div>
