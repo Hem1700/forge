@@ -43,6 +43,12 @@ class _LLMWrapper:
 
 
 class PoCEngine:
+    """Generates runnable PoC exploit scripts for confirmed vulnerabilities.
+
+    Uses an LLM to produce a target-specific script, sequence diagram,
+    dependency setup commands, and usage notes for a given vulnerability finding.
+    """
+
     def __init__(self):
         _chat = ChatAnthropic(
             model="claude-sonnet-4-6",
@@ -52,6 +58,18 @@ class PoCEngine:
         self._llm = _LLMWrapper(_chat)
 
     async def generate(self, finding: dict, context: dict) -> dict:
+        """Generate a PoC exploit script for a vulnerability finding.
+
+        Args:
+            finding: Vulnerability details including vulnerability_class,
+                severity, affected_surface, description, and evidence.
+            context: Target context including target_url, target_type,
+                and app_type.
+
+        Returns:
+            Dict with language, filename, script, setup, notes,
+            and sequence_diagram fields.
+        """
         evidence = finding.get("evidence", [])
         evidence_str = json.dumps(evidence)[:1000] if evidence else "none"
 
