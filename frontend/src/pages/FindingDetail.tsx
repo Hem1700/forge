@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { findingsApi } from '../api/findings'
 import { ExploitWalkthrough } from '../components/ExploitWalkthrough'
 import { AttackPathDiagram } from '../components/AttackPathDiagram'
+import { PoCScript } from '../components/PoCScript'
+import { ExploitSequenceDiagram } from '../components/ExploitSequenceDiagram'
 import type { FindingDetail, Severity } from '../types'
 
 const SEVERITY_COLORS: Record<Severity, string> = {
@@ -28,6 +30,7 @@ export function FindingDetailPage() {
   const [finding, setFinding] = useState<FindingDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [exploitLoading, setExploitLoading] = useState(false)
+  const [pocLoading, setPocLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -38,6 +41,19 @@ export function FindingDetailPage() {
       .catch(() => setError('Finding not found'))
       .finally(() => setLoading(false))
   }, [findingId])
+
+  async function handleGeneratePoC() {
+    if (!findingId) return
+    setPocLoading(true)
+    try {
+      const poc = await findingsApi.generatePoC(findingId)
+      setFinding((prev) => (prev ? { ...prev, poc_detail: poc } : prev))
+    } catch {
+      setError('Failed to generate PoC. Check backend logs.')
+    } finally {
+      setPocLoading(false)
+    }
+  }
 
   async function handleGenerateExploit() {
     if (!findingId) return
@@ -185,6 +201,43 @@ export function FindingDetailPage() {
               {error && (
                 <p className="text-red-400 text-xs">{error}</p>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* PoC Script */}
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
+          <h2 className="font-semibold text-gray-100 mb-5 text-base">
+            PoC Script
+          </h2>
+
+          {finding.poc_detail ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div>
+                <p className="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-3">
+                  Script
+                </p>
+                <PoCScript poc={finding.poc_detail} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-3">
+                  Exploit Sequence
+                </p>
+                <ExploitSequenceDiagram source={finding.poc_detail.sequence_diagram} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center py-10 gap-3">
+              <p className="text-gray-500 text-sm">
+                No PoC script generated yet.
+              </p>
+              <button
+                onClick={handleGeneratePoC}
+                disabled={pocLoading}
+                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-md font-medium transition-colors text-sm"
+              >
+                {pocLoading ? 'Generating…' : 'Generate PoC'}
+              </button>
             </div>
           )}
         </div>
