@@ -58,8 +58,18 @@ export interface ExploitDetail {
   difficulty: 'easy' | 'medium' | 'hard'
 }
 
+export interface PoCDetail {
+  language: string
+  filename: string
+  script: string
+  setup: string[]
+  notes: string
+  sequence_diagram: string
+}
+
 export interface FindingDetail extends Finding {
   exploit_detail?: ExploitDetail | null
+  poc_detail?: PoCDetail | null
   reproduction_steps?: string[]
   validation_status?: string
 }
