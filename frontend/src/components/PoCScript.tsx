@@ -13,11 +13,17 @@ const LANGUAGE_COLORS: Record<string, string> = {
 
 export function PoCScript({ poc }: PoCScriptProps) {
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState(false)
 
-  function handleCopy() {
-    navigator.clipboard.writeText(poc.script)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(poc.script)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopyError(true)
+      setTimeout(() => setCopyError(false), 2000)
+    }
   }
 
   function handleDownload() {
@@ -45,7 +51,7 @@ export function PoCScript({ poc }: PoCScriptProps) {
             onClick={handleCopy}
             className="text-xs text-gray-400 hover:text-gray-100 bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded transition-colors"
           >
-            {copied ? 'Copied!' : 'Copy'}
+            {copyError ? 'Copy failed' : copied ? 'Copied!' : 'Copy'}
           </button>
           <button
             onClick={handleDownload}
@@ -62,7 +68,7 @@ export function PoCScript({ poc }: PoCScriptProps) {
       </pre>
 
       {/* Setup */}
-      {poc.setup.length > 0 && (
+      {(poc.setup ?? []).length > 0 && (
         <div className="text-xs text-gray-400">
           <span className="text-gray-500">Setup: </span>
           {poc.setup.map((cmd, i) => (
