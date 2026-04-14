@@ -40,4 +40,5 @@ class Finding(Base):
     validation_report: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     confidence_score: Mapped[float] = mapped_column(Float, default=0.0)
     exploit_detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    poc_detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
