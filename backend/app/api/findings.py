@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.finding import Finding
 from app.models.engagement import Engagement
 from app.brain.exploit_engine import ExploitEngine
+from app.brain.poc_engine import PoCEngine
 
 router = APIRouter(prefix="/api/v1/findings", tags=["findings"])
 
@@ -27,6 +28,7 @@ def _serialize_finding(f: Finding) -> dict:
         "validation_status": f.validation_status.value,
         "reproduction_steps": f.reproduction_steps,
         "exploit_detail": f.exploit_detail,
+        "poc_detail": f.poc_detail,
         "created_at": f.created_at.isoformat(),
     }
 
@@ -68,3 +70,42 @@ async def generate_exploit(
     finding.exploit_detail = exploit
     await db.commit()
     return exploit
+
+
+@router.get("/{finding_id}/poc")
+async def get_poc(
+    finding_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    finding = await db.get(Finding, finding_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    return {"poc_detail": finding.poc_detail}
+
+
+@router.post("/{finding_id}/poc")
+async def generate_poc(
+    finding_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    finding = await db.get(Finding, finding_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    if finding.poc_detail:
+        return finding.poc_detail
+
+    engagement = await db.get(Engagement, finding.engagement_id)
+    context = {
+        "target_url": engagement.target_url if engagement else None,
+        "target_path": engagement.target_path if engagement else None,
+        "target_type": engagement.target_type if engagement else "web",
+        "app_type": (engagement.semantic_model or {}).get("app_type", "unknown") if engagement else "unknown",
+    }
+
+    engine = PoCEngine()
+    poc = await engine.generate(_serialize_finding(finding), context)
+
+    finding.poc_detail = poc
+    await db.commit()
+    return poc

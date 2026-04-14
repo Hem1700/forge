@@ -147,3 +147,92 @@ async def test_generate_exploit_persists_result(http_client, db_session):
     await db_session.refresh(finding)
     assert finding.exploit_detail is not None
     assert finding.exploit_detail["difficulty"] == "easy"
+
+
+MOCK_POC = {
+    "language": "python",
+    "filename": "poc_sqli_api_users.py",
+    "script": "#!/usr/bin/env python3\nimport requests\n\nTARGET_URL = 'https://example.com'\n\ndef exploit():\n    r = requests.get(f'{TARGET_URL}/api/users', params={'id': \"1' OR '1'='1\"})\n    print(r.json())\n\nif __name__ == '__main__':\n    exploit()",
+    "setup": ["pip install requests"],
+    "notes": "Replace TARGET_URL before running.",
+    "sequence_diagram": "sequenceDiagram\n  participant Attacker\n  participant Server\n  Attacker->>Server: GET /api/users?id=1' OR '1'='1\n  Server-->>Attacker: 200 OK",
+}
+
+
+@pytest.mark.asyncio
+async def test_get_poc_returns_404_for_unknown_finding(http_client):
+    fake_id = str(uuid.uuid4())
+    response = await http_client.get(f"/api/v1/findings/{fake_id}/poc")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_poc_returns_null_when_not_generated(http_client, db_session):
+    eng = await _create_engagement(db_session)
+    finding = await _create_finding(db_session, eng.id)
+
+    response = await http_client.get(f"/api/v1/findings/{finding.id}/poc")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["poc_detail"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_poc_returns_poc_detail_when_set(http_client, db_session):
+    eng = await _create_engagement(db_session)
+    finding = await _create_finding(db_session, eng.id)
+    finding.poc_detail = MOCK_POC
+    await db_session.commit()
+
+    response = await http_client.get(f"/api/v1/findings/{finding.id}/poc")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["poc_detail"]["language"] == "python"
+    assert data["poc_detail"]["filename"] == "poc_sqli_api_users.py"
+
+
+@pytest.mark.asyncio
+async def test_generate_poc_returns_cached_when_already_set(http_client, db_session):
+    eng = await _create_engagement(db_session)
+    finding = await _create_finding(db_session, eng.id)
+    finding.poc_detail = MOCK_POC
+    await db_session.commit()
+
+    response = await http_client.post(f"/api/v1/findings/{finding.id}/poc")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["language"] == "python"
+    assert data["filename"] == "poc_sqli_api_users.py"
+
+
+@pytest.mark.asyncio
+async def test_generate_poc_calls_engine_when_not_cached(http_client, db_session):
+    eng = await _create_engagement(db_session)
+    finding = await _create_finding(db_session, eng.id)
+
+    mock_engine = MagicMock()
+    mock_engine.generate = AsyncMock(return_value=MOCK_POC)
+
+    with patch("app.api.findings.PoCEngine", return_value=mock_engine):
+        response = await http_client.post(f"/api/v1/findings/{finding.id}/poc")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["script"].startswith("#!/usr/bin/env python3")
+    mock_engine.generate.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_generate_poc_persists_result(http_client, db_session):
+    eng = await _create_engagement(db_session)
+    finding = await _create_finding(db_session, eng.id)
+
+    mock_engine = MagicMock()
+    mock_engine.generate = AsyncMock(return_value=MOCK_POC)
+
+    with patch("app.api.findings.PoCEngine", return_value=mock_engine):
+        await http_client.post(f"/api/v1/findings/{finding.id}/poc")
+
+    await db_session.refresh(finding)
+    assert finding.poc_detail is not None
+    assert finding.poc_detail["language"] == "python"
