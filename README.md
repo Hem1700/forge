@@ -1,6 +1,6 @@
 # FORGE — Framework for Offensive Reasoning, Generation and Exploitation
 
-A multi-agent autonomous pentesting platform. FORGE supports web applications, local codebases, and CLI tools — with a Strategic Brain + Tactical Swarm architecture, per-finding exploit intelligence, human-in-the-loop gates, and live WebSocket streaming.
+A multi-agent autonomous pentesting platform. FORGE supports web applications, local codebases, and CLI tools — with a Strategic Brain + Tactical Swarm architecture, per-finding exploit intelligence, runnable PoC script generation, human-in-the-loop gates, and live WebSocket streaming.
 
 ---
 
@@ -8,11 +8,12 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 
 - **Strategic Brain** — semantic app modeler, codebase modeler, campaign planner, evasion strategist, memory engine (LangChain + Claude)
 - **Exploit Engine** — on-demand LLM-generated exploit walkthroughs, Mermaid attack path diagrams, impact analysis, and difficulty scoring per finding
+- **PoC Engine** — on-demand runnable exploit script generation (Python or bash, auto-selected by vuln class), Mermaid sequence diagrams showing the attack flow, cached per finding
 - **Tactical Swarm** — autonomous agents (recon, probe, evasion, code analyzer, dependency scanner, fuzzer, deep exploit) coordinated by an auction-based scheduler
 - **Adversarial Validator** — challenger, context filter, severity scorer, confidence threshold gate
 - **Knowledge Base** — Qdrant vector store + Neo4j graph store for cross-engagement learning
 - **REST API + WebSocket** — FastAPI backend with live swarm event streaming
-- **React Frontend** — real-time engagement dashboard, per-finding detail pages, attack path visualization, and human gate UI
+- **React Frontend** — real-time engagement dashboard, per-finding detail pages, attack path visualization, PoC script viewer with copy/download, sequence diagram rendering, and human gate UI
 
 ---
 
@@ -160,6 +161,9 @@ forge findings <engagement-id> --severity high
 # Generate and display exploit walkthroughs for all findings
 forge findings <engagement-id> --exploit
 
+# Generate and save PoC scripts for all findings
+forge findings <engagement-id> --poc
+
 # Output raw JSON
 forge findings <engagement-id> --json
 
@@ -181,6 +185,22 @@ Output includes:
 - Impact summary and prerequisites
 - Difficulty rating (easy / medium / hard)
 
+#### `forge poc <finding-id>` — generate a PoC exploit script
+
+Generate a runnable exploit script for a specific finding. The language is auto-selected based on vulnerability class (Python for SQLi/XSS/SSRF/IDOR/etc., bash for command injection/path traversal). The script is saved to the current directory. Result is cached — subsequent calls return instantly.
+
+```bash
+forge poc <finding-id>
+```
+
+Output includes:
+- Language badge and filename (e.g. `poc_sqli_api_users.py`)
+- Syntax-highlighted script with line numbers
+- Setup commands (e.g. `pip install requests`)
+- Usage notes
+- ASCII exploit sequence (`Attacker ──► Server: GET /api/users?id=1' OR '1'='1`)
+- Saved file confirmation
+
 #### `forge report <id>` — generate a markdown report
 
 ```bash
@@ -191,7 +211,7 @@ forge report <engagement-id>
 forge report <engagement-id> --output report.md
 ```
 
-When exploit walkthroughs have been generated, the report includes them automatically under each finding.
+When exploit walkthroughs or PoC scripts have been generated, the report includes them automatically under each finding.
 
 #### `forge gate approve/reject <id>` — human gate decisions
 
@@ -238,7 +258,10 @@ forge findings <id> --severity critical
 # 5. Drill into a specific finding's exploit walkthrough
 forge exploit <finding-id>
 
-# 6. Export full report (includes exploit walkthroughs if generated)
+# 6. Generate a runnable PoC script for a finding (saved to disk)
+forge poc <finding-id>
+
+# 7. Export full report (includes exploit walkthroughs + PoC scripts if generated)
 forge report <id> --output report.md
 ```
 
@@ -257,6 +280,7 @@ forge report <id> --output report.md
 7. Approve or reject **Human Gates** when prompted
 8. View findings in the **Findings Panel** — click any finding row to open its detail page
 9. On the finding detail page, click **Generate Exploit** to produce a step-by-step walkthrough and visual attack path diagram
+10. Click **Generate PoC** to produce a runnable exploit script and sequence diagram — copy to clipboard or download the file directly
 10. Export the full report via **Report Viewer**
 
 ### Via the API
@@ -350,8 +374,10 @@ Analyzes a compiled binary file (ELF, PE, Mach-O). Same agents as local codebase
 | `DELETE` | `/api/v1/engagements/{id}` | Delete engagement |
 | `POST` | `/api/v1/engagements/{id}/start` | Launch the full pipeline |
 | `POST` | `/api/v1/gates/{id}/decide` | Approve or reject a human gate |
-| `GET` | `/api/v1/findings/{id}` | Get full finding detail (includes `exploit_detail` if generated) |
+| `GET` | `/api/v1/findings/{id}` | Get full finding detail (includes `exploit_detail`, `poc_detail` if generated) |
 | `POST` | `/api/v1/findings/{id}/exploit` | Generate (or return cached) exploit walkthrough |
+| `GET` | `/api/v1/findings/{id}/poc` | Get PoC detail for a finding (null if not yet generated) |
+| `POST` | `/api/v1/findings/{id}/poc` | Generate (or return cached) PoC script + sequence diagram |
 | `GET` | `/api/v1/knowledge/` | List knowledge base entries |
 | `GET` | `/api/v1/knowledge/attack-class/{class}` | Filter knowledge by attack class |
 | `GET` | `/api/v1/system/stats` | Engagement / finding / knowledge counts |
@@ -369,7 +395,7 @@ cd backend
 pytest -v
 ```
 
-68 tests covering models, APIs, brain components (including ExploitEngine), swarm agents, validator, and multi-target pipeline.
+78 tests covering models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, and multi-target pipeline.
 
 ---
 
@@ -380,7 +406,7 @@ FORGE/
 ├── backend/
 │   ├── app/
 │   │   ├── api/          # REST endpoints (engagements, findings, gates, knowledge, system, start)
-│   │   ├── brain/        # SemanticModeler, CodebaseModeler, CampaignPlanner, ExploitEngine, MemoryEngine
+│   │   ├── brain/        # SemanticModeler, CodebaseModeler, CampaignPlanner, ExploitEngine, PoCEngine, MemoryEngine
 │   │   ├── knowledge/    # Vector store (Qdrant) + graph store (Neo4j)
 │   │   ├── models/       # SQLAlchemy ORM models
 │   │   ├── swarm/        # Agents, scheduler, health monitor, task board
@@ -392,7 +418,7 @@ FORGE/
 ├── frontend/
 │   └── src/
 │       ├── api/          # Typed API clients (engagements, findings)
-│       ├── components/   # EngagementDashboard, SwarmMonitor, HumanGate, FindingsPanel, ExploitWalkthrough, AttackPathDiagram
+│       ├── components/   # EngagementDashboard, SwarmMonitor, HumanGate, FindingsPanel, ExploitWalkthrough, AttackPathDiagram, PoCScript, ExploitSequenceDiagram
 │       ├── hooks/        # useSwarmStream
 │       ├── pages/        # Home, Engagement, FindingDetail
 │       ├── store/        # Zustand engagement store
