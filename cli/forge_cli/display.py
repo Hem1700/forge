@@ -229,3 +229,75 @@ def render_exploit(finding: dict, exploit: dict) -> None:
         console.print(Rule("[bold orange1]ATTACK PATH[/bold orange1]"))
         console.print(mermaid_to_ascii(mermaid_src))
         console.print()
+
+
+def sequence_to_ascii(source: str) -> str:
+    """Parse Mermaid sequenceDiagram syntax into ASCII arrow lines."""
+    lines = []
+    for line in source.split('\n'):
+        line = line.strip()
+        # Match: ParticipantA->>ParticipantB: label  or  ParticipantA-->>ParticipantB: label
+        m = _re.match(r'(\w+)-{1,2}>?>(\w+):\s*(.*)', line)
+        if m:
+            src = m.group(1).strip()
+            dst = m.group(2).strip()
+            label = m.group(3).strip()
+            arrow = '──►' if '->>' in line and '-->>' not in line else '--►'
+            lines.append(f"  {src} {arrow} {dst}: {label}")
+    return '\n'.join(lines) if lines else "  (no sequence data)"
+
+
+def render_poc(finding: dict, poc: dict) -> None:
+    """Print a Rich-formatted PoC report to the console."""
+    from rich.panel import Panel as _Panel
+    from rich.rule import Rule
+    from rich.syntax import Syntax
+    import os
+
+    sev = finding.get('severity', 'info').upper()
+    vuln = finding.get('vulnerability_class') or finding.get('title', 'Finding')
+    location = finding.get('affected_surface', '')
+    language = poc.get('language', 'python')
+    filename = poc.get('filename', 'poc.py')
+
+    console.print(_Panel(
+        f"[bold orange1]Severity:[/bold orange1]   {sev}\n"
+        f"[bold orange1]Location:[/bold orange1]   [cyan]{location}[/cyan]\n"
+        f"[bold orange1]Language:[/bold orange1]   {language}\n"
+        f"[bold orange1]File:[/bold orange1]       {filename}",
+        title=f"[bold]{vuln}[/bold]",
+        border_style="orange1",
+    ))
+
+    # Script
+    console.print(Rule("[bold orange1]POC SCRIPT[/bold orange1]"))
+    script = poc.get('script', '')
+    if script:
+        console.print(Syntax(script, language, theme="monokai", line_numbers=True, padding=(0, 2)))
+
+    # Setup
+    setup = poc.get('setup', [])
+    if setup:
+        console.print(Rule("[bold orange1]SETUP[/bold orange1]"))
+        for cmd in setup:
+            console.print(f"  [dim]•[/dim] [cyan]{cmd}[/cyan]")
+        console.print()
+
+    # Notes
+    notes = poc.get('notes', '')
+    if notes:
+        console.print(Rule("[bold orange1]NOTES[/bold orange1]"))
+        console.print(f"  [dim]{notes}[/dim]\n")
+
+    # Sequence diagram
+    seq_src = poc.get('sequence_diagram', '')
+    if seq_src:
+        console.print(Rule("[bold orange1]EXPLOIT SEQUENCE[/bold orange1]"))
+        console.print(sequence_to_ascii(seq_src))
+        console.print()
+
+    # Write file to disk
+    out_path = os.path.join(os.getcwd(), filename)
+    with open(out_path, 'w') as fh:
+        fh.write(script)
+    console.print(f"[green]✓[/green] Saved to [cyan]{out_path}[/cyan]\n")
