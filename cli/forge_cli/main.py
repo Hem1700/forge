@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from typing import NoReturn
 import click
 from rich.console import Console
 from rich.panel import Panel
@@ -24,7 +25,7 @@ def get_client(ctx) -> ForgeClient:
     return ForgeClient(ctx.obj.get("api_url", DEFAULT_API))
 
 
-def err(msg: str):
+def err(msg: str) -> NoReturn:
     console.print(f"[bold red]Error:[/bold red] {msg}")
     sys.exit(1)
 
