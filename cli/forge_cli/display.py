@@ -297,7 +297,9 @@ def render_poc(finding: dict, poc: dict) -> None:
         console.print()
 
     # Write file to disk
-    out_path = os.path.join(os.getcwd(), filename)
-    with open(out_path, 'w') as fh:
-        fh.write(script)
-    console.print(f"[green]✓[/green] Saved to [cyan]{out_path}[/cyan]\n")
+    if script:
+        safe_name = os.path.basename(filename)
+        out_path = os.path.join(os.getcwd(), safe_name)
+        with open(out_path, 'w') as fh:
+            fh.write(script)
+        console.print(f"[green]✓[/green] Saved to [cyan]{out_path}[/cyan]\n")
