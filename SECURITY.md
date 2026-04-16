@@ -16,7 +16,7 @@ FORGE is a pentesting platform — security matters here more than most projects
 
 Instead, report vulnerabilities privately:
 
-**Email:** hemparekh1596@gmail.com
+**Open a [GitHub Security Advisory](https://github.com/Hem1700/forge/security/advisories/new)** — this lets you report privately through GitHub without exposing details publicly.
 
 Include in your report:
 - A description of the vulnerability and its potential impact
