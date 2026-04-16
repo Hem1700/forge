@@ -190,8 +190,10 @@ def status(ctx, engagement_id, watch):
 @click.option("--output", "-o", type=click.Path(), help="Save JSON to file")
 @click.option("--exploit", "show_exploit", is_flag=True,
               help="Generate and show exploit walkthrough for each finding")
+@click.option("--poc", "show_poc", is_flag=True,
+              help="Generate and save PoC script for each finding")
 @click.pass_context
-def findings(ctx, engagement_id, severity, as_json, output, show_exploit):
+def findings(ctx, engagement_id, severity, as_json, output, show_exploit, show_poc):
     """Show findings for an engagement."""
     client = get_client(ctx)
 
@@ -243,6 +245,20 @@ def findings(ctx, engagement_id, severity, as_json, output, show_exploit):
             try:
                 exploit_data = client._request("POST", f"/api/v1/findings/{fid}/exploit", timeout=120)
                 render_exploit(f, exploit_data)
+            except (APIError, ConnectionError) as e:
+                console.print(f"[red]Failed for {fid[:8]}: {e}[/red]")
+
+    # If --poc flag: generate and save PoC for each finding
+    if show_poc and all_findings and not as_json and not output:
+        from forge_cli.display import render_poc
+        for f in all_findings:
+            fid = f.get('id')
+            if not fid:
+                continue
+            console.print(f"\n[dim]Generating PoC for {fid[:8]}…[/dim]")
+            try:
+                poc_data = client._request("POST", f"/api/v1/findings/{fid}/poc", timeout=120)
+                render_poc(f, poc_data)
             except (APIError, ConnectionError) as e:
                 console.print(f"[red]Failed for {fid[:8]}: {e}[/red]")
 
@@ -313,6 +329,39 @@ def exploit(ctx, finding_id):
 
     from forge_cli.display import render_exploit
     render_exploit(finding, exploit_data)
+
+
+# ── forge poc ─────────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.argument("finding_id")
+@click.pass_context
+def poc(ctx, finding_id):
+    """Generate and save PoC exploit script for a finding.
+
+    \b
+    Examples:
+      forge poc <finding-id>
+    """
+    client = get_client(ctx)
+
+    try:
+        finding = client._request("GET", f"/api/v1/findings/{finding_id}")
+    except APIError as e:
+        err(str(e))
+    except ConnectionError as e:
+        err(str(e))
+
+    with console.status("[bold orange1]Generating PoC script…[/bold orange1]"):
+        try:
+            poc_data = client._request("POST", f"/api/v1/findings/{finding_id}/poc", timeout=120)
+        except APIError as e:
+            err(str(e))
+        except ConnectionError as e:
+            err(str(e))
+
+    from forge_cli.display import render_poc
+    render_poc(finding, poc_data)
 
 
 # ── forge report ─────────────────────────────────────────────────────────────
@@ -409,6 +458,21 @@ def report(ctx, engagement_id, output):
                         lines += [step['detail'], ""]
                         if step.get('code'):
                             lines += [f"```bash", step['code'], f"```", ""]
+            # PoC script (if generated)
+            poc_detail = f.get("poc_detail")
+            if poc_detail:
+                lang = poc_detail.get('language', 'python')
+                fname = poc_detail.get('filename', 'poc.py')
+                script = poc_detail.get('script', '')
+                setup = poc_detail.get('setup', [])
+                notes = poc_detail.get('notes', '')
+                lines += [f"**PoC Script** (`{fname}`)", ""]
+                if setup:
+                    lines += [f"**Setup:** `{'`, `'.join(setup)}`", ""]
+                if notes:
+                    lines += [f"**Notes:** {notes}", ""]
+                if script:
+                    lines += [f"```{lang}", script, "```", ""]
             lines.append("---")
             lines.append("")
 
