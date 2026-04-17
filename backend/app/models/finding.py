@@ -18,6 +18,7 @@ class Severity(str, PyEnum):
 class ValidationStatus(str, PyEnum):
     pending = "pending"
     validated = "validated"
+    confirmed = "confirmed"
     rejected = "rejected"
 
 
@@ -41,4 +42,6 @@ class Finding(Base):
     confidence_score: Mapped[float] = mapped_column(Float, default=0.0)
     exploit_detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     poc_detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    exploit_script: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    exploit_execution: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
