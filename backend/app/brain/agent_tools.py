@@ -1,18 +1,21 @@
 # backend/app/brain/agent_tools.py
 from __future__ import annotations
 import re
+from abc import ABC, abstractmethod
+
 import httpx
 from app.brain.exploit_executor import ExploitExecutor
 
 
-class AgentTool:
+class AgentTool(ABC):
     """Base class for tools available to ReAct agents."""
 
     name: str = ""
     description: str = ""
 
+    @abstractmethod
     async def execute(self, args: dict) -> str:
-        raise NotImplementedError
+        ...
 
 
 class HttpRequestTool(AgentTool):
@@ -33,14 +36,17 @@ class HttpRequestTool(AgentTool):
         body = args.get("body")
         params = args.get("params") or {}
 
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            resp = await client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                content=body,
-                params=params,
-            )
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                resp = await client.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    content=body,
+                    params=params,
+                )
+        except httpx.RequestError as exc:
+            return f"request error: {exc}"
 
         headers_str = "\n".join(f"{k}: {v}" for k, v in resp.headers.items())
         body_preview = resp.text[:4000]
@@ -73,7 +79,10 @@ class ExtractPatternTool(AgentTool):
             except Exception as exc:
                 return f"xpath error: {exc}"
         else:
-            results = re.findall(pattern, text)
+            try:
+                results = re.findall(pattern, text)
+            except re.error as exc:
+                return f"regex error: {exc}"
 
         if not results:
             return "no matches found"
@@ -102,6 +111,7 @@ class SubprocessTool(AgentTool):
                 f"Choose from: {', '.join(sorted(self.ALLOWED_TOOLS))}"
             )
 
+        # Note: tool_args is passed to the container shell as-is. Only use with trusted input.
         script = f"#!/bin/bash\n{tool_name} {tool_args}"
         executor = ExploitExecutor()
         result = await executor.execute(

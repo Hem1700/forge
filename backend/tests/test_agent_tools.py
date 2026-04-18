@@ -1,5 +1,6 @@
 # backend/tests/test_agent_tools.py
 import pytest
+import httpx
 from unittest.mock import AsyncMock, MagicMock, patch
 from app.brain.agent_tools import HttpRequestTool, ExtractPatternTool, SubprocessTool
 
@@ -91,3 +92,17 @@ async def test_subprocess_tool_runs_allowed_tool_in_kali_image():
     call_kwargs = mock_executor.execute.call_args[1]
     assert call_kwargs.get("image") == "kalilinux/kali-rolling"
     assert call_kwargs.get("timeout") == 120
+
+
+@pytest.mark.asyncio
+async def test_http_request_tool_returns_error_string_on_network_failure():
+    tool = HttpRequestTool()
+    mock_client = AsyncMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.request = AsyncMock(side_effect=httpx.ConnectError("connection refused"))
+
+    with patch("app.brain.agent_tools.httpx.AsyncClient", return_value=mock_client):
+        result = await tool.execute({"method": "GET", "url": "https://unreachable.example"})
+
+    assert "request error" in result
