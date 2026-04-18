@@ -16,9 +16,10 @@ class ForgeClient:
     def __init__(self, base_url: str = "http://localhost:8080"):
         self.base_url = base_url.rstrip("/")
 
-    def _request(self, method: str, path: str, body: dict | None = None, timeout: int = 30) -> Any:
+    def _request(self, method: str, path: str, body: dict | None = None, timeout: int = 30, json_body: dict | None = None) -> Any:
         url = f"{self.base_url}{path}"
-        data = json.dumps(body).encode() if body is not None else None
+        payload = json_body if json_body is not None else body
+        data = json.dumps(payload).encode() if payload is not None else None
         req = urllib.request.Request(
             url,
             data=data,

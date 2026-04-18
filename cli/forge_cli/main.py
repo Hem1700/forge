@@ -193,8 +193,10 @@ def status(ctx, engagement_id, watch):
               help="Generate and show exploit walkthrough for each finding")
 @click.option("--poc", "show_poc", is_flag=True,
               help="Generate and save PoC script for each finding")
+@click.option("--execute", "show_execute", is_flag=True,
+              help="Generate script and execute exploit for each finding (prompts per finding)")
 @click.pass_context
-def findings(ctx, engagement_id, severity, as_json, output, show_exploit, show_poc):
+def findings(ctx, engagement_id, severity, as_json, output, show_exploit, show_poc, show_execute):
     """Show findings for an engagement."""
     client = get_client(ctx)
 
@@ -262,6 +264,30 @@ def findings(ctx, engagement_id, severity, as_json, output, show_exploit, show_p
                 render_poc(f, poc_data)
             except (APIError, ConnectionError) as e:
                 console.print(f"[red]Failed for {fid[:8]}: {e}[/red]")
+
+    # If --execute flag: generate script and execute exploit for each finding
+    if show_execute and all_findings and not as_json and not output:
+        from forge_cli.display import render_execution
+        for f in all_findings:
+            fid = f.get('id')
+            if not fid:
+                continue
+            target = f.get('affected_surface', fid[:8])
+            console.print(f"\n[bold yellow]⚠  Execute exploit for [{f.get('severity','').upper()}] {f.get('vulnerability_class','Finding')} — {target}?[/bold yellow]")
+            if not click.confirm("  Proceed?", default=False):
+                console.print("[dim]Skipped.[/dim]")
+                continue
+            with console.status("[bold red]Executing…[/bold red]"):
+                try:
+                    execution = client._request(
+                        "POST",
+                        f"/api/v1/findings/{fid}/exploit/execute",
+                        timeout=90,
+                        json_body={"confirmed": True},
+                    )
+                    render_execution(f, execution)
+                except (APIError, ConnectionError) as e:
+                    console.print(f"[red]Failed for {fid[:8]}: {e}[/red]")
 
 
 # ── forge gate ───────────────────────────────────────────────────────────────
@@ -363,6 +389,107 @@ def poc(ctx, finding_id):
 
     from forge_cli.display import render_poc
     render_poc(finding, poc_data)
+
+
+# ── forge exploit-script ──────────────────────────────────────────────────────
+
+@cli.command("exploit-script")
+@click.argument("finding_id")
+@click.pass_context
+def exploit_script(ctx, finding_id):
+    """Generate and save a weaponized exploit script for a finding.
+
+    \b
+    Examples:
+      forge exploit-script <finding-id>
+    """
+    client = get_client(ctx)
+
+    try:
+        finding = client._request("GET", f"/api/v1/findings/{finding_id}")
+    except APIError as e:
+        err(str(e))
+    except ConnectionError as e:
+        err(str(e))
+
+    with console.status("[bold red]Generating weaponized exploit script…[/bold red]"):
+        try:
+            script_data = client._request("POST", f"/api/v1/findings/{finding_id}/exploit/generate", timeout=120)
+        except APIError as e:
+            err(str(e))
+        except ConnectionError as e:
+            err(str(e))
+
+    from forge_cli.display import render_exploit_script
+    render_exploit_script(finding, script_data)
+
+
+# ── forge execute ─────────────────────────────────────────────────────────────
+
+@cli.command()
+@click.argument("finding_id")
+@click.option("--confirm", "skip_prompt", is_flag=True,
+              help="Skip interactive confirmation prompt (for scripted use)")
+@click.pass_context
+def execute(ctx, finding_id, skip_prompt):
+    """Execute a weaponized exploit against the real target.
+
+    Generates the exploit script if not already cached, then runs it in an
+    isolated Docker container and prints the LLM verdict.
+
+    \b
+    Examples:
+      forge execute <finding-id>
+      forge execute <finding-id> --confirm
+    """
+    client = get_client(ctx)
+
+    try:
+        finding = client._request("GET", f"/api/v1/findings/{finding_id}")
+    except APIError as e:
+        err(str(e))
+    except ConnectionError as e:
+        err(str(e))
+
+    # Get or generate script to show impact statement
+    script_data = finding.get("exploit_script")
+    if not script_data:
+        with console.status("[bold red]Generating weaponized exploit script…[/bold red]"):
+            try:
+                script_data = client._request("POST", f"/api/v1/findings/{finding_id}/exploit/generate", timeout=120)
+            except APIError as e:
+                err(str(e))
+            except ConnectionError as e:
+                err(str(e))
+
+    target = finding.get("affected_surface", "target")
+    impact = script_data.get("impact_achieved", "Unknown impact")
+
+    console.print(f"\n[bold yellow]⚠  This will execute a live exploit against:[/bold yellow] [cyan]{target}[/cyan]")
+    console.print(f"[bold red]Impact:[/bold red] {impact}")
+
+    if not skip_prompt:
+        if not click.confirm("\n  Execute?", default=False):
+            console.print("[dim]Aborted.[/dim]")
+            return
+
+    console.print("\n[dim]Executing exploit…[/dim]\n")
+
+    with console.status("[bold red]Running exploit in Docker container…[/bold red]"):
+        try:
+            execution = client._request(
+                "POST",
+                f"/api/v1/findings/{finding_id}/exploit/execute",
+                timeout=90,
+                json_body={"confirmed": True},
+            )
+        except APIError as e:
+            err(str(e))
+        except ConnectionError as e:
+            err(str(e))
+
+    from forge_cli.display import render_execution
+    render_execution(finding, execution)
 
 
 # ── forge report ─────────────────────────────────────────────────────────────
@@ -474,6 +601,22 @@ def report(ctx, engagement_id, output):
                     lines += [f"**Notes:** {notes}", ""]
                 if script:
                     lines += [f"```{lang}", script, "```", ""]
+            # Exploit execution (if run)
+            exploit_execution = f.get("exploit_execution")
+            if exploit_execution:
+                verdict = exploit_execution.get('override_verdict') or exploit_execution.get('verdict', 'unknown')
+                confidence = exploit_execution.get('confidence', 0.0)
+                reasoning = exploit_execution.get('reasoning', '')
+                stdout = exploit_execution.get('stdout', '')
+                lines += [
+                    f"**Live Exploitation Result:**",
+                    f"",
+                    f"- **Verdict:** {verdict.upper()} ({int(float(confidence) * 100)}%)",
+                    f"- **Reasoning:** {reasoning}",
+                    "",
+                ]
+                if stdout:
+                    lines += [f"**Output:**", f"```", stdout[:1000], f"```", ""]
             lines.append("---")
             lines.append("")
 

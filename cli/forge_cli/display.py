@@ -303,3 +303,107 @@ def render_poc(finding: dict, poc: dict) -> None:
         with open(out_path, 'w') as fh:
             fh.write(script)
         console.print(f"[green]✓[/green] Saved to [cyan]{out_path}[/cyan]\n")
+
+
+def render_exploit_script(finding: dict, script_data: dict) -> None:
+    """Print a Rich-formatted weaponized exploit script report to the console."""
+    from rich.panel import Panel as _Panel
+    from rich.rule import Rule
+    from rich.syntax import Syntax
+    import os
+
+    sev = finding.get('severity', 'info').upper()
+    vuln = finding.get('vulnerability_class') or finding.get('title', 'Finding')
+    location = finding.get('affected_surface', '')
+    language = script_data.get('language', 'python')
+    filename = script_data.get('filename', 'exploit.py')
+    impact = script_data.get('impact_achieved', '')
+    expected = script_data.get('expected_output', '')
+
+    console.print(_Panel(
+        f"[bold orange1]Severity:[/bold orange1]   {sev}\n"
+        f"[bold orange1]Location:[/bold orange1]   [cyan]{location}[/cyan]\n"
+        f"[bold orange1]Language:[/bold orange1]   {language}\n"
+        f"[bold orange1]File:[/bold orange1]       {filename}\n"
+        f"[bold orange1]Impact:[/bold orange1]     [red]{impact}[/red]",
+        title=f"[bold]{vuln}[/bold]",
+        border_style="red",
+    ))
+
+    # Script
+    console.print(Rule("[bold red]EXPLOIT SCRIPT[/bold red]"))
+    script = script_data.get('script', '')
+    if script:
+        console.print(Syntax(script, language, theme="monokai", line_numbers=True, padding=(0, 2)))
+
+    # Setup
+    setup = script_data.get('setup', [])
+    if setup:
+        console.print(Rule("[bold orange1]SETUP[/bold orange1]"))
+        for cmd in setup:
+            console.print(f"  [dim]•[/dim] [cyan]{cmd}[/cyan]")
+        console.print()
+
+    # Expected output
+    if expected:
+        console.print(Rule("[bold orange1]EXPECTED OUTPUT[/bold orange1]"))
+        console.print(f"  [dim]{expected}[/dim]\n")
+
+    # Write file to disk
+    if script:
+        safe_name = os.path.basename(filename)
+        out_path = os.path.join(os.getcwd(), safe_name)
+        with open(out_path, 'w') as fh:
+            fh.write(script)
+        console.print(f"[green]✓[/green] Saved to [cyan]{out_path}[/cyan]\n")
+
+
+def render_execution(finding: dict, execution: dict) -> None:
+    """Print a Rich-formatted exploit execution result to the console."""
+    from rich.panel import Panel as _Panel
+    from rich.rule import Rule
+    from rich.syntax import Syntax
+
+    verdict = execution.get('override_verdict') or execution.get('verdict', 'inconclusive')
+    confidence = execution.get('confidence', 0.0)
+    reasoning = execution.get('reasoning', '')
+    stdout = execution.get('stdout', '')
+    stderr = execution.get('stderr', '')
+    exit_code = execution.get('exit_code', -1)
+    timed_out = execution.get('timed_out', False)
+    overridden = execution.get('override_verdict') is not None
+
+    verdict_colors = {
+        'confirmed': 'bold green',
+        'failed': 'bold red',
+        'inconclusive': 'bold yellow',
+    }
+    verdict_icons = {
+        'confirmed': '✅',
+        'failed': '❌',
+        'inconclusive': '⚠',
+    }
+    vcolor = verdict_colors.get(verdict, 'white')
+    vicon = verdict_icons.get(verdict, '?')
+    conf_pct = int(float(confidence) * 100)
+    override_note = " [dim](manually overridden)[/dim]" if overridden else ""
+
+    console.print(Rule("[bold]VERDICT[/bold]"))
+    console.print(f"  [{vcolor}]{vicon} {verdict.upper()} ({conf_pct}%)[/{vcolor}]{override_note}")
+    console.print(f"  [dim]{reasoning}[/dim]\n")
+
+    if timed_out:
+        console.print("[yellow]⚠ Execution timed out[/yellow]\n")
+        return
+
+    console.print(Rule(f"[bold]EXIT CODE: {exit_code}[/bold]"))
+
+    if stdout:
+        console.print(Rule("[bold]STDOUT[/bold]"))
+        console.print(Syntax(stdout[:4000], "text", theme="monokai", padding=(0, 2)))
+        console.print()
+
+    if stderr:
+        console.print(Rule("[bold red]STDERR[/bold red]"))
+        console.print(Syntax(stderr[:2000], "text", theme="monokai", padding=(0, 2)))
+        console.print()
