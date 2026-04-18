@@ -67,9 +67,32 @@ export interface PoCDetail {
   sequence_diagram: string
 }
 
+export interface ExploitScript {
+  language: string
+  filename: string
+  script: string
+  setup: string[]
+  expected_output: string
+  impact_achieved: string
+}
+
+export interface ExploitExecution {
+  stdout: string
+  stderr: string
+  exit_code: number
+  timed_out: boolean
+  verdict: 'confirmed' | 'failed' | 'inconclusive'
+  confidence: number
+  reasoning: string
+  executed_at: string
+  override_verdict: 'confirmed' | 'failed' | 'inconclusive' | null
+}
+
 export interface FindingDetail extends Finding {
   exploit_detail?: ExploitDetail | null
   poc_detail?: PoCDetail | null
+  exploit_script?: ExploitScript | null
+  exploit_execution?: ExploitExecution | null
   reproduction_steps?: string[]
   validation_status?: string
 }
