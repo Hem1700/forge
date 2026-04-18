@@ -236,3 +236,141 @@ async def test_generate_poc_persists_result(http_client, db_session):
     await db_session.refresh(finding)
     assert finding.poc_detail is not None
     assert finding.poc_detail["language"] == "python"
+
+
+# --- Plan 11: Live Exploitation endpoints ---
+
+@pytest.mark.asyncio
+async def test_generate_exploit_script_returns_404_for_unknown_finding(http_client):
+    fake_id = str(uuid.uuid4())
+    response = await http_client.post(f"/api/v1/findings/{fake_id}/exploit/generate")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_generate_exploit_script_calls_engine_and_caches(http_client, db_session):
+    eng = await _create_engagement(db_session)
+    finding = await _create_finding(db_session, eng.id)
+
+    mock_script = {
+        "language": "python",
+        "filename": "exploit_sqli_api_users.py",
+        "script": "#!/usr/bin/env python3\nprint('exploiting')",
+        "setup": ["pip install requests"],
+        "expected_output": "Full credential table",
+        "impact_achieved": "Complete database exfiltration",
+    }
+
+    with patch("app.api.findings.ExploitScriptEngine") as MockEngine:
+        instance = MockEngine.return_value
+        instance.generate = AsyncMock(return_value=mock_script)
+        response = await http_client.post(f"/api/v1/findings/{finding.id}/exploit/generate")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["language"] == "python"
+    assert data["filename"] == "exploit_sqli_api_users.py"
+
+    # Second call must return cached — engine NOT called again
+    with patch("app.api.findings.ExploitScriptEngine") as MockEngine2:
+        instance2 = MockEngine2.return_value
+        instance2.generate = AsyncMock(return_value=mock_script)
+        response2 = await http_client.post(f"/api/v1/findings/{finding.id}/exploit/generate")
+        MockEngine2.assert_not_called()
+
+    assert response2.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_execute_exploit_requires_confirmation(http_client, db_session):
+    eng = await _create_engagement(db_session)
+    finding = await _create_finding(db_session, eng.id)
+
+    # No confirmed=true → requires_confirmation
+    response = await http_client.post(
+        f"/api/v1/findings/{finding.id}/exploit/execute",
+        json={},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["requires_confirmation"] is True
+
+
+@pytest.mark.asyncio
+async def test_execute_exploit_confirmed_runs_and_persists(http_client, db_session):
+    eng = await _create_engagement(db_session)
+    finding = await _create_finding(db_session, eng.id)
+
+    mock_script = {
+        "language": "python",
+        "filename": "exploit_sqli_api_users.py",
+        "script": "print('data')",
+        "setup": [],
+        "expected_output": "credentials",
+        "impact_achieved": "DB dump",
+    }
+    mock_execution = {
+        "stdout": "admin:$2b$hash",
+        "stderr": "",
+        "exit_code": 0,
+        "timed_out": False,
+        "executed_at": "2026-04-16T12:00:00+00:00",
+    }
+    mock_verdict = {
+        "verdict": "confirmed",
+        "confidence": 0.95,
+        "reasoning": "Credentials extracted.",
+    }
+
+    with (
+        patch("app.api.findings.ExploitScriptEngine") as MockScriptEngine,
+        patch("app.api.findings.ExploitExecutor") as MockExecutor,
+        patch("app.api.findings.ExecutionJudge") as MockJudge,
+    ):
+        MockScriptEngine.return_value.generate = AsyncMock(return_value=mock_script)
+        MockExecutor.return_value.execute = AsyncMock(return_value=mock_execution)
+        MockJudge.return_value.judge = AsyncMock(return_value=mock_verdict)
+
+        response = await http_client.post(
+            f"/api/v1/findings/{finding.id}/exploit/execute",
+            json={"confirmed": True},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["verdict"] == "confirmed"
+    assert data["confidence"] == 0.95
+    assert "stdout" in data
+    assert "executed_at" in data
+
+
+@pytest.mark.asyncio
+async def test_override_verdict_updates_exploit_execution(http_client, db_session):
+    eng = await _create_engagement(db_session)
+    finding = await _create_finding(db_session, eng.id)
+
+    # Seed exploit_execution directly
+    from sqlalchemy import select
+    from app.models.finding import Finding as FindingModel
+    result = await db_session.execute(select(FindingModel).where(FindingModel.id == finding.id))
+    f = result.scalar_one()
+    f.exploit_execution = {
+        "stdout": "output",
+        "stderr": "",
+        "exit_code": 0,
+        "timed_out": False,
+        "verdict": "inconclusive",
+        "confidence": 0.5,
+        "reasoning": "unclear",
+        "executed_at": "2026-04-16T12:00:00+00:00",
+        "override_verdict": None,
+    }
+    await db_session.commit()
+
+    response = await http_client.patch(
+        f"/api/v1/findings/{finding.id}/exploit/execution",
+        json={"verdict": "confirmed"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["override_verdict"] == "confirmed"
