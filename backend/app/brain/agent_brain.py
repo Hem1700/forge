@@ -23,6 +23,16 @@ class _LLMWrapper:
 
 @dataclass
 class AgentBrainResult:
+    """Result of an AgentBrain.run() call.
+
+    Note: `confidence` and `findings` are independent signals. When the loop
+    exits because a tool-call step's confidence reached the threshold (rather
+    than via an explicit conclusion), `findings` will be empty — the LLM
+    signalled high confidence but did not yet emit structured findings.
+    Callers should check `len(findings) > 0` independently of `confidence`
+    to determine whether actionable findings were produced.
+    """
+
     findings: list[dict]
     confidence: float
     steps_taken: int
