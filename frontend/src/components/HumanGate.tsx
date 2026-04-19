@@ -28,31 +28,30 @@ export function HumanGate({ engagement }: HumanGateProps) {
   }
 
   return (
-    <div className="bg-yellow-950/40 border border-yellow-700 rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-        <h3 className="font-semibold text-yellow-100">Human Gate: {engagement.gate_status}</h3>
+    <div style={{ border: '1px solid var(--gate)', borderLeft: '2px solid var(--gate)', background: '#f59e0b08', padding: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{ color: 'var(--gate)', fontSize: '9px', letterSpacing: '1px' }}>⚠ HUMAN GATE — {engagement.gate_status}</span>
       </div>
-      <p className="text-sm text-yellow-200/80 mb-4">
-        Approval required before proceeding to next phase.
-      </p>
-      <div className="flex gap-2">
+      <div style={{ color: '#f59e0b80', fontSize: '9px', marginBottom: '10px' }}>
+        approval required before proceeding to next phase
+      </div>
+      <div style={{ display: 'flex', gap: '8px' }}>
         <button
           onClick={() => decide(true)}
           disabled={loading !== null}
-          className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-md font-medium transition-colors"
+          style={{ flex: 1, padding: '5px 0', background: 'transparent', border: '1px solid var(--complete)', color: 'var(--complete)', fontSize: '9px', letterSpacing: '1px', opacity: loading ? 0.5 : 1 }}
         >
-          {loading === 'approve' ? 'Approving...' : 'Approve'}
+          {loading === 'approve' ? 'APPROVING...' : '[APPROVE]'}
         </button>
         <button
           onClick={() => decide(false)}
           disabled={loading !== null}
-          className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white rounded-md font-medium transition-colors"
+          style={{ flex: 1, padding: '5px 0', background: 'transparent', border: '1px solid var(--aborted)', color: 'var(--aborted)', fontSize: '9px', letterSpacing: '1px', opacity: loading ? 0.5 : 1 }}
         >
-          {loading === 'reject' ? 'Rejecting...' : 'Reject (Abort)'}
+          {loading === 'reject' ? 'REJECTING...' : '[REJECT]'}
         </button>
       </div>
-      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      {error && <div style={{ color: 'var(--crit)', fontSize: '8px', marginTop: '6px' }}>{error}</div>}
     </div>
   )
 }
