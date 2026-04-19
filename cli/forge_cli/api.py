@@ -47,7 +47,11 @@ class ForgeClient:
     def _request_bytes(self, method: str, path: str, timeout: int = 30) -> bytes:
         """Make a request and return raw response bytes (for binary downloads)."""
         url = f"{self.base_url}{path}"
-        req = urllib.request.Request(url, method=method)
+        req = urllib.request.Request(
+            url,
+            method=method,
+            headers={"Accept": "application/pdf"},
+        )
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return resp.read()

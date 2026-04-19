@@ -519,12 +519,14 @@ def report(ctx, engagement_id, output, as_pdf):
             pdf_bytes = client._request_bytes(
                 "POST", f"/api/v1/engagements/{engagement_id}/report/pdf", timeout=120
             )
+            filename = f"./forge_report_{engagement_id}.pdf"
+            with open(filename, "wb") as fh:
+                fh.write(pdf_bytes)
+            console.print(f"[green]✓[/green] Saved to: [cyan]{filename}[/cyan]")
         except (APIError, ConnectionError) as e:
             err(str(e))
-        filename = f"./forge_report_{engagement_id}.pdf"
-        with open(filename, "wb") as fh:
-            fh.write(pdf_bytes)
-        console.print(f"[green]✓[/green] Saved to: [cyan]{filename}[/cyan]")
+        except OSError as e:
+            err(f"Could not write {filename}: {e}")
         return
 
     try:
