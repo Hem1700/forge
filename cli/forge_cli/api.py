@@ -44,6 +44,27 @@ class ForgeClient:
                 f"({e.reason})"
             )
 
+    def _request_bytes(self, method: str, path: str, timeout: int = 30) -> bytes:
+        """Make a request and return raw response bytes (for binary downloads)."""
+        url = f"{self.base_url}{path}"
+        req = urllib.request.Request(url, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            msg = e.read().decode(errors="replace")
+            try:
+                msg = json.loads(msg).get("detail", msg)
+            except Exception:
+                pass
+            raise APIError(e.code, msg)
+        except urllib.error.URLError as e:
+            raise ConnectionError(
+                f"Cannot reach FORGE backend at {self.base_url}\n"
+                f"Start it with: uvicorn app.main:app --port 8080\n"
+                f"({e.reason})"
+            )
+
     def health(self) -> dict:
         return self._request("GET", "/api/v1/health")
 

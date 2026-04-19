@@ -497,10 +497,36 @@ def execute(ctx, finding_id, skip_prompt):
 @cli.command()
 @click.argument("engagement_id")
 @click.option("--output", "-o", type=click.Path(), help="Save markdown report to file")
+@click.option("--pdf", "as_pdf", is_flag=True, help="Generate PDF report via Playwright and save to file")
 @click.pass_context
-def report(ctx, engagement_id, output):
-    """Generate a markdown report for an engagement."""
+def report(ctx, engagement_id, output, as_pdf):
+    """Generate a report for an engagement.
+
+    Without flags: prints markdown to stdout (or saves with --output).
+    With --pdf: generates a PDF via the backend and saves to ./forge_report_<id>.pdf.
+
+    \b
+    Examples:
+      forge report <engagement-id>
+      forge report <engagement-id> --output report.md
+      forge report <engagement-id> --pdf
+    """
     client = get_client(ctx)
+
+    if as_pdf:
+        console.print("[bold]Generating PDF report…[/bold]")
+        try:
+            pdf_bytes = client._request_bytes(
+                "POST", f"/api/v1/engagements/{engagement_id}/report/pdf", timeout=120
+            )
+        except (APIError, ConnectionError) as e:
+            err(str(e))
+        filename = f"./forge_report_{engagement_id}.pdf"
+        with open(filename, "wb") as fh:
+            fh.write(pdf_bytes)
+        console.print(f"[green]✓[/green] Saved to: [cyan]{filename}[/cyan]")
+        return
+
     try:
         eng = client.get_engagement(engagement_id)
     except (APIError, ConnectionError) as e:
