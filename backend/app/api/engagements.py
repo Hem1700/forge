@@ -143,10 +143,9 @@ async def generate_pdf_report(
         try:
             page = await browser.new_page()
             await page.goto(
-                f"{settings.frontend_url}/print/{engagement_id}",
+                f"{settings.frontend_url.rstrip('/')}/print/{engagement_id}",
                 wait_until="networkidle",
             )
-            await page.wait_for_load_state("networkidle")
             pdf_bytes = await page.pdf(format="A4", print_background=True)
         finally:
             await browser.close()
