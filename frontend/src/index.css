@@ -39,6 +39,14 @@
   --medium: #f59e0b;
   --low:    #22c55e;
   --info:   #555555;
+
+  /* Responsive font scale — clamp(min, preferred-vw, max) */
+  --fs-tiny:  clamp(9px,  0.55vw, 11px);
+  --fs-xs:    clamp(10px, 0.65vw, 13px);
+  --fs-sm:    clamp(11px, 0.75vw, 14px);
+  --fs-md:    clamp(12px, 0.85vw, 16px);
+  --fs-base:  clamp(13px, 0.95vw, 17px);
+  --fs-lg:    clamp(15px, 1.2vw,  22px);
 }
 
 *, *::before, *::after {

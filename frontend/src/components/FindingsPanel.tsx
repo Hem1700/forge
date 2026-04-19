@@ -20,17 +20,17 @@ export function FindingsPanel() {
   return (
     <div style={{ border: '1px solid var(--border)', background: 'var(--surface)', padding: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '8px' }}>
-        <span style={{ color: 'var(--accent)', fontSize: '9px', letterSpacing: '2px' }}>FINDINGS</span>
-        <span style={{ color: 'var(--text-label)', fontSize: '9px', border: '1px solid var(--border)', padding: '1px 6px' }}>{filtered.length}</span>
+        <span style={{ color: 'var(--accent)', fontSize: 'var(--fs-sm)', letterSpacing: '2px' }}>FINDINGS</span>
+        <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-sm)', border: '1px solid var(--border)', padding: '1px 6px' }}>{filtered.length}</span>
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ color: 'var(--text-secondary)', fontSize: '9px', padding: '12px 0' }}>
+        <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', padding: '12px 0' }}>
           &gt; no findings yet_
         </div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: '8px', color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', borderBottom: '1px solid var(--border)', paddingBottom: '4px', marginBottom: '2px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: '8px', color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', borderBottom: '1px solid var(--border)', paddingBottom: '4px', marginBottom: '2px' }}>
             <span>SEV</span>
             <span>VULNERABILITY</span>
             <span>LOCATION</span>
@@ -42,15 +42,15 @@ export function FindingsPanel() {
               const location = f.affected_surface ?? f.endpoint ?? ''
               return (
                 <div key={f.id} style={{ display: 'grid', gridTemplateColumns: COLS, gap: '8px', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border-deep)' }}>
-                  <span style={{ color: SEV_COLOR[f.severity], fontSize: '8px', letterSpacing: '1px' }}>[{f.severity.toUpperCase().slice(0, 4)}]</span>
+                  <span style={{ color: SEV_COLOR[f.severity], fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>[{f.severity.toUpperCase().slice(0, 4)}]</span>
                   <Link
                     to={`/engagement/${f.engagement_id}/findings/${f.id}`}
-                    style={{ color: 'var(--text-primary)', fontSize: '9px', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+                    style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-sm)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
                   >
                     {vulnClass}
                   </Link>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{location}</span>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '8px' }}>{(f.confidence_score * 100).toFixed(0)}%</span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{location}</span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>{(f.confidence_score * 100).toFixed(0)}%</span>
                 </div>
               )
             })}
