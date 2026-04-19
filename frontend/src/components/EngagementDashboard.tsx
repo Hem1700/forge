@@ -4,25 +4,21 @@ import { useEngagementStore } from '../store/engagement'
 import { engagementsApi } from '../api/engagements'
 import type { Engagement, EngagementStatus, TargetType } from '../types'
 
-const STATUS_COLORS: Record<EngagementStatus, string> = {
-  pending: 'bg-gray-700 text-gray-200',
-  running: 'bg-green-700 text-green-100',
-  paused_at_gate: 'bg-yellow-700 text-yellow-100',
-  complete: 'bg-blue-700 text-blue-100',
-  aborted: 'bg-red-700 text-red-100',
+const STATUS: Record<EngagementStatus, { color: string; label: string }> = {
+  running:        { color: 'var(--running)', label: '● RUNNING' },
+  complete:       { color: 'var(--complete)', label: '✓ COMPLETE' },
+  paused_at_gate: { color: 'var(--gate)',    label: '⊘ GATE' },
+  pending:        { color: 'var(--pending)', label: '○ PENDING' },
+  aborted:        { color: 'var(--aborted)', label: '✕ ABORTED' },
 }
 
-const TARGET_TYPE_LABELS: Record<TargetType, string> = {
-  web: 'Web App',
-  local_codebase: 'Local Codebase',
-  binary: 'Binary',
+const TYPE: Record<TargetType, string> = {
+  web: 'web',
+  local_codebase: 'code',
+  binary: 'binary',
 }
 
-const TARGET_TYPE_ICONS: Record<TargetType, string> = {
-  web: '🌐',
-  local_codebase: '📁',
-  binary: '⚙️',
-}
+const COLS = '110px 1fr 70px 90px 65px 90px'
 
 export function EngagementDashboard() {
   const engagements = useEngagementStore((s) => s.engagements)
@@ -77,148 +73,144 @@ export function EngagementDashboard() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-100">Engagements</h2>
+    <div style={{ padding: '20px 24px' }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+          <span style={{ color: 'var(--accent)', fontSize: '13px', letterSpacing: '3px', fontWeight: 700 }}>FORGE</span>
+          <span style={{ color: 'var(--text-label)', fontSize: '9px', letterSpacing: '1px' }}>v14.0 // offensive security platform</span>
+        </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-md font-medium transition-colors"
+          style={{ background: 'transparent', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: '9px', padding: '3px 12px', letterSpacing: '1px' }}
         >
-          {showForm ? 'Cancel' : '+ New Engagement'}
+          {showForm ? '× CANCEL' : '+ NEW'}
         </button>
       </div>
 
+      {/* New engagement form */}
       {showForm && (
-        <form onSubmit={handleCreate} className="mb-6 p-4 bg-gray-900 border border-gray-800 rounded-lg space-y-3">
-          {/* Target type selector */}
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">Target Type</label>
-            <div className="flex gap-2">
+        <form
+          onSubmit={handleCreate}
+          style={{ marginBottom: '16px', padding: '12px', border: '1px solid var(--border)', borderLeft: '2px solid var(--accent)', background: 'var(--surface)' }}
+        >
+          <div style={{ color: 'var(--text-label)', fontSize: '9px', letterSpacing: '1px', marginBottom: '6px' }}>NEW ENGAGEMENT</div>
+
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '4px' }}>TARGET_TYPE</div>
+            <div style={{ display: 'flex', gap: '4px' }}>
               {(['web', 'local_codebase', 'binary'] as TargetType[]).map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setTargetType(t)}
-                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
-                    targetType === t
-                      ? 'border-orange-500 bg-orange-500/20 text-orange-300'
-                      : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
-                  }`}
+                  style={{
+                    flex: 1, padding: '4px 0', fontSize: '8px', letterSpacing: '1px',
+                    background: targetType === t ? 'var(--accent-bg)' : 'transparent',
+                    border: `1px solid ${targetType === t ? 'var(--accent)' : 'var(--border)'}`,
+                    color: targetType === t ? 'var(--accent)' : 'var(--text-secondary)',
+                  }}
                 >
-                  {TARGET_TYPE_ICONS[t]} {TARGET_TYPE_LABELS[t]}
+                  {TYPE[t].toUpperCase()}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* URL input (web) */}
-          {targetType === 'web' && (
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">Target URL</label>
+          {targetType === 'web' ? (
+            <div style={{ marginBottom: '8px' }}>
+              <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '4px' }}>TARGET_URL</div>
               <input
                 type="url"
                 required
                 value={targetUrl}
                 onChange={(e) => setTargetUrl(e.target.value)}
                 placeholder="https://target.example.com"
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 focus:outline-none focus:border-orange-500"
+                style={{ width: '100%', padding: '5px 8px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: '10px', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
-          )}
-
-          {/* Path input (local_codebase / binary) */}
-          {targetType !== 'web' && (
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">
-                {targetType === 'binary' ? 'Binary File Path' : 'Codebase Directory Path'}
-              </label>
+          ) : (
+            <div style={{ marginBottom: '8px' }}>
+              <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '4px' }}>
+                {targetType === 'binary' ? 'BINARY_PATH' : 'CODEBASE_PATH'}
+              </div>
               <input
                 type="text"
                 required
                 value={targetPath}
                 onChange={(e) => setTargetPath(e.target.value)}
-                placeholder={targetType === 'binary' ? '/path/to/binary' : '/Users/you/Desktop/myproject'}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 focus:outline-none focus:border-orange-500 font-mono text-sm"
+                placeholder={targetType === 'binary' ? '/path/to/binary' : '/Users/you/project'}
+                style={{ width: '100%', padding: '5px 8px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: '10px', outline: 'none', boxSizing: 'border-box' }}
               />
-              <p className="mt-1 text-xs text-gray-500">Absolute path on the FORGE server filesystem</p>
             </div>
           )}
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <div style={{ color: 'var(--crit)', fontSize: '9px', marginBottom: '6px' }}>{error}</div>}
 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-600 text-white rounded-md font-medium transition-colors"
+            style={{ width: '100%', padding: '6px 0', background: 'var(--accent-bg)', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: '9px', letterSpacing: '1px', opacity: submitting ? 0.5 : 1 }}
           >
-            {submitting ? 'Creating...' : 'Create Engagement'}
+            {submitting ? 'CREATING...' : '▶ CREATE ENGAGEMENT'}
           </button>
         </form>
       )}
 
+      {/* Table header */}
+      {engagements.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: '8px', color: 'var(--text-label)', fontSize: '9px', letterSpacing: '1px', borderBottom: '1px solid var(--border)', paddingBottom: '4px', marginBottom: '2px' }}>
+          <span>STATUS</span>
+          <span>TARGET</span>
+          <span>TYPE</span>
+          <span>FINDINGS</span>
+          <span>DATE</span>
+          <span></span>
+        </div>
+      )}
+
+      {/* Rows */}
       {engagements.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">No engagements yet. Create one to begin.</div>
+        <div style={{ color: 'var(--text-dim)', fontSize: '9px', padding: '20px 0' }}>
+          &gt; no engagements found. press + NEW to begin_
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {engagements.map((eng) => (
-            <EngagementCard
+        engagements.map((eng) => {
+          const st = STATUS[eng.status]
+          const label = eng.target_path ?? eng.target_url
+          const date = new Date(eng.created_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })
+          return (
+            <div
               key={eng.id}
-              engagement={eng}
-              starting={starting === eng.id}
               onClick={() => navigate(`/engagement/${eng.id}`)}
-              onStart={(e) => handleStart(e, eng)}
-            />
-          ))}
-        </div>
+              style={{ display: 'grid', gridTemplateColumns: COLS, gap: '8px', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border-deep)', cursor: 'pointer' }}
+            >
+              <span style={{ color: st.color, fontSize: '9px', letterSpacing: '1px' }}>{st.label}</span>
+              <span style={{ color: 'var(--text-primary)', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '9px' }}>{TYPE[eng.target_type]}</span>
+              <span style={{ color: '#aaa', fontSize: '9px' }}>—</span>
+              <span style={{ color: 'var(--text-dim)', fontSize: '9px' }}>{date}</span>
+              <span>
+                {eng.status === 'pending' ? (
+                  <button
+                    onClick={(e) => handleStart(e, eng)}
+                    disabled={starting === eng.id}
+                    style={{ background: 'transparent', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: '8px', padding: '2px 8px', letterSpacing: '1px' }}
+                  >
+                    {starting === eng.id ? '...' : '▶ LAUNCH'}
+                  </button>
+                ) : (
+                  <span style={{ color: 'var(--accent-glow)', fontSize: '8px' }}>[view]</span>
+                )}
+              </span>
+            </div>
+          )
+        })
       )}
-    </div>
-  )
-}
 
-interface EngagementCardProps {
-  engagement: Engagement
-  starting: boolean
-  onClick: () => void
-  onStart: (e: React.MouseEvent) => void
-}
-
-function EngagementCard({ engagement, starting, onClick, onStart }: EngagementCardProps) {
-  const targetType = (engagement.target_type ?? 'web') as TargetType
-  const label = engagement.target_path ?? engagement.target_url
-
-  return (
-    <button
-      onClick={onClick}
-      className="text-left p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-orange-500 transition-colors"
-    >
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex-1 mr-2 min-w-0">
-          <div className="flex items-center gap-1 mb-0.5">
-            <span className="text-xs text-gray-500">{TARGET_TYPE_ICONS[targetType]} {TARGET_TYPE_LABELS[targetType]}</span>
-          </div>
-          <h3 className="font-medium text-gray-100 truncate text-sm">{label}</h3>
-        </div>
-        <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${STATUS_COLORS[engagement.status]}`}>
-          {engagement.status}
-        </span>
+      <div style={{ color: 'var(--accent-glow)', fontSize: '9px', marginTop: '10px' }}>
+        {engagements.length} engagement(s) loaded_
       </div>
-      <div className="text-xs text-gray-500 mb-3">{new Date(engagement.created_at).toLocaleString()}</div>
-
-      {engagement.status === 'pending' && (
-        <button
-          onClick={onStart}
-          disabled={starting}
-          className="w-full py-1.5 text-xs bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 text-white rounded font-medium transition-colors"
-        >
-          {starting ? 'Starting...' : '▶ Start Pentest'}
-        </button>
-      )}
-      {engagement.status === 'running' && (
-        <div className="flex items-center gap-1.5 text-xs text-green-400">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-          Running — click to monitor
-        </div>
-      )}
-    </button>
+    </div>
   )
 }
