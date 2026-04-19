@@ -1,51 +1,58 @@
 import { useEngagementStore } from '../store/engagement'
 import type { SwarmEvent } from '../types'
 
-const EVENT_COLORS: Record<SwarmEvent['type'], string> = {
-  agent_started: 'bg-blue-700 text-blue-100',
-  agent_completed: 'bg-green-700 text-green-100',
-  finding_discovered: 'bg-orange-700 text-orange-100',
-  gate_triggered: 'bg-yellow-700 text-yellow-100',
-  campaign_complete: 'bg-purple-700 text-purple-100',
-  ping: 'bg-gray-700 text-gray-300',
+const EVENT_COLOR: Record<SwarmEvent['type'], string> = {
+  agent_started:     'var(--accent)',
+  agent_completed:   'var(--complete)',
+  finding_discovered:'var(--high)',
+  gate_triggered:    'var(--gate)',
+  campaign_complete: 'var(--complete)',
+  ping:              'var(--text-secondary)',
 }
 
 export function SwarmMonitor() {
   const events = useEngagementStore((s) => s.events)
   const agents = useEngagementStore((s) => s.agents)
-
-  const recent = events.slice(0, 20)
+  const recent = events.slice(0, 30)
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-100">Swarm Monitor</h3>
+    <div style={{ border: '1px solid var(--border)', borderLeft: '2px solid var(--accent)', background: 'var(--surface)', padding: '12px' }}>
+      {/* Panel header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '8px' }}>
+        <span style={{ color: 'var(--accent)', fontSize: '9px', letterSpacing: '2px' }}>SWARM MONITOR</span>
         {agents.length > 0 && (
-          <span className="text-xs text-gray-400">
-            {agents.length} active agent{agents.length === 1 ? '' : 's'}
+          <span style={{ color: 'var(--text-label)', fontSize: '9px', border: '1px solid var(--border)', padding: '1px 6px' }}>
+            {agents.length} AGENT{agents.length === 1 ? '' : 'S'}
           </span>
         )}
       </div>
 
-      {recent.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-8">Waiting for events...</p>
-      ) : (
-        <ul className="space-y-2 max-h-[500px] overflow-y-auto">
-          {recent.map((event, idx) => (
-            <li key={idx} className="text-xs border-l-2 border-gray-800 pl-3 py-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`px-2 py-0.5 rounded-full font-medium ${EVENT_COLORS[event.type]}`}>
-                  {event.type}
+      {/* Event log */}
+      <div style={{ maxHeight: '440px', overflowY: 'auto' }}>
+        {recent.length === 0 ? (
+          <div style={{ color: 'var(--text-secondary)', fontSize: '9px', padding: '16px 0' }}>
+            &gt; waiting for events_
+          </div>
+        ) : (
+          recent.map((event, idx) => {
+            const ts = new Date(event.timestamp).toLocaleTimeString('en-US', { hour12: false })
+            return (
+              <div key={idx} style={{ borderBottom: '1px solid var(--border-deep)', padding: '4px 0', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <span style={{ color: 'var(--text-dim)', fontSize: '8px', flexShrink: 0, marginTop: '1px' }}>[{ts}]</span>
+                <span style={{ color: EVENT_COLOR[event.type], fontSize: '8px', letterSpacing: '1px', flexShrink: 0 }}>{event.type}</span>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '8px', wordBreak: 'break-all' }}>
+                  {JSON.stringify(event.payload)}
                 </span>
-                <span className="text-gray-500">{new Date(event.timestamp).toLocaleTimeString()}</span>
               </div>
-              <pre className="text-gray-400 font-mono text-[10px] whitespace-pre-wrap break-all">
-                {JSON.stringify(event.payload, null, 0)}
-              </pre>
-            </li>
-          ))}
-        </ul>
-      )}
+            )
+          })
+        )}
+      </div>
+
+      {/* Cursor */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '6px', marginTop: '6px', color: 'var(--accent-glow)', fontSize: '9px' }}>
+        _
+      </div>
     </div>
   )
 }
