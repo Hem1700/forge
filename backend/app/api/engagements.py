@@ -4,10 +4,12 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from playwright.async_api import async_playwright
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.engagement import Engagement, EngagementStatus
 from app.models.finding import Finding
@@ -125,6 +127,37 @@ async def get_engagement_findings(
         }
         for f in findings
     ]
+
+
+@router.post("/{engagement_id}/report/pdf")
+async def generate_pdf_report(
+    engagement_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    engagement = await db.get(Engagement, engagement_id)
+    if engagement is None:
+        raise HTTPException(status_code=404, detail="Engagement not found")
+
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch()
+        try:
+            page = await browser.new_page()
+            await page.goto(
+                f"{settings.frontend_url}/print/{engagement_id}",
+                wait_until="networkidle",
+            )
+            await page.wait_for_load_state("networkidle")
+            pdf_bytes = await page.pdf(format="A4", print_background=True)
+        finally:
+            await browser.close()
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=forge_report_{engagement_id}.pdf"
+        },
+    )
 
 
 @router.delete("/{engagement_id}", status_code=status.HTTP_204_NO_CONTENT)
