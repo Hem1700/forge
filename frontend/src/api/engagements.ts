@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { Engagement, Finding } from '../types'
+import type { Engagement, Finding, FindingDetail } from '../types'
 
 export const engagementsApi = {
   list: () => apiFetch<Engagement[]>('/api/v1/engagements/'),
@@ -13,5 +13,5 @@ export const engagementsApi = {
   delete: (id: string) =>
     apiFetch<void>(`/api/v1/engagements/${id}`, { method: 'DELETE' }),
   findings: (id: string) =>
-    apiFetch<Finding[]>(`/api/v1/engagements/${id}/findings`),
+    apiFetch<FindingDetail[]>(`/api/v1/engagements/${id}/findings`),
 }

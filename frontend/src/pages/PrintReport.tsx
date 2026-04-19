@@ -18,7 +18,7 @@ export function PrintReport() {
     ])
       .then(([eng, fs]) => {
         setEngagement(eng)
-        setFindings(fs as unknown as FindingDetail[])
+        setFindings(fs)
       })
       .catch((err) => {
         console.error(err)
