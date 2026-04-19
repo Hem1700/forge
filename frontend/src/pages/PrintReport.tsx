@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { engagementsApi } from '../api/engagements'
-import type { Engagement, Finding } from '../types'
+import type { Engagement, FindingDetail } from '../types'
 
 export function PrintReport() {
   const { engagementId } = useParams<{ engagementId: string }>()
   const [engagement, setEngagement] = useState<Engagement | null>(null)
-  const [findings, setFindings] = useState<Finding[]>([])
+  const [findings, setFindings] = useState<FindingDetail[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!engagementId) return
@@ -17,14 +18,21 @@ export function PrintReport() {
     ])
       .then(([eng, fs]) => {
         setEngagement(eng)
-        setFindings(fs)
+        setFindings(fs as unknown as FindingDetail[])
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err)
+        setError('Failed to load report data.')
+      })
       .finally(() => setLoading(false))
   }, [engagementId])
 
   if (loading) {
     return <div style={{ padding: '2rem', fontFamily: 'monospace' }}>Loading report…</div>
+  }
+
+  if (error) {
+    return <div style={{ padding: '2rem', fontFamily: 'monospace', color: 'red' }}>{error}</div>
   }
 
   if (!engagement) {
@@ -87,9 +95,6 @@ export function PrintReport() {
           page-break-before: always;
           padding-top: 0.5rem;
         }
-        .finding:first-child {
-          page-break-before: auto;
-        }
         .finding-header {
           border-bottom: 1px solid #000;
           padding-bottom: 0.5rem;
@@ -139,7 +144,6 @@ export function PrintReport() {
           body { background: white; }
           .print-report { padding: 0; max-width: 100%; }
           .finding { page-break-before: always; }
-          .finding:first-child { page-break-before: auto; }
         }
       `}</style>
 
@@ -150,12 +154,12 @@ export function PrintReport() {
         <p><strong>Generated:</strong> {new Date().toISOString().slice(0, 10)}</p>
         <p><strong>ID:</strong> {engagement.id}</p>
         <p><strong>Status:</strong> {engagement.status}</p>
-        <p><strong>Total Findings:</strong> {findings.length} (
-          {counts.critical > 0 && <span>{counts.critical} Critical, </span>}
-          {counts.high > 0 && <span>{counts.high} High, </span>}
-          {counts.medium > 0 && <span>{counts.medium} Medium, </span>}
-          {counts.low > 0 && <span>{counts.low} Low</span>}
-        )</p>
+        <p><strong>Total Findings:</strong> {findings.length} ({
+          (['critical', 'high', 'medium', 'low', 'info'] as const)
+            .filter(s => counts[s] > 0)
+            .map(s => `${counts[s]} ${s.charAt(0).toUpperCase() + s.slice(1)}`)
+            .join(', ')
+        })</p>
       </div>
 
       {/* Severity Summary Table */}
@@ -184,7 +188,7 @@ export function PrintReport() {
 
       {/* Findings */}
       {sorted.map((finding, idx) => (
-        <div key={finding.id} className={`finding${idx === 0 ? ' first-finding' : ''}`}>
+        <div key={finding.id} className="finding" style={{ pageBreakBefore: idx === 0 ? 'auto' : 'always' }}>
           <div className="finding-header">
             <h2>
               FINDING {idx + 1} — {finding.vulnerability_class} [{finding.severity.toUpperCase()}]
@@ -219,12 +223,12 @@ export function PrintReport() {
             </>
           )}
 
-          {finding.reproduction_steps && Array.isArray(finding.reproduction_steps) && finding.reproduction_steps.length > 0 && (
+          {finding.reproduction_steps && finding.reproduction_steps.length > 0 && (
             <>
               <div className="section-label">Reproduction Steps</div>
               <ol style={{ margin: '0 0 0.75rem 1.5rem', fontSize: '10pt', lineHeight: 1.5 }}>
-                {finding.reproduction_steps.map((step: unknown, i: number) => (
-                  <li key={i}>{typeof step === 'string' ? step : JSON.stringify(step)}</li>
+                {finding.reproduction_steps.map((step, i) => (
+                  <li key={i}>{step}</li>
                 ))}
               </ol>
             </>
@@ -234,14 +238,14 @@ export function PrintReport() {
           {finding.poc_detail && (
             <>
               <div className="section-label">
-                PoC Script [{(finding.poc_detail as Record<string, string>).language || 'python'}]
+                PoC Script [{finding.poc_detail.language || 'python'}]
               </div>
-              {(finding.poc_detail as Record<string, string>).notes && (
+              {finding.poc_detail.notes && (
                 <div className="section-body" style={{ fontSize: '9pt', fontStyle: 'italic' }}>
-                  {(finding.poc_detail as Record<string, string>).notes}
+                  {finding.poc_detail.notes}
                 </div>
               )}
-              <pre>{(finding.poc_detail as Record<string, string>).script || ''}</pre>
+              <pre>{finding.poc_detail.script || ''}</pre>
             </>
           )}
 
@@ -249,9 +253,9 @@ export function PrintReport() {
           {finding.exploit_script && (
             <>
               <div className="section-label">
-                Exploit Script [{(finding.exploit_script as Record<string, string>).language || 'python'}]
+                Exploit Script [{finding.exploit_script.language || 'python'}]
               </div>
-              <pre>{(finding.exploit_script as Record<string, string>).script || ''}</pre>
+              <pre>{finding.exploit_script.script || ''}</pre>
             </>
           )}
 
@@ -262,20 +266,20 @@ export function PrintReport() {
               <div className="section-body">
                 <strong>Verdict:</strong>{' '}
                 <span className="verdict-badge">
-                  {((finding.exploit_execution as Record<string, unknown>).override_verdict as string ||
-                    (finding.exploit_execution as Record<string, unknown>).verdict as string || 'UNKNOWN').toUpperCase()}
-                  {' '}({Math.round(((finding.exploit_execution as Record<string, number>).confidence || 0) * 100)}%)
+                  {(finding.exploit_execution.override_verdict ||
+                    finding.exploit_execution.verdict || 'UNKNOWN').toUpperCase()}
+                  {' '}({Math.round((finding.exploit_execution.confidence || 0) * 100)}%)
                 </span>
               </div>
-              {(finding.exploit_execution as Record<string, string>).reasoning && (
+              {finding.exploit_execution.reasoning && (
                 <div className="section-body">
-                  <strong>Reasoning:</strong> {(finding.exploit_execution as Record<string, string>).reasoning}
+                  <strong>Reasoning:</strong> {finding.exploit_execution.reasoning}
                 </div>
               )}
-              {(finding.exploit_execution as Record<string, string>).stdout && (
+              {finding.exploit_execution.stdout && (
                 <>
                   <div className="section-label">stdout</div>
-                  <pre>{(finding.exploit_execution as Record<string, string>).stdout}</pre>
+                  <pre>{finding.exploit_execution.stdout}</pre>
                 </>
               )}
             </>
