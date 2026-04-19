@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { Engagement, Finding, FindingDetail } from '../types'
+import type { Engagement, FindingDetail } from '../types'
 
 export const engagementsApi = {
   list: () => apiFetch<Engagement[]>('/api/v1/engagements/'),
