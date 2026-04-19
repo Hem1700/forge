@@ -9,12 +9,12 @@ import { FindingsPanel } from '../components/FindingsPanel'
 import { ReportViewer } from '../components/ReportViewer'
 import type { EngagementStatus } from '../types'
 
-const STATUS_COLORS: Record<EngagementStatus, string> = {
-  pending: 'bg-gray-700 text-gray-200',
-  running: 'bg-green-700 text-green-100',
-  paused_at_gate: 'bg-yellow-700 text-yellow-100',
-  complete: 'bg-blue-700 text-blue-100',
-  aborted: 'bg-red-700 text-red-100',
+const STATUS: Record<EngagementStatus, { color: string; label: string }> = {
+  running:        { color: 'var(--running)', label: '● RUNNING' },
+  complete:       { color: 'var(--complete)', label: '✓ COMPLETE' },
+  paused_at_gate: { color: 'var(--gate)',    label: '⊘ GATE' },
+  pending:        { color: 'var(--pending)', label: '○ PENDING' },
+  aborted:        { color: 'var(--aborted)', label: '✕ ABORTED' },
 }
 
 export function Engagement() {
@@ -59,47 +59,48 @@ export function Engagement() {
 
   if (!activeEngagement) {
     return (
-      <div className="min-h-screen bg-gray-950 text-gray-400 flex items-center justify-center">
-        Loading engagement…
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', letterSpacing: '1px' }}>
+        &gt; loading engagement_
       </div>
     )
   }
 
+  const st = STATUS[activeEngagement.status]
+  const label = activeEngagement.target_path ?? activeEngagement.target_url
+
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      <header className="border-b border-gray-800 px-6 py-4 flex items-center gap-4">
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
+      {/* Header */}
+      <div style={{ borderBottom: '1px solid var(--border)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button
           onClick={() => navigate(-1)}
-          className="text-gray-400 hover:text-gray-100 transition-colors"
+          style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '9px', letterSpacing: '1px', padding: 0 }}
         >
-          ← Back
+          ← FORGE
         </button>
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold text-gray-100 truncate">{activeEngagement.target_url}</h1>
-        </div>
-        <span className={`text-xs px-2 py-1 rounded-full ${STATUS_COLORS[activeEngagement.status]}`}>
-          {activeEngagement.status}
-        </span>
+        <span style={{ color: 'var(--text-label)', fontSize: '9px' }}>/</span>
+        <span style={{ color: 'var(--text-primary)', fontSize: '11px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        <span style={{ color: st.color, fontSize: '9px', letterSpacing: '1px', border: `1px solid ${st.color}40`, padding: '2px 8px' }}>{st.label}</span>
         <button
           onClick={handleDownloadPdf}
           disabled={pdfLoading}
-          className="text-xs px-3 py-1.5 rounded bg-orange-700 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white font-medium"
+          style={{ background: 'transparent', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: '9px', padding: '3px 10px', letterSpacing: '1px', opacity: pdfLoading ? 0.5 : 1 }}
         >
-          {pdfLoading ? 'Generating…' : 'Download PDF'}
+          {pdfLoading ? '...' : 'PDF ↓'}
         </button>
-      </header>
+      </div>
 
-      <main className="px-6 py-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div>
-          <SwarmMonitor />
-        </div>
-        <div className="flex flex-col gap-4">
+      {/* Two-column body */}
+      <div style={{ padding: '16px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <SwarmMonitor />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <HumanGate engagement={activeEngagement} />
           <FindingsPanel />
         </div>
-      </main>
+      </div>
 
-      <div className="px-6 pb-8">
+      {/* Report viewer */}
+      <div style={{ padding: '0 24px 32px' }}>
         <ReportViewer engagementId={activeEngagement.id} />
       </div>
     </div>
