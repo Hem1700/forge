@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEngagementStore } from '../store/engagement'
 import { engagementsApi } from '../api/engagements'
@@ -23,6 +23,7 @@ export function Engagement() {
   const setActiveEngagement = useEngagementStore((s) => s.setActiveEngagement)
   const activeEngagement = useEngagementStore((s) => s.activeEngagement)
   const setFindings = useEngagementStore((s) => s.setFindings)
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -35,6 +36,24 @@ export function Engagement() {
   }, [id, setActiveEngagement, setFindings])
 
   useSwarmStream(id ?? null)
+
+  async function handleDownloadPdf() {
+    if (!activeEngagement) return
+    setPdfLoading(true)
+    try {
+      const blob = await engagementsApi.downloadPdfReport(activeEngagement.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `forge_report_${activeEngagement.id}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('Failed to generate report')
+    } finally {
+      setPdfLoading(false)
+    }
+  }
 
   if (!activeEngagement) {
     return (
@@ -59,6 +78,13 @@ export function Engagement() {
         <span className={`text-xs px-2 py-1 rounded-full ${STATUS_COLORS[activeEngagement.status]}`}>
           {activeEngagement.status}
         </span>
+        <button
+          onClick={handleDownloadPdf}
+          disabled={pdfLoading}
+          className="text-xs px-3 py-1.5 rounded bg-orange-700 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-white font-medium"
+        >
+          {pdfLoading ? 'Generating…' : 'Download PDF'}
+        </button>
       </header>
 
       <main className="px-6 py-6 grid grid-cols-1 lg:grid-cols-2 gap-6">

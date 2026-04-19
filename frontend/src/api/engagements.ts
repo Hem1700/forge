@@ -14,4 +14,10 @@ export const engagementsApi = {
     apiFetch<void>(`/api/v1/engagements/${id}`, { method: 'DELETE' }),
   findings: (id: string) =>
     apiFetch<FindingDetail[]>(`/api/v1/engagements/${id}/findings`),
+  downloadPdfReport: (id: string) =>
+    fetch(`/api/v1/engagements/${id}/report/pdf`, { method: 'POST' })
+      .then(res => {
+        if (!res.ok) throw new Error(`PDF generation failed: ${res.status}`)
+        return res.blob()
+      }),
 }
