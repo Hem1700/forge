@@ -46,8 +46,10 @@ export function Engagement() {
       const a = document.createElement('a')
       a.href = url
       a.download = `forge_report_${activeEngagement.id}.pdf`
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 100)
     } catch {
       alert('Failed to generate report')
     } finally {
