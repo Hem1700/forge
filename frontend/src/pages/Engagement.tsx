@@ -17,6 +17,14 @@ const STATUS: Record<EngagementStatus, { color: string; label: string }> = {
   aborted:        { color: 'var(--aborted)', label: '✕ ABORTED' },
 }
 
+const STATUS_DIM: Record<EngagementStatus, string> = {
+  running:        'var(--running-dim)',
+  complete:       'var(--complete-dim)',
+  paused_at_gate: 'var(--gate-dim)',
+  pending:        'var(--pending-dim)',
+  aborted:        'var(--aborted-dim)',
+}
+
 export function Engagement() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -80,7 +88,7 @@ export function Engagement() {
         </button>
         <span style={{ color: 'var(--text-label)', fontSize: '9px' }}>/</span>
         <span style={{ color: 'var(--text-primary)', fontSize: '11px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-        <span style={{ color: st.color, fontSize: '9px', letterSpacing: '1px', border: `1px solid ${st.color}40`, padding: '2px 8px' }}>{st.label}</span>
+        <span style={{ color: st.color, fontSize: '9px', letterSpacing: '1px', border: `1px solid ${STATUS_DIM[activeEngagement.status]}`, padding: '2px 8px' }}>{st.label}</span>
         <button
           onClick={handleDownloadPdf}
           disabled={pdfLoading}

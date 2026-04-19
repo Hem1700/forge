@@ -22,6 +22,18 @@
   --pending:   #555555;
   --aborted:   #ef4444;
 
+  --running-dim:  #00d4ff40;
+  --complete-dim: #22c55e40;
+  --gate-dim:     #f59e0b40;
+  --pending-dim:  #55555540;
+  --aborted-dim:  #ef444440;
+  --crit-dim:     #ef444440;
+  --high-dim:     #f9731640;
+  --medium-dim:   #f59e0b40;
+  --low-dim:      #22c55e40;
+  --gate-bg:      #f59e0b08;
+  --gate-muted:   #f59e0b80;
+
   --crit:   #ef4444;
   --high:   #f97316;
   --medium: #f59e0b;

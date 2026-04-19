@@ -188,7 +188,7 @@ export function EngagementDashboard() {
               <span style={{ color: st.color, fontSize: '9px', letterSpacing: '1px' }}>{st.label}</span>
               <span style={{ color: 'var(--text-primary)', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
               <span style={{ color: 'var(--text-secondary)', fontSize: '9px' }}>{TYPE[eng.target_type]}</span>
-              <span style={{ color: '#aaa', fontSize: '9px' }}>—</span>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '9px' }}>—</span>
               <span style={{ color: 'var(--text-dim)', fontSize: '9px' }}>{date}</span>
               <span>
                 {eng.status === 'pending' ? (

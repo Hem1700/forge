@@ -15,10 +15,24 @@ const SEV_COLOR: Record<Severity, string> = {
   info:     'var(--info)',
 }
 
+const SEV_DIM: Record<Severity, string> = {
+  critical: 'var(--crit-dim)',
+  high:     'var(--high-dim)',
+  medium:   'var(--medium-dim)',
+  low:      'var(--low-dim)',
+  info:     'var(--pending-dim)',
+}
+
 const VERDICT_COLOR: Record<string, string> = {
   confirmed:   'var(--complete)',
   failed:      'var(--crit)',
   inconclusive:'var(--gate)',
+}
+
+const VERDICT_DIM: Record<string, string> = {
+  confirmed:    'var(--complete-dim)',
+  failed:       'var(--crit-dim)',
+  inconclusive: 'var(--gate-dim)',
 }
 
 const DIFFICULTY_COLOR: Record<string, string> = {
@@ -205,7 +219,7 @@ export function FindingDetailPage() {
           ← BACK
         </button>
         <span style={{ color: 'var(--text-label)', fontSize: '9px' }}>/</span>
-        <span style={{ color: sevColor, fontSize: '9px', letterSpacing: '1px', border: `1px solid ${sevColor}40`, padding: '2px 8px' }}>[{finding.severity.toUpperCase()}]</span>
+        <span style={{ color: sevColor, fontSize: '9px', letterSpacing: '1px', border: `1px solid ${SEV_DIM[finding.severity]}`, padding: '2px 8px' }}>[{finding.severity.toUpperCase()}]</span>
         <span style={{ color: 'var(--text-primary)', fontSize: '11px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vulnClass}</span>
         <span style={{ color: 'var(--text-secondary)', fontSize: '9px' }}>CONF: {(finding.confidence_score * 100).toFixed(0)}%</span>
       </div>
@@ -321,7 +335,7 @@ export function FindingDetailPage() {
         <Panel accent="var(--crit)">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
             <span style={{ color: 'var(--crit)', fontSize: '8px', letterSpacing: '2px' }}>LIVE EXPLOITATION</span>
-            <span style={{ color: 'var(--crit)', fontSize: '7px', border: '1px solid var(--crit)40', padding: '1px 6px' }}>AUTHORIZED USE ONLY</span>
+            <span style={{ color: 'var(--crit)', fontSize: '7px', border: '1px solid var(--crit-dim)', padding: '1px 6px' }}>AUTHORIZED USE ONLY</span>
           </div>
 
           {/* Step 1: Weaponized Script */}
@@ -370,7 +384,7 @@ export function FindingDetailPage() {
               <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '8px' }}>STEP 2 — EXECUTE AGAINST TARGET</div>
               {finding.exploit_execution ? (
                 <div>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', border: `1px solid ${VERDICT_COLOR[activeVerdict ?? 'inconclusive']}40`, padding: '4px 10px', marginBottom: '8px' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', border: `1px solid ${VERDICT_DIM[activeVerdict ?? 'inconclusive']}`, padding: '4px 10px', marginBottom: '8px' }}>
                     <span style={{ color: VERDICT_COLOR[activeVerdict ?? 'inconclusive'], fontSize: '9px', letterSpacing: '1px' }}>
                       {(activeVerdict ?? 'INCONCLUSIVE').toUpperCase()} ({Math.round(finding.exploit_execution.confidence * 100)}%)
                     </span>

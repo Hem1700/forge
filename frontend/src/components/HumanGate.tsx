@@ -28,11 +28,11 @@ export function HumanGate({ engagement }: HumanGateProps) {
   }
 
   return (
-    <div style={{ border: '1px solid var(--gate)', borderLeft: '2px solid var(--gate)', background: '#f59e0b08', padding: '12px' }}>
+    <div style={{ border: '1px solid var(--gate)', borderLeft: '2px solid var(--gate)', background: 'var(--gate-bg)', padding: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
         <span style={{ color: 'var(--gate)', fontSize: '9px', letterSpacing: '1px' }}>⚠ HUMAN GATE — {engagement.gate_status}</span>
       </div>
-      <div style={{ color: '#f59e0b80', fontSize: '9px', marginBottom: '10px' }}>
+      <div style={{ color: 'var(--gate-muted)', fontSize: '9px', marginBottom: '10px' }}>
         approval required before proceeding to next phase
       </div>
       <div style={{ display: 'flex', gap: '8px' }}>
