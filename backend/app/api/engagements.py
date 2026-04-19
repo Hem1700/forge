@@ -115,9 +115,13 @@ async def get_engagement_findings(
             "affected_surface": f.affected_surface,
             "description": f.description,
             "evidence": f.evidence,
+            "reproduction_steps": f.reproduction_steps,
             "recommendation": "",
             "confidence_score": f.confidence_score,
             "created_at": f.created_at.isoformat() if f.created_at else None,
+            "poc_detail": f.poc_detail,
+            "exploit_script": f.exploit_script,
+            "exploit_execution": f.exploit_execution,
         }
         for f in findings
     ]
