@@ -7,37 +7,56 @@ import { PoCScript } from '../components/PoCScript'
 import { ExploitSequenceDiagram } from '../components/ExploitSequenceDiagram'
 import type { FindingDetail, Severity } from '../types'
 
-const SEVERITY_COLORS: Record<Severity, string> = {
-  critical: 'bg-red-700 text-red-100',
-  high: 'bg-orange-700 text-orange-100',
-  medium: 'bg-yellow-700 text-yellow-100',
-  low: 'bg-blue-700 text-blue-100',
-  info: 'bg-gray-700 text-gray-200',
+const SEV_COLOR: Record<Severity, string> = {
+  critical: 'var(--crit)',
+  high:     'var(--high)',
+  medium:   'var(--medium)',
+  low:      'var(--low)',
+  info:     'var(--info)',
 }
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  easy: 'text-red-400',
-  medium: 'text-yellow-400',
-  hard: 'text-green-400',
+const VERDICT_COLOR: Record<string, string> = {
+  confirmed:   'var(--complete)',
+  failed:      'var(--crit)',
+  inconclusive:'var(--gate)',
 }
 
-const VERDICT_STYLES: Record<string, string> = {
-  confirmed: 'bg-green-900 text-green-300 border border-green-700',
-  failed: 'bg-red-900 text-red-300 border border-red-700',
-  inconclusive: 'bg-yellow-900 text-yellow-300 border border-yellow-700',
+const DIFFICULTY_COLOR: Record<string, string> = {
+  easy:   'var(--crit)',
+  medium: 'var(--medium)',
+  hard:   'var(--complete)',
 }
 
-const VERDICT_ICONS: Record<string, string> = {
-  confirmed: '✅',
-  failed: '❌',
-  inconclusive: '⚠️',
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <div style={{ color: 'var(--accent)', fontSize: '8px', letterSpacing: '2px', borderBottom: '1px solid var(--border)', paddingBottom: '6px', marginBottom: '10px' }}>
+      {label}
+    </div>
+  )
+}
+
+function Panel({ children, accent }: { children: React.ReactNode; accent?: string }) {
+  return (
+    <div style={{ border: '1px solid var(--border)', borderLeft: `2px solid ${accent ?? 'var(--border)'}`, background: 'var(--surface)', padding: '12px', marginBottom: '12px' }}>
+      {children}
+    </div>
+  )
+}
+
+function ActionButton({ onClick, disabled, children, danger }: { onClick: () => void; disabled: boolean; children: React.ReactNode; danger?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{ padding: '5px 14px', background: 'transparent', border: `1px solid ${danger ? 'var(--crit)' : 'var(--accent-dim)'}`, color: danger ? 'var(--crit)' : 'var(--accent)', fontSize: '9px', letterSpacing: '1px', opacity: disabled ? 0.5 : 1 }}
+    >
+      {children}
+    </button>
+  )
 }
 
 export function FindingDetailPage() {
-  const { engagementId, findingId } = useParams<{
-    engagementId: string
-    findingId: string
-  }>()
+  const { engagementId, findingId } = useParams<{ engagementId: string; findingId: string }>()
   const navigate = useNavigate()
   const [finding, setFinding] = useState<FindingDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,7 +84,7 @@ export function FindingDetailPage() {
       const poc = await findingsApi.generatePoC(findingId)
       setFinding((prev) => (prev ? { ...prev, poc_detail: poc } : prev))
     } catch {
-      setError('Failed to generate PoC. Check backend logs.')
+      setError('Failed to generate PoC.')
     } finally {
       setPocLoading(false)
     }
@@ -79,7 +98,7 @@ export function FindingDetailPage() {
       const exploit = await findingsApi.generateExploit(findingId)
       setFinding((prev) => (prev ? { ...prev, exploit_detail: exploit } : prev))
     } catch {
-      setError('Failed to generate exploit. Check backend logs.')
+      setError('Failed to generate exploit.')
     } finally {
       setExploitLoading(false)
     }
@@ -93,7 +112,7 @@ export function FindingDetailPage() {
       const script = await findingsApi.generateExploitScript(findingId)
       setFinding((prev) => (prev ? { ...prev, exploit_script: script } : prev))
     } catch {
-      setError('Failed to generate exploit script. Check backend logs.')
+      setError('Failed to generate exploit script.')
     } finally {
       setScriptLoading(false)
     }
@@ -108,7 +127,7 @@ export function FindingDetailPage() {
       const execution = await findingsApi.executeExploit(findingId)
       setFinding((prev) => (prev ? { ...prev, exploit_execution: execution } : prev))
     } catch {
-      setError('Execution failed. Check backend logs.')
+      setError('Execution failed.')
     } finally {
       setExecuteLoading(false)
     }
@@ -126,63 +145,51 @@ export function FindingDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 text-gray-400 flex items-center justify-center">
-        Loading finding...
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', letterSpacing: '1px' }}>
+        &gt; loading finding_
       </div>
     )
   }
 
   if (error || !finding) {
     return (
-      <div className="min-h-screen bg-gray-950 text-gray-400 flex items-center justify-center">
-        {error || 'Finding not found'}
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>
+        {error || 'finding not found'}
       </div>
     )
   }
 
-  const vulnClass =
-    finding.vulnerability_class ?? finding.attack_class ?? finding.title
+  const vulnClass = finding.vulnerability_class ?? finding.attack_class ?? finding.title
   const location = finding.affected_surface ?? finding.endpoint ?? ''
-  const evidence = Array.isArray(finding.evidence)
-    ? finding.evidence.join('\n')
-    : (finding.evidence ?? '')
-
-  const activeVerdict =
-    finding.exploit_execution?.override_verdict ?? finding.exploit_execution?.verdict
+  const evidence = Array.isArray(finding.evidence) ? finding.evidence.join('\n') : (finding.evidence ?? '')
+  const activeVerdict = finding.exploit_execution?.override_verdict ?? finding.exploit_execution?.verdict
+  const sevColor = SEV_COLOR[finding.severity]
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
       {/* Execute confirmation modal */}
       {showExecuteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="bg-gray-900 border border-red-800 rounded-lg p-6 max-w-md w-full mx-4 space-y-4">
-            <h3 className="text-lg font-semibold text-red-400">⚠ Live Exploit Execution</h3>
-            <p className="text-sm text-gray-300">
-              This will run a fully weaponized exploit against:
-            </p>
-            <p className="font-mono text-sm text-orange-300 bg-gray-800 px-3 py-2 rounded">
-              {location}
-            </p>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.8)' }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--crit)', padding: '20px', maxWidth: '400px', width: '100%', margin: '0 16px' }}>
+            <div style={{ color: 'var(--crit)', fontSize: '10px', letterSpacing: '1px', marginBottom: '10px' }}>⚠ LIVE EXPLOIT EXECUTION</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '9px', marginBottom: '8px' }}>This will run a fully weaponized exploit against:</div>
+            <div style={{ color: 'var(--high)', fontSize: '9px', background: 'var(--bg)', padding: '6px 10px', marginBottom: '8px', border: '1px solid var(--border)' }}>{location}</div>
             {finding.exploit_script && (
-              <p className="text-xs text-gray-400">
-                Impact: {finding.exploit_script.impact_achieved}
-              </p>
+              <div style={{ color: 'var(--text-dim)', fontSize: '8px', marginBottom: '8px' }}>Impact: {finding.exploit_script.impact_achieved}</div>
             )}
-            <p className="text-xs text-yellow-400">
-              Only proceed on systems you own or have explicit written permission to test.
-            </p>
-            <div className="flex gap-3 pt-2">
+            <div style={{ color: 'var(--gate)', fontSize: '8px', marginBottom: '12px' }}>Only proceed on systems you own or have explicit written permission to test.</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={handleExecuteExploit}
-                className="flex-1 px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-md font-medium text-sm transition-colors"
+                style={{ flex: 1, padding: '6px 0', background: 'transparent', border: '1px solid var(--crit)', color: 'var(--crit)', fontSize: '9px', letterSpacing: '1px', cursor: 'pointer' }}
               >
-                Execute
+                EXECUTE
               </button>
               <button
                 onClick={() => setShowExecuteModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md font-medium text-sm transition-colors"
+                style={{ flex: 1, padding: '6px 0', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: '9px', letterSpacing: '1px', cursor: 'pointer' }}
               >
-                Cancel
+                CANCEL
               </button>
             </div>
           </div>
@@ -190,154 +197,141 @@ export function FindingDetailPage() {
       )}
 
       {/* Header */}
-      <header className="border-b border-gray-800 px-6 py-4 flex items-center gap-4">
+      <div style={{ borderBottom: '1px solid var(--border)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button
           onClick={() => navigate(`/engagement/${engagementId}`)}
-          className="text-gray-400 hover:text-gray-100 transition-colors"
+          style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '9px', letterSpacing: '1px', padding: 0, cursor: 'pointer' }}
         >
-          &larr; Back to Engagement
+          ← BACK
         </button>
-        <div className="flex-1 flex items-center gap-3 min-w-0">
-          <span
-            className={`text-xs px-2 py-1 rounded-full flex-shrink-0 ${
-              SEVERITY_COLORS[finding.severity]
-            }`}
-          >
-            {finding.severity.toUpperCase()}
-          </span>
-          <h1 className="text-lg font-semibold text-gray-100 truncate">
-            {vulnClass}
-          </h1>
-        </div>
-        <div className="text-sm text-gray-400 flex-shrink-0">
-          Confidence: {(finding.confidence_score * 100).toFixed(0)}%
-        </div>
-      </header>
+        <span style={{ color: 'var(--text-label)', fontSize: '9px' }}>/</span>
+        <span style={{ color: sevColor, fontSize: '9px', letterSpacing: '1px', border: `1px solid ${sevColor}40`, padding: '2px 8px' }}>[{finding.severity.toUpperCase()}]</span>
+        <span style={{ color: 'var(--text-primary)', fontSize: '11px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vulnClass}</span>
+        <span style={{ color: 'var(--text-secondary)', fontSize: '9px' }}>CONF: {(finding.confidence_score * 100).toFixed(0)}%</span>
+      </div>
 
-      <main className="px-6 py-6 space-y-6 max-w-7xl mx-auto">
-        {/* Location */}
-        <p className="text-sm text-gray-400">
-          Location:{' '}
-          <span className="font-mono text-gray-200">{location || '\u2014'}</span>
-        </p>
+      <div style={{ padding: '16px 24px', maxWidth: '1200px' }}>
+        {/* Metadata grid */}
+        <Panel accent={sevColor}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+            <div>
+              <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '4px' }}>SURFACE</div>
+              <div style={{ color: 'var(--text-primary)', fontSize: '10px' }}>{location || '—'}</div>
+            </div>
+            <div>
+              <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '4px' }}>CLASS</div>
+              <div style={{ color: 'var(--text-primary)', fontSize: '10px' }}>{vulnClass}</div>
+            </div>
+            <div>
+              <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '4px' }}>VERDICT</div>
+              <div style={{ color: activeVerdict ? VERDICT_COLOR[activeVerdict] : 'var(--text-secondary)', fontSize: '10px', letterSpacing: '1px' }}>
+                {activeVerdict?.toUpperCase() ?? 'PENDING'}
+              </div>
+            </div>
+          </div>
+        </Panel>
+
+        {/* Description + Evidence */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+          <Panel>
+            <SectionHeader label="DESCRIPTION" />
+            <p style={{ color: 'var(--text-secondary)', fontSize: '9px', lineHeight: 1.6, margin: 0 }}>
+              {finding.description || 'No description provided.'}
+            </p>
+          </Panel>
+          <Panel>
+            <SectionHeader label="EVIDENCE" />
+            <pre style={{ color: 'var(--text-secondary)', fontSize: '8px', background: 'var(--bg)', padding: '8px', border: '1px solid var(--border)', overflowX: 'auto', maxHeight: '160px', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+              {evidence || 'No evidence captured.'}
+            </pre>
+          </Panel>
+        </div>
 
         {/* Exploit Intelligence */}
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
-          <h2 className="font-semibold text-gray-100 mb-5 text-base">
-            Exploit Intelligence
-          </h2>
-
+        <Panel>
+          <SectionHeader label="EXPLOIT INTELLIGENCE" />
           {finding.exploit_detail ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
-                <p className="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-3">
-                  Walkthrough
-                </p>
+                <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '6px' }}>WALKTHROUGH</div>
                 <ExploitWalkthrough steps={finding.exploit_detail.walkthrough} />
               </div>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-3">
-                    Attack Path
-                  </p>
-                  <AttackPathDiagram source={finding.exploit_detail.attack_path_mermaid} />
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  <div className="bg-gray-800 rounded p-2">
-                    <div className="text-gray-500 text-xs mb-1">Difficulty</div>
-                    <div
-                      className={`font-semibold capitalize ${
-                        DIFFICULTY_COLORS[finding.exploit_detail.difficulty] ?? 'text-gray-300'
-                      }`}
-                    >
-                      {finding.exploit_detail.difficulty}
+              <div>
+                <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '6px' }}>ATTACK PATH</div>
+                <AttackPathDiagram source={finding.exploit_detail.attack_path_mermaid} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '8px' }}>
+                  <div style={{ border: '1px solid var(--border)', padding: '6px' }}>
+                    <div style={{ color: 'var(--text-label)', fontSize: '7px', letterSpacing: '1px', marginBottom: '3px' }}>DIFFICULTY</div>
+                    <div style={{ color: DIFFICULTY_COLOR[finding.exploit_detail.difficulty] ?? 'var(--text-primary)', fontSize: '9px', letterSpacing: '1px' }}>
+                      {finding.exploit_detail.difficulty.toUpperCase()}
                     </div>
                   </div>
-                  <div className="bg-gray-800 rounded p-2 col-span-2">
-                    <div className="text-gray-500 text-xs mb-1">Impact</div>
-                    <div className="text-gray-200 text-xs">{finding.exploit_detail.impact}</div>
+                  <div style={{ border: '1px solid var(--border)', padding: '6px', gridColumn: 'span 2' }}>
+                    <div style={{ color: 'var(--text-label)', fontSize: '7px', letterSpacing: '1px', marginBottom: '3px' }}>IMPACT</div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '8px' }}>{finding.exploit_detail.impact}</div>
                   </div>
                 </div>
                 {finding.exploit_detail.prerequisites.length > 0 && (
-                  <div>
-                    <div className="text-gray-500 text-xs mb-1">Prerequisites</div>
-                    <ul className="list-disc list-inside text-xs text-gray-300 space-y-0.5">
-                      {finding.exploit_detail.prerequisites.map((p, i) => (
-                        <li key={i}>{p}</li>
-                      ))}
+                  <div style={{ marginTop: '8px' }}>
+                    <div style={{ color: 'var(--text-label)', fontSize: '7px', letterSpacing: '1px', marginBottom: '4px' }}>PREREQUISITES</div>
+                    <ul style={{ margin: 0, paddingLeft: '14px', color: 'var(--text-secondary)', fontSize: '8px' }}>
+                      {finding.exploit_detail.prerequisites.map((p, i) => <li key={i}>{p}</li>)}
                     </ul>
                   </div>
                 )}
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center py-10 gap-3">
-              <p className="text-gray-500 text-sm">No exploit intelligence generated yet.</p>
-              <button
-                onClick={handleGenerateExploit}
-                disabled={exploitLoading}
-                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-md font-medium transition-colors text-sm"
-              >
-                {exploitLoading ? 'Generating\u2026' : 'Generate Exploit'}
-              </button>
-              {error && <p className="text-red-400 text-xs">{error}</p>}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', padding: '12px 0' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '9px' }}>&gt; no exploit intelligence generated yet_</div>
+              <ActionButton onClick={handleGenerateExploit} disabled={exploitLoading}>
+                {exploitLoading ? 'GENERATING...' : '▶ GENERATE EXPLOIT'}
+              </ActionButton>
+              {error && <div style={{ color: 'var(--crit)', fontSize: '8px' }}>{error}</div>}
             </div>
           )}
-        </div>
+        </Panel>
 
         {/* PoC Script */}
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
-          <h2 className="font-semibold text-gray-100 mb-5 text-base">PoC Script</h2>
+        <Panel>
+          <SectionHeader label="POC SCRIPT" />
           {finding.poc_detail ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
-                <p className="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-3">Script</p>
+                <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '6px' }}>SCRIPT</div>
                 <PoCScript poc={finding.poc_detail} />
               </div>
               <div>
-                <p className="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-3">Exploit Sequence</p>
+                <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '6px' }}>EXPLOIT SEQUENCE</div>
                 <ExploitSequenceDiagram source={finding.poc_detail.sequence_diagram} />
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center py-10 gap-3">
-              <p className="text-gray-500 text-sm">No PoC script generated yet.</p>
-              <button
-                onClick={handleGeneratePoC}
-                disabled={pocLoading}
-                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-md font-medium transition-colors text-sm"
-              >
-                {pocLoading ? 'Generating\u2026' : 'Generate PoC'}
-              </button>
-              {error && <p className="text-red-400 text-xs">{error}</p>}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', padding: '12px 0' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '9px' }}>&gt; no PoC script generated yet_</div>
+              <ActionButton onClick={handleGeneratePoC} disabled={pocLoading}>
+                {pocLoading ? 'GENERATING...' : '▶ GENERATE POC'}
+              </ActionButton>
+              {error && <div style={{ color: 'var(--crit)', fontSize: '8px' }}>{error}</div>}
             </div>
           )}
-        </div>
+        </Panel>
 
         {/* Live Exploitation */}
-        <div className="bg-gray-900 border border-red-900/50 rounded-lg p-5">
-          <h2 className="font-semibold text-gray-100 mb-5 text-base flex items-center gap-2">
-            Live Exploitation
-            <span className="text-xs px-2 py-0.5 rounded-full bg-red-900 text-red-300 font-normal">
-              authorized use only
-            </span>
-          </h2>
+        <Panel accent="var(--crit)">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            <span style={{ color: 'var(--crit)', fontSize: '8px', letterSpacing: '2px' }}>LIVE EXPLOITATION</span>
+            <span style={{ color: 'var(--crit)', fontSize: '7px', border: '1px solid var(--crit)40', padding: '1px 6px' }}>AUTHORIZED USE ONLY</span>
+          </div>
 
-          {/* Step 1: Exploit Script */}
-          <div className="mb-6">
-            <p className="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-3">
-              Step 1 — Weaponized Script
-            </p>
-
+          {/* Step 1: Weaponized Script */}
+          <div style={{ marginBottom: '14px' }}>
+            <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '8px' }}>STEP 1 — WEAPONIZED SCRIPT</div>
             {finding.exploit_script ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-300 font-mono">
-                    {finding.exploit_script.language}
-                  </span>
-                  <span className="font-mono text-sm text-gray-200">
-                    {finding.exploit_script.filename}
-                  </span>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '8px', border: '1px solid var(--border)', padding: '1px 6px' }}>{finding.exploit_script.language}</span>
+                  <span style={{ color: 'var(--text-primary)', fontSize: '9px' }}>{finding.exploit_script.filename}</span>
                   <button
                     onClick={() => {
                       const blob = new Blob([finding.exploit_script!.script], { type: 'text/plain' })
@@ -348,36 +342,24 @@ export function FindingDetailPage() {
                       a.click()
                       URL.revokeObjectURL(url)
                     }}
-                    className="ml-auto text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+                    style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: '8px', padding: '2px 8px', cursor: 'pointer' }}
                   >
-                    Download
+                    ↓ DOWNLOAD
                   </button>
                 </div>
-
-                <pre className="text-xs font-mono text-gray-300 bg-gray-950 p-3 rounded overflow-x-auto max-h-64 border border-gray-800">
+                <pre style={{ color: 'var(--accent)', fontSize: '8px', background: 'var(--bg)', padding: '10px', border: '1px solid var(--accent-dim)', overflowX: 'auto', maxHeight: '200px', margin: '0 0 6px', fontFamily: 'inherit' }}>
                   {finding.exploit_script.script}
                 </pre>
-
-                {finding.exploit_script.setup.length > 0 && (
-                  <p className="text-xs text-gray-500">
-                    Setup: <span className="font-mono text-gray-400">{finding.exploit_script.setup.join(', ')}</span>
-                  </p>
-                )}
-
-                <div className="text-xs text-gray-500 space-y-1">
-                  <p>Expected: <span className="text-gray-400">{finding.exploit_script.expected_output}</span></p>
-                  <p>Impact: <span className="text-red-400">{finding.exploit_script.impact_achieved}</span></p>
+                <div style={{ color: 'var(--text-dim)', fontSize: '8px' }}>
+                  Expected: <span style={{ color: 'var(--text-secondary)' }}>{finding.exploit_script.expected_output}</span>
+                  {' '} // Impact: <span style={{ color: 'var(--crit)' }}>{finding.exploit_script.impact_achieved}</span>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-start gap-2">
-                <button
-                  onClick={handleGenerateExploitScript}
-                  disabled={scriptLoading}
-                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-md font-medium transition-colors text-sm"
-                >
-                  {scriptLoading ? 'Generating\u2026' : 'Generate Exploit Script'}
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
+                <ActionButton onClick={handleGenerateExploitScript} disabled={scriptLoading}>
+                  {scriptLoading ? 'GENERATING...' : '▶ GENERATE EXPLOIT SCRIPT'}
+                </ActionButton>
               </div>
             )}
           </div>
@@ -385,91 +367,51 @@ export function FindingDetailPage() {
           {/* Step 2: Execute */}
           {finding.exploit_script && (
             <div>
-              <p className="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-3">
-                Step 2 — Execute Against Target
-              </p>
-
+              <div style={{ color: 'var(--text-label)', fontSize: '8px', letterSpacing: '1px', marginBottom: '8px' }}>STEP 2 — EXECUTE AGAINST TARGET</div>
               {finding.exploit_execution ? (
-                <div className="space-y-4">
-                  {/* Verdict badge */}
-                  <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold ${
-                    VERDICT_STYLES[activeVerdict ?? 'inconclusive']
-                  }`}>
-                    {VERDICT_ICONS[activeVerdict ?? 'inconclusive']}{' '}
-                    {(activeVerdict ?? 'inconclusive').toUpperCase()}{' '}
-                    ({Math.round((finding.exploit_execution.confidence) * 100)}%)
+                <div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', border: `1px solid ${VERDICT_COLOR[activeVerdict ?? 'inconclusive']}40`, padding: '4px 10px', marginBottom: '8px' }}>
+                    <span style={{ color: VERDICT_COLOR[activeVerdict ?? 'inconclusive'], fontSize: '9px', letterSpacing: '1px' }}>
+                      {(activeVerdict ?? 'INCONCLUSIVE').toUpperCase()} ({Math.round(finding.exploit_execution.confidence * 100)}%)
+                    </span>
                     {finding.exploit_execution.override_verdict && (
-                      <span className="text-xs font-normal opacity-70 ml-1">manually overridden</span>
+                      <span style={{ color: 'var(--text-dim)', fontSize: '7px' }}>// overridden</span>
                     )}
                   </div>
-
-                  {/* Reasoning */}
-                  <p className="text-sm text-gray-300">{finding.exploit_execution.reasoning}</p>
-
-                  {/* Stdout */}
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '9px', marginBottom: '8px' }}>{finding.exploit_execution.reasoning}</p>
                   {finding.exploit_execution.stdout && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Output</p>
-                      <pre className="text-xs font-mono text-green-300 bg-gray-950 p-3 rounded overflow-x-auto max-h-48 border border-gray-800">
-                        {finding.exploit_execution.stdout}
-                      </pre>
-                    </div>
+                    <pre style={{ color: 'var(--complete)', fontSize: '8px', background: 'var(--bg)', padding: '8px', border: '1px solid var(--border)', overflowX: 'auto', maxHeight: '160px', margin: '0 0 8px', fontFamily: 'inherit' }}>
+                      {finding.exploit_execution.stdout}
+                    </pre>
                   )}
-
-                  {/* Override */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Override verdict:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: 'var(--text-dim)', fontSize: '8px' }}>override:</span>
                     {(['confirmed', 'failed', 'inconclusive'] as const).map((v) => (
                       <button
                         key={v}
                         onClick={() => handleOverrideVerdict(v)}
-                        className={`text-xs px-2 py-1 rounded transition-colors ${
-                          activeVerdict === v
-                            ? 'bg-gray-600 text-white'
-                            : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-                        }`}
+                        style={{ padding: '2px 8px', background: activeVerdict === v ? 'var(--border)' : 'transparent', border: `1px solid ${activeVerdict === v ? 'var(--accent)' : 'var(--border)'}`, color: activeVerdict === v ? 'var(--accent)' : 'var(--text-secondary)', fontSize: '8px', letterSpacing: '1px', cursor: 'pointer' }}
                       >
                         {v}
                       </button>
                     ))}
                   </div>
-
                   {finding.exploit_execution.timed_out && (
-                    <p className="text-xs text-yellow-400">⚠ Execution timed out</p>
+                    <div style={{ color: 'var(--gate)', fontSize: '8px', marginTop: '6px' }}>⚠ execution timed out</div>
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col items-start gap-2">
-                  <button
-                    onClick={() => setShowExecuteModal(true)}
-                    disabled={executeLoading}
-                    className="px-4 py-2 bg-red-700 hover:bg-red-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-md font-semibold transition-colors text-sm"
-                  >
-                    {executeLoading ? 'Executing\u2026' : '⚠ Execute Against Target'}
-                  </button>
-                  {error && <p className="text-red-400 text-xs">{error}</p>}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
+                  <ActionButton onClick={() => setShowExecuteModal(true)} disabled={executeLoading} danger>
+                    {executeLoading ? 'EXECUTING...' : '⚠ EXECUTE AGAINST TARGET'}
+                  </ActionButton>
+                  {error && <div style={{ color: 'var(--crit)', fontSize: '8px' }}>{error}</div>}
                 </div>
               )}
             </div>
           )}
-        </div>
-
-        {/* Evidence + Description */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <h3 className="font-semibold text-gray-100 mb-3 text-sm">Evidence</h3>
-            <pre className="text-xs font-mono text-gray-300 bg-gray-800 p-3 rounded overflow-x-auto whitespace-pre-wrap max-h-60">
-              {evidence || 'No evidence captured.'}
-            </pre>
-          </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <h3 className="font-semibold text-gray-100 mb-3 text-sm">Description</h3>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              {finding.description || 'No description provided.'}
-            </p>
-          </div>
-        </div>
-      </main>
+        </Panel>
+      </div>
     </div>
   )
 }
