@@ -13,6 +13,7 @@ from app.config import settings
 from app.database import get_db
 from app.models.agent import Agent
 from app.models.engagement import Engagement, EngagementStatus
+from app.models.engagement_event import EngagementEvent
 from app.models.finding import Finding
 from app.models.knowledge import KnowledgeGraphEntry
 from app.models.task import Bid, Task
@@ -132,6 +133,25 @@ async def get_engagement_findings(
     ]
 
 
+@router.get("/{engagement_id}/events")
+async def get_engagement_events(
+    engagement_id: uuid.UUID,
+    limit: int = 500,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(EngagementEvent)
+        .where(EngagementEvent.engagement_id == engagement_id)
+        .order_by(EngagementEvent.timestamp.desc())
+        .limit(limit)
+    )
+    events = result.scalars().all()
+    return [
+        {"type": e.type, "payload": e.payload, "timestamp": e.timestamp.isoformat()}
+        for e in events
+    ]
+
+
 @router.post("/{engagement_id}/report/pdf")
 async def generate_pdf_report(
     engagement_id: uuid.UUID,
@@ -178,6 +198,7 @@ async def delete_engagement(
     await db.execute(delete(Task).where(Task.engagement_id == engagement_id))
     await db.execute(delete(Agent).where(Agent.engagement_id == engagement_id))
     await db.execute(delete(KnowledgeGraphEntry).where(KnowledgeGraphEntry.engagement_id == engagement_id))
+    await db.execute(delete(EngagementEvent).where(EngagementEvent.engagement_id == engagement_id))
     await db.delete(engagement)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

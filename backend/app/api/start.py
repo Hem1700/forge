@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, AsyncSessionLocal
 from app.models.engagement import Engagement, EngagementStatus
+from app.models.engagement_event import EngagementEvent
 from app.models.finding import Finding, Severity, ValidationStatus
 from app.models.task import Task, TaskStatus, Priority
 from app.models.agent import Agent, AgentType, AgentStatus
@@ -27,10 +28,22 @@ _SEVERITY_MAP = {
 
 
 async def _broadcast(engagement_id: str, event_type: str, payload: dict) -> None:
+    ts = datetime.now(timezone.utc)
+    try:
+        async with AsyncSessionLocal() as db:
+            db.add(EngagementEvent(
+                engagement_id=uuid.UUID(engagement_id),
+                type=event_type,
+                payload=payload,
+                timestamp=ts.replace(tzinfo=None),
+            ))
+            await db.commit()
+    except Exception:
+        pass
     await stream_manager.broadcast(engagement_id, {
         "type": event_type,
         "payload": payload,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": ts.isoformat(),
     })
 
 

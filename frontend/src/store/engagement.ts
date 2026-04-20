@@ -14,6 +14,7 @@ interface EngagementState {
   setFindings: (f: Finding[]) => void
   setAgents: (a: AgentInfo[]) => void
   addEvent: (e: SwarmEvent) => void
+  setEvents: (e: SwarmEvent[]) => void
 }
 
 export const useEngagementStore = create<EngagementState>((set) => ({
@@ -34,5 +35,6 @@ export const useEngagementStore = create<EngagementState>((set) => ({
   addFinding: (finding) => set((s) => ({ findings: [...s.findings, finding] })),
   setFindings: (findings) => set({ findings }),
   setAgents: (agents) => set({ agents }),
-  addEvent: (event) => set((s) => ({ events: [event, ...s.events].slice(0, 100) })),
+  addEvent: (event) => set((s) => ({ events: [event, ...s.events].slice(0, 500) })),
+  setEvents: (events) => set({ events: events.slice(0, 500) }),
 }))

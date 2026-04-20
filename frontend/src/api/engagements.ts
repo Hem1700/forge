@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { Engagement, FindingDetail } from '../types'
+import type { Engagement, FindingDetail, SwarmEvent } from '../types'
 
 export const engagementsApi = {
   list: () => apiFetch<Engagement[]>('/api/v1/engagements/'),
@@ -14,6 +14,8 @@ export const engagementsApi = {
     apiFetch<void>(`/api/v1/engagements/${id}`, { method: 'DELETE' }),
   findings: (id: string) =>
     apiFetch<FindingDetail[]>(`/api/v1/engagements/${id}/findings`),
+  events: (id: string) =>
+    apiFetch<SwarmEvent[]>(`/api/v1/engagements/${id}/events`),
   downloadPdfReport: (id: string) =>
     fetch(`/api/v1/engagements/${id}/report/pdf`, { method: 'POST' })
       .then(res => {

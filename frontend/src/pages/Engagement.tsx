@@ -68,6 +68,7 @@ export function Engagement() {
   const setActiveEngagement = useEngagementStore((s) => s.setActiveEngagement)
   const activeEngagement = useEngagementStore((s) => s.activeEngagement)
   const setFindings = useEngagementStore((s) => s.setFindings)
+  const setEvents = useEngagementStore((s) => s.setEvents)
   const findings = useEngagementStore((s) => s.findings)
   const agents = useEngagementStore((s) => s.agents)
   const [pdfLoading, setPdfLoading] = useState(false)
@@ -76,11 +77,13 @@ export function Engagement() {
     if (!id) return
     engagementsApi.get(id).then(setActiveEngagement).catch(console.error)
     engagementsApi.findings(id).then(setFindings).catch(console.error)
+    engagementsApi.events(id).then(setEvents).catch(console.error)
     return () => {
       setActiveEngagement(null)
       setFindings([])
+      setEvents([])
     }
-  }, [id, setActiveEngagement, setFindings])
+  }, [id, setActiveEngagement, setFindings, setEvents])
 
   useSwarmStream(id ?? null)
 
