@@ -1,18 +1,37 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import update
 
 from app.api import engagements, findings, gates, knowledge, system
 from app.api.start import router as start_router
 from app.config import settings
+from app.database import AsyncSessionLocal
+from app.models.engagement import Engagement, EngagementStatus
 from app.ws.stream import stream_manager
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # startup: nothing yet — services connect lazily
+    # Mark stale running/paused engagements as aborted on startup — any process
+    # that was running them is long gone if the row was created >1h ago.
+    cutoff = datetime.utcnow() - timedelta(hours=1)
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                update(Engagement)
+                .where(
+                    Engagement.status.in_([EngagementStatus.running, EngagementStatus.paused_at_gate]),
+                    Engagement.created_at < cutoff,
+                )
+                .values(status=EngagementStatus.aborted)
+            )
+            await db.commit()
+    except Exception:
+        pass
     yield
-    # shutdown: nothing yet
 
 
 app = FastAPI(

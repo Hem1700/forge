@@ -18,7 +18,7 @@ const TYPE: Record<TargetType, string> = {
   binary: 'binary',
 }
 
-const COLS = '110px 1fr 70px 90px 65px 90px'
+const COLS = '110px 1fr 70px 90px 65px 90px 30px'
 
 export function EngagementDashboard() {
   const engagements = useEngagementStore((s) => s.engagements)
@@ -32,6 +32,7 @@ export function EngagementDashboard() {
   const [targetPath, setTargetPath] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [starting, setStarting] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function handleCreate(e: React.FormEvent) {
@@ -54,6 +55,21 @@ export function EngagementDashboard() {
       setError(err instanceof Error ? err.message : 'Failed to create engagement')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleDelete(e: React.MouseEvent, eng: Engagement) {
+    e.stopPropagation()
+    const label = eng.target_path ?? eng.target_url
+    if (!window.confirm(`Delete engagement for ${label}? This removes all findings and cannot be undone.`)) return
+    setDeleting(eng.id)
+    try {
+      await engagementsApi.delete(eng.id)
+      setEngagements(engagements.filter((x) => x.id !== eng.id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete engagement')
+    } finally {
+      setDeleting(null)
     }
   }
 
@@ -166,6 +182,7 @@ export function EngagementDashboard() {
           <span>FINDINGS</span>
           <span>DATE</span>
           <span></span>
+          <span></span>
         </div>
       )}
 
@@ -203,6 +220,16 @@ export function EngagementDashboard() {
                   <span style={{ color: 'var(--accent-glow)', fontSize: 'var(--fs-xs)' }}>[view]</span>
                 )}
               </span>
+              <button
+                onClick={(e) => handleDelete(e, eng)}
+                disabled={deleting === eng.id}
+                title="Delete engagement"
+                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', padding: '2px 6px', letterSpacing: '1px', opacity: deleting === eng.id ? 0.5 : 1 }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--crit)'; e.currentTarget.style.borderColor = 'var(--crit)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+              >
+                {deleting === eng.id ? '…' : '×'}
+              </button>
             </div>
           )
         })

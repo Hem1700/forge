@@ -6,13 +6,16 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from playwright.async_api import async_playwright
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
+from app.models.agent import Agent
 from app.models.engagement import Engagement, EngagementStatus
 from app.models.finding import Finding
+from app.models.knowledge import KnowledgeGraphEntry
+from app.models.task import Bid, Task
 
 router = APIRouter(prefix="/api/v1/engagements", tags=["engagements"])
 
@@ -167,6 +170,14 @@ async def delete_engagement(
     engagement = await db.get(Engagement, engagement_id)
     if engagement is None:
         raise HTTPException(status_code=404, detail="Engagement not found")
+    # cascade delete children (no ON DELETE CASCADE in schema)
+    task_ids = (await db.execute(select(Task.id).where(Task.engagement_id == engagement_id))).scalars().all()
+    if task_ids:
+        await db.execute(delete(Bid).where(Bid.task_id.in_(task_ids)))
+    await db.execute(delete(Finding).where(Finding.engagement_id == engagement_id))
+    await db.execute(delete(Task).where(Task.engagement_id == engagement_id))
+    await db.execute(delete(Agent).where(Agent.engagement_id == engagement_id))
+    await db.execute(delete(KnowledgeGraphEntry).where(KnowledgeGraphEntry.engagement_id == engagement_id))
     await db.delete(engagement)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
