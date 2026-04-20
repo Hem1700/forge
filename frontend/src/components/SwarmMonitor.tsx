@@ -1,58 +1,163 @@
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useEngagementStore } from '../store/engagement'
-import type { SwarmEvent } from '../types'
+import type { Severity, SwarmEvent } from '../types'
 
-const EVENT_COLOR: Record<SwarmEvent['type'], string> = {
-  agent_started:     'var(--accent)',
-  agent_completed:   'var(--complete)',
-  finding_discovered:'var(--high)',
-  gate_triggered:    'var(--gate)',
-  campaign_complete: 'var(--complete)',
-  ping:              'var(--text-secondary)',
+const SEV_COLOR: Record<Severity, string> = {
+  critical: 'var(--crit)',
+  high:     'var(--high)',
+  medium:   'var(--medium)',
+  low:      'var(--low)',
+  info:     'var(--info)',
 }
+
+const K = { color: 'var(--text-label)' } as const
+const V = { color: 'var(--accent-glow)' } as const
+
+interface Rendered { tag: string; tagColor: string; msg: ReactNode }
+
+function renderEvent(e: SwarmEvent): Rendered {
+  const p = e.payload as Record<string, unknown>
+  switch (e.type) {
+    case 'agent_started': {
+      const phase = (p.phase ?? p.agent_id ?? 'agent') as string
+      const target = (p.target ?? p.path ?? p.hypothesis ?? '') as string
+      return {
+        tag: 'AGENT', tagColor: 'var(--accent)',
+        msg: (
+          <>
+            <span style={K}>{phase}</span> <span style={V}>spawned</span>
+            {target && <> → <span style={V}>{target}</span></>}
+          </>
+        ),
+      }
+    }
+    case 'agent_completed': {
+      const phase = (p.phase ?? p.agent_id ?? 'agent') as string
+      const rest = Object.entries(p)
+        .filter(([k]) => k !== 'phase' && k !== 'agent_id')
+        .slice(0, 3)
+        .map(([k, v]) => `${k}=${String(v)}`)
+        .join(' · ')
+      return {
+        tag: 'DONE', tagColor: 'var(--complete)',
+        msg: (
+          <>
+            <span style={K}>{phase}</span>
+            {rest && <> <span style={V}>{rest}</span></>}
+          </>
+        ),
+      }
+    }
+    case 'finding_discovered': {
+      const f = (p.finding ?? {}) as Record<string, unknown>
+      const sev = ((f.severity as string | undefined) ?? 'info') as Severity
+      const vuln = (f.vulnerability_class ?? f.attack_class ?? f.title ?? 'finding') as string
+      const loc = (f.affected_surface ?? f.endpoint ?? '') as string
+      const conf = f.confidence_score as number | undefined
+      return {
+        tag: 'FIND', tagColor: 'var(--high)',
+        msg: (
+          <>
+            <span style={{ color: SEV_COLOR[sev] }}>[{sev.toUpperCase().slice(0, 4)}]</span>{' '}
+            {vuln}
+            {loc && <> · <span style={V}>{loc}</span></>}
+            {conf != null && <> · conf <span style={K}>{Math.round(conf * 100)}%</span></>}
+          </>
+        ),
+      }
+    }
+    case 'gate_triggered': {
+      const gate = (p.gate_status ?? (p.engagement as Record<string, unknown> | undefined)?.gate_status ?? '') as string
+      return {
+        tag: 'GATE', tagColor: 'var(--gate)',
+        msg: (
+          <>
+            human approval required{gate && <> · <span style={V}>{gate}</span></>}
+          </>
+        ),
+      }
+    }
+    case 'campaign_complete': {
+      const status = (p.status ?? 'complete') as string
+      const err = p.error as string | undefined
+      return {
+        tag: 'END',
+        tagColor: status === 'error' ? 'var(--aborted)' : 'var(--complete)',
+        msg: (
+          <>
+            campaign {status}
+            {err && <> · <span style={{ color: 'var(--crit)' }}>{err}</span></>}
+          </>
+        ),
+      }
+    }
+    case 'ping':
+    default:
+      return {
+        tag: 'PING', tagColor: 'var(--text-secondary)',
+        msg: <span style={{ color: 'var(--text-dim)' }}>ping</span>,
+      }
+  }
+}
+
+const COLS = '78px 68px 1fr'
 
 export function SwarmMonitor() {
   const events = useEngagementStore((s) => s.events)
   const agents = useEngagementStore((s) => s.agents)
-  const recent = events.slice(0, 30)
+  const activeEngagement = useEngagementStore((s) => s.activeEngagement)
+  const bodyRef = useRef<HTMLDivElement>(null)
+
+  const streaming = activeEngagement?.status === 'running'
+  const ordered = [...events].reverse().slice(-80)
+
+  useEffect(() => {
+    const el = bodyRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [ordered.length])
 
   return (
-    <div style={{ border: '1px solid var(--border)', borderLeft: '2px solid var(--accent)', background: 'var(--surface)', padding: '12px' }}>
+    <div style={{ border: '1px solid var(--border)', borderLeft: '2px solid var(--accent)', background: 'var(--surface)' }}>
       {/* Panel header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '8px', marginBottom: '8px' }}>
-        <span style={{ color: 'var(--accent)', fontSize: 'var(--fs-sm)', letterSpacing: '2px' }}>SWARM MONITOR</span>
-        {agents.length > 0 && (
-          <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-sm)', border: '1px solid var(--border)', padding: '1px 6px' }}>
-            {agents.length} AGENT{agents.length === 1 ? '' : 'S'}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', padding: '8px 14px' }}>
+        <span style={{ color: 'var(--accent)', fontSize: 'var(--fs-sm)', letterSpacing: '2px' }}>▌ LIVE SWARM CONSOLE</span>
+        <div style={{ display: 'flex', gap: '8px', fontSize: 'var(--fs-xs)', color: 'var(--text-label)' }}>
+          <span style={{ border: '1px solid var(--border)', padding: '1px 6px' }}>{agents.length} AGENT{agents.length === 1 ? '' : 'S'}</span>
+          <span style={{ border: '1px solid var(--border)', padding: '1px 6px' }}>{events.length} EVENT{events.length === 1 ? '' : 'S'}</span>
+          <span style={{ border: '1px solid var(--border)', padding: '1px 6px', color: streaming ? 'var(--running)' : 'var(--text-secondary)' }}>
+            {streaming ? '● STREAMING' : '○ IDLE'}
           </span>
-        )}
+        </div>
       </div>
 
       {/* Event log */}
-      <div style={{ maxHeight: '440px', overflowY: 'auto' }}>
-        {recent.length === 0 ? (
+      <div ref={bodyRef} style={{ height: '460px', overflowY: 'auto', padding: '10px 14px' }}>
+        {ordered.length === 0 ? (
           <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', padding: '16px 0' }}>
             &gt; waiting for events_
           </div>
         ) : (
-          recent.map((event, idx) => {
+          ordered.map((event, idx) => {
             const ts = new Date(event.timestamp).toLocaleTimeString('en-US', { hour12: false })
+            const r = renderEvent(event)
             return (
-              <div key={idx} style={{ borderBottom: '1px solid var(--border-deep)', padding: '4px 0', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-xs)', flexShrink: 0, marginTop: '1px' }}>[{ts}]</span>
-                <span style={{ color: EVENT_COLOR[event.type], fontSize: 'var(--fs-xs)', letterSpacing: '1px', flexShrink: 0 }}>{event.type}</span>
-                <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', wordBreak: 'break-all' }}>
-                  {JSON.stringify(event.payload)}
-                </span>
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: COLS, gap: '10px', padding: '4px 0', alignItems: 'baseline', borderBottom: '1px solid var(--border-deep)' }}>
+                <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-xs)' }}>{ts}</span>
+                <span style={{ color: r.tagColor, fontSize: 'var(--fs-tiny)', letterSpacing: '2px' }}>{r.tag}</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-sm)', wordBreak: 'break-word' }}>{r.msg}</span>
               </div>
             )
           })
         )}
       </div>
 
-      {/* Cursor */}
-      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '6px', marginTop: '6px', color: 'var(--accent-glow)', fontSize: 'var(--fs-sm)' }}>
-        _
+      {/* Cursor footer */}
+      <div style={{ borderTop: '1px solid var(--border)', padding: '6px 14px', color: 'var(--accent)', fontSize: 'var(--fs-sm)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span>▶</span>
+        <span style={{ display: 'inline-block', width: '7px', height: '12px', background: 'var(--accent)', animation: 'forgeblink 1s steps(2) infinite' }} />
       </div>
+
+      <style>{`@keyframes forgeblink { to { background: transparent; } }`}</style>
     </div>
   )
 }

@@ -10,7 +10,7 @@ const SEV_COLOR: Record<Severity, string> = {
   info:     'var(--info)',
 }
 
-const COLS = '65px 1fr 120px 50px'
+const COLS = '70px 2fr 1fr 60px 70px'
 
 export function FindingsPanel() {
   const findings = useEngagementStore((s) => s.findings)
@@ -35,6 +35,7 @@ export function FindingsPanel() {
             <span>VULNERABILITY</span>
             <span>LOCATION</span>
             <span>CONF</span>
+            <span></span>
           </div>
           <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
             {filtered.map((f) => {
@@ -51,6 +52,7 @@ export function FindingsPanel() {
                   </Link>
                   <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{location}</span>
                   <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>{(f.confidence_score * 100).toFixed(0)}%</span>
+                  <span style={{ color: 'var(--accent-glow)', fontSize: 'var(--fs-xs)' }}>[view]</span>
                 </div>
               )
             })}

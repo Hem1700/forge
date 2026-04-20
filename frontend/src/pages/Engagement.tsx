@@ -7,7 +7,7 @@ import { SwarmMonitor } from '../components/SwarmMonitor'
 import { HumanGate } from '../components/HumanGate'
 import { FindingsPanel } from '../components/FindingsPanel'
 import { ReportViewer } from '../components/ReportViewer'
-import type { EngagementStatus } from '../types'
+import type { EngagementStatus, Finding, Severity, TargetType } from '../types'
 
 const STATUS: Record<EngagementStatus, { color: string; label: string }> = {
   running:        { color: 'var(--running)', label: '● RUNNING' },
@@ -25,12 +25,51 @@ const STATUS_DIM: Record<EngagementStatus, string> = {
   aborted:        'var(--aborted-dim)',
 }
 
+const TYPE_LABEL: Record<TargetType, string> = {
+  web: 'web',
+  local_codebase: 'code',
+  binary: 'binary',
+}
+
+const SEV_COLOR: Record<Severity, string> = {
+  critical: 'var(--crit)',
+  high:     'var(--high)',
+  medium:   'var(--medium)',
+  low:      'var(--low)',
+  info:     'var(--info)',
+}
+
+function Stat({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ padding: '10px 14px', borderRight: '1px solid var(--border)' }}>
+      <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>{label}</div>
+      <div style={{ fontSize: 'var(--fs-md)', letterSpacing: '1px' }}>{children}</div>
+    </div>
+  )
+}
+
+function FindingsBreakdown({ findings }: { findings: Finding[] }) {
+  const counts: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 }
+  findings.forEach((f) => { counts[f.severity] = (counts[f.severity] ?? 0) + 1 })
+  const chips: [Severity, string][] = [['critical', 'C'], ['high', 'H'], ['medium', 'M'], ['low', 'L']]
+  return (
+    <span style={{ color: 'var(--text-primary)' }}>
+      {findings.length}
+      {chips.filter(([s]) => counts[s] > 0).map(([s, letter]) => (
+        <span key={s} style={{ color: SEV_COLOR[s], marginLeft: '8px', fontSize: 'var(--fs-sm)' }}>·{counts[s]}{letter}</span>
+      ))}
+    </span>
+  )
+}
+
 export function Engagement() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const setActiveEngagement = useEngagementStore((s) => s.setActiveEngagement)
   const activeEngagement = useEngagementStore((s) => s.activeEngagement)
   const setFindings = useEngagementStore((s) => s.setFindings)
+  const findings = useEngagementStore((s) => s.findings)
+  const agents = useEngagementStore((s) => s.agents)
   const [pdfLoading, setPdfLoading] = useState(false)
 
   useEffect(() => {
@@ -75,6 +114,7 @@ export function Engagement() {
 
   const st = STATUS[activeEngagement.status]
   const label = activeEngagement.target_path ?? activeEngagement.target_url
+  const engFindings = findings.filter((f) => f.engagement_id === activeEngagement.id)
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
@@ -98,17 +138,35 @@ export function Engagement() {
         </button>
       </div>
 
-      {/* Two-column body */}
-      <div style={{ padding: '16px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-        <SwarmMonitor />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <HumanGate engagement={activeEngagement} />
-          <FindingsPanel />
-        </div>
-      </div>
+      {/* Body — single-column, console-first */}
+      <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '1400px', margin: '0 auto' }}>
+        {/* Human gate banner when paused */}
+        <HumanGate engagement={activeEngagement} />
 
-      {/* Report viewer */}
-      <div style={{ padding: '0 24px 32px' }}>
+        {/* Live swarm console — the hero */}
+        <SwarmMonitor />
+
+        {/* Compact status strip */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', border: '1px solid var(--border)', background: 'var(--surface)' }}>
+          <Stat label="TARGET_TYPE">
+            <span>{TYPE_LABEL[activeEngagement.target_type]}</span>
+          </Stat>
+          <Stat label="AGENTS">
+            <span style={{ color: 'var(--accent)' }}>{agents.length}</span>
+          </Stat>
+          <Stat label="FINDINGS">
+            <FindingsBreakdown findings={engFindings} />
+          </Stat>
+          <div style={{ padding: '10px 14px' }}>
+            <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>GATE</div>
+            <div style={{ fontSize: 'var(--fs-md)', letterSpacing: '1px', color: st.color }}>{st.label}</div>
+          </div>
+        </div>
+
+        {/* Findings table — full width */}
+        <FindingsPanel />
+
+        {/* Report viewer */}
         <ReportViewer engagementId={activeEngagement.id} />
       </div>
     </div>
