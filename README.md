@@ -12,8 +12,8 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 - **Tactical Swarm** — autonomous agents (recon, probe, evasion, code analyzer, dependency scanner, fuzzer, deep exploit) coordinated by an auction-based scheduler
 - **Adversarial Validator** — challenger, context filter, severity scorer, confidence threshold gate
 - **Knowledge Base** — Qdrant vector store + Neo4j graph store for cross-engagement learning
-- **REST API + WebSocket** — FastAPI backend with live swarm event streaming
-- **React Frontend** — real-time engagement dashboard, per-finding detail pages, attack path visualization, PoC script viewer with copy/download, sequence diagram rendering, and human gate UI
+- **REST API + WebSocket** — FastAPI backend with live swarm event streaming, events persisted for refresh-safe replay
+- **React Frontend** — terminal/hacker aesthetic (pure black, cyan accent, monospace), `ps aux`-style engagement dashboard, console-first engagement page with a live swarm log that rehydrates on refresh, per-finding detail pages, attack path + sequence diagrams, PoC viewer with copy/download, PDF report export, and human gate UI
 
 ---
 
@@ -272,16 +272,15 @@ forge report <id> --output report.md
 ### Via the UI
 
 1. Open `http://localhost:5174`
-2. Click **+ New Engagement**
-3. Select your target type and fill in the details (see below)
-4. Click **Create Engagement**
-5. Click **▶ Start Pentest** on the card
-6. Click into the engagement to open the live **Swarm Monitor**
-7. Approve or reject **Human Gates** when prompted
-8. View findings in the **Findings Panel** — click any finding row to open its detail page
-9. On the finding detail page, click **Generate Exploit** to produce a step-by-step walkthrough and visual attack path diagram
-10. Click **Generate PoC** to produce a runnable exploit script and sequence diagram — copy to clipboard or download the file directly
-10. Export the full report via **Report Viewer**
+2. Click **+ NEW** and fill in the target details (see target types below)
+3. Click **▶ CREATE ENGAGEMENT**, then **▶ LAUNCH** on the row
+4. The engagement page opens with the **Live Swarm Console** as the hero panel — events stream in real time and replay after a page refresh
+5. Approve or reject **Human Gates** when the amber banner appears
+6. Scan findings in the table below the console — click any row to open its detail page
+7. On the finding detail page, click **Generate Exploit** for a walkthrough + attack path, **Generate PoC** for a runnable script + sequence diagram, or **Execute Against Target** to run the weaponized script in a sandboxed Kali container
+8. Click **PDF ↓** in the engagement header to download the full report
+
+Click the **×** button on any dashboard row to delete an engagement (findings and events cascade). The backend auto-aborts any engagement stuck in `running`/`paused_at_gate` for over an hour on startup.
 
 ### Via the API
 
@@ -371,13 +370,17 @@ Analyzes a compiled binary file (ELF, PE, Mach-O). Same agents as local codebase
 | `GET` | `/api/v1/engagements/` | List engagements |
 | `GET` | `/api/v1/engagements/{id}` | Get engagement |
 | `PATCH` | `/api/v1/engagements/{id}/status` | Update status (`pending`, `running`, `aborted`) |
-| `DELETE` | `/api/v1/engagements/{id}` | Delete engagement |
+| `DELETE` | `/api/v1/engagements/{id}` | Delete engagement (cascades findings, tasks, agents, events, knowledge) |
 | `POST` | `/api/v1/engagements/{id}/start` | Launch the full pipeline |
+| `GET` | `/api/v1/engagements/{id}/events` | Replay recent swarm events (latest 500) |
+| `POST` | `/api/v1/engagements/{id}/report/pdf` | Generate a PDF report |
 | `POST` | `/api/v1/gates/{id}/decide` | Approve or reject a human gate |
-| `GET` | `/api/v1/findings/{id}` | Get full finding detail (includes `exploit_detail`, `poc_detail` if generated) |
+| `GET` | `/api/v1/findings/{id}` | Get full finding detail (includes `exploit_detail`, `poc_detail`, `exploit_script`, `exploit_execution` if generated) |
 | `POST` | `/api/v1/findings/{id}/exploit` | Generate (or return cached) exploit walkthrough |
 | `GET` | `/api/v1/findings/{id}/poc` | Get PoC detail for a finding (null if not yet generated) |
 | `POST` | `/api/v1/findings/{id}/poc` | Generate (or return cached) PoC script + sequence diagram |
+| `POST` | `/api/v1/findings/{id}/exploit-script` | Generate a weaponized exploit script |
+| `POST` | `/api/v1/findings/{id}/execute` | Execute the weaponized script against the target (sandboxed) |
 | `GET` | `/api/v1/knowledge/` | List knowledge base entries |
 | `GET` | `/api/v1/knowledge/attack-class/{class}` | Filter knowledge by attack class |
 | `GET` | `/api/v1/system/stats` | Engagement / finding / knowledge counts |
@@ -417,10 +420,10 @@ FORGE/
 │   └── tests/
 ├── frontend/
 │   └── src/
-│       ├── api/          # Typed API clients (engagements, findings)
-│       ├── components/   # EngagementDashboard, SwarmMonitor, HumanGate, FindingsPanel, ExploitWalkthrough, AttackPathDiagram, PoCScript, ExploitSequenceDiagram
+│       ├── api/          # Typed API clients (engagements, findings, gates)
+│       ├── components/   # EngagementDashboard, SwarmMonitor, HumanGate, FindingsPanel, ExploitWalkthrough, AttackPathDiagram, PoCScript, ExploitSequenceDiagram, ReportViewer
 │       ├── hooks/        # useSwarmStream
-│       ├── pages/        # Home, Engagement, FindingDetail
+│       ├── pages/        # Home, Engagement, FindingDetail, PrintReport
 │       ├── store/        # Zustand engagement store
 │       └── types/        # Shared TypeScript types
 └── docker-compose.yml
