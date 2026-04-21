@@ -51,8 +51,9 @@ function renderEvent(e: SwarmEvent): Rendered {
     case 'finding_discovered': {
       const f = (p.finding ?? {}) as Record<string, unknown>
       const sev = ((f.severity as string | undefined) ?? 'info') as Severity
-      const vuln = (f.vulnerability_class ?? f.attack_class ?? f.title ?? 'finding') as string
-      const loc = (f.affected_surface ?? f.endpoint ?? '') as string
+      const desc = (f.description as string | undefined)?.slice(0, 80)
+      const vuln = (f.vulnerability_class ?? f.attack_class ?? f.title ?? f.vulnerability ?? desc ?? 'finding') as string
+      const loc = (f.affected_surface ?? f.endpoint ?? f.file ?? (f.package ? `pkg:${f.package}` : '')) as string
       const conf = f.confidence_score as number | undefined
       return {
         tag: 'FIND', tagColor: 'var(--high)',
