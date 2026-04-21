@@ -23,9 +23,13 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-**Engagement page** — live swarm console (events rehydrate on refresh), compact status strip, findings table, and severity-scaled report summary:
+**Engagement page (console)** — live swarm console with per-type event rendering, compact status strip, and start of the findings table:
 
-![Engagement](docs/screenshots/engagement.png)
+![Engagement console](docs/screenshots/engagement-console.png)
+
+**Engagement page (findings + report)** — full findings table with severity chips and the report summary with severity-scaled bars:
+
+![Engagement findings](docs/screenshots/engagement-findings.png)
 
 **Finding detail** — description + evidence, LLM-generated exploit walkthrough with Mermaid attack path, runnable PoC script with sequence diagram, and live exploit execution with verdict override:
 
