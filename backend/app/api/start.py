@@ -1,10 +1,13 @@
 # backend/app/api/start.py
 from __future__ import annotations
-import uuid
 import asyncio
+import logging
+import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.database import get_db, AsyncSessionLocal
 from app.models.engagement import Engagement, EngagementStatus
@@ -247,17 +250,18 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
 
 
 async def _finalize(engagement_id: uuid.UUID, db: AsyncSession, eid: str, success: bool = True) -> None:
-    # Use a fresh session — the pipeline session may be in a stale/dirty state
+    # Use a fresh session — the pipeline session may be in a stale/dirty state.
+    # Engagement.completed_at is a naive TIMESTAMP column, so use naive utcnow().
     try:
         async with AsyncSessionLocal() as fresh_db:
             engagement = await fresh_db.get(Engagement, engagement_id)
             if engagement is not None:
                 engagement.status = EngagementStatus.complete if success else EngagementStatus.pending
                 if success:
-                    engagement.completed_at = datetime.now(timezone.utc)
+                    engagement.completed_at = datetime.utcnow()
                 await fresh_db.commit()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.exception("finalize failed for engagement %s: %s", eid, exc)
     await _broadcast(eid, "campaign_complete", {"status": "done" if success else "error", "engagement_id": eid})
 
 
