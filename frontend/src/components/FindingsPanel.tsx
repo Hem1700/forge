@@ -52,7 +52,12 @@ export function FindingsPanel() {
                   </Link>
                   <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{location}</span>
                   <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>{(f.confidence_score * 100).toFixed(0)}%</span>
-                  <span style={{ color: 'var(--accent-glow)', fontSize: 'var(--fs-xs)' }}>[view]</span>
+                  <Link
+                    to={`/engagement/${f.engagement_id}/findings/${f.id}`}
+                    style={{ color: 'var(--accent-glow)', fontSize: 'var(--fs-xs)', textDecoration: 'none' }}
+                  >
+                    [view]
+                  </Link>
                 </div>
               )
             })}
