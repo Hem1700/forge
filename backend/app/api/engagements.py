@@ -115,6 +115,7 @@ async def get_engagement_findings(
     return [
         {
             "id": str(f.id),
+            "engagement_id": str(f.engagement_id),
             "severity": f.severity.value,
             "title": f.title,
             "vulnerability_class": f.vulnerability_class,

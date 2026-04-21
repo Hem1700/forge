@@ -10,6 +10,7 @@ export function useSwarmStream(engagementId: string | null) {
   const refetchTimer = useRef<number | null>(null)
   const addEvent = useEngagementStore((s) => s.addEvent)
   const upsertEngagement = useEngagementStore((s) => s.upsertEngagement)
+  const setActiveEngagement = useEngagementStore((s) => s.setActiveEngagement)
   const setFindings = useEngagementStore((s) => s.setFindings)
 
   useEffect(() => {
@@ -35,6 +36,13 @@ export function useSwarmStream(engagementId: string | null) {
         if (event.type === 'gate_triggered' && event.payload.engagement) {
           upsertEngagement(event.payload.engagement as never)
         }
+        if (event.type === 'campaign_complete') {
+          // Pipeline finished — refetch canonical state so the header flips
+          // to complete/aborted and we catch any findings saved after the last
+          // finding_discovered event.
+          engagementsApi.get(engagementId).then(setActiveEngagement).catch(() => {})
+          engagementsApi.findings(engagementId).then(setFindings).catch(() => {})
+        }
       } catch {
         // ignore non-JSON
       }
@@ -45,7 +53,7 @@ export function useSwarmStream(engagementId: string | null) {
       ws.current?.close()
       ws.current = null
     }
-  }, [engagementId, addEvent, setFindings, upsertEngagement])
+  }, [engagementId, addEvent, setFindings, setActiveEngagement, upsertEngagement])
 
   return ws
 }
