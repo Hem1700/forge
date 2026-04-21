@@ -1,4 +1,4 @@
-import { apiFetch } from './client'
+import { apiFetch, BASE_URL } from './client'
 import type { Engagement, FindingDetail, SwarmEvent } from '../types'
 
 export const engagementsApi = {
@@ -17,7 +17,7 @@ export const engagementsApi = {
   events: (id: string) =>
     apiFetch<SwarmEvent[]>(`/api/v1/engagements/${id}/events`),
   downloadPdfReport: (id: string) =>
-    fetch(`/api/v1/engagements/${id}/report/pdf`, { method: 'POST' })
+    fetch(`${BASE_URL}/api/v1/engagements/${id}/report/pdf`, { method: 'POST' })
       .then(res => {
         if (!res.ok) throw new Error(`PDF generation failed: ${res.status}`)
         return res.blob()
