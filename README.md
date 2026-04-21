@@ -17,6 +17,22 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 
 ---
 
+## Screenshots
+
+**Dashboard** — `ps aux`-style engagement list with launch/view/delete per row:
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+**Engagement page** — live swarm console (events rehydrate on refresh), compact status strip, findings table, and severity-scaled report summary:
+
+![Engagement](docs/screenshots/engagement.png)
+
+**Finding detail** — description + evidence, LLM-generated exploit walkthrough with Mermaid attack path, runnable PoC script with sequence diagram, and live exploit execution with verdict override:
+
+![Finding](docs/screenshots/finding.png)
+
+---
+
 ## Prerequisites
 
 - Docker + Docker Compose
