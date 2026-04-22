@@ -224,7 +224,7 @@ export function FindingDetailPage() {
         <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>CONF: {(finding.confidence_score * 100).toFixed(0)}%</span>
       </div>
 
-      <div style={{ padding: '16px 24px', maxWidth: '1200px' }}>
+      <div style={{ padding: '16px 24px' }}>
         {/* Metadata grid */}
         <Panel accent={sevColor}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
@@ -265,28 +265,30 @@ export function FindingDetailPage() {
         <Panel>
           <SectionHeader label="EXPLOIT INTELLIGENCE" />
           {finding.exploit_detail ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '6px' }}>WALKTHROUGH</div>
                 <ExploitWalkthrough steps={finding.exploit_detail.walkthrough} />
               </div>
               <div>
                 <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '6px' }}>ATTACK PATH</div>
-                <AttackPathDiagram source={finding.exploit_detail.attack_path_mermaid} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '8px' }}>
-                  <div style={{ border: '1px solid var(--border)', padding: '6px' }}>
-                    <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-tiny)', letterSpacing: '1px', marginBottom: '3px' }}>DIFFICULTY</div>
-                    <div style={{ color: DIFFICULTY_COLOR[finding.exploit_detail.difficulty] ?? 'var(--text-primary)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}>
-                      {finding.exploit_detail.difficulty.toUpperCase()}
-                    </div>
-                  </div>
-                  <div style={{ border: '1px solid var(--border)', padding: '6px', gridColumn: 'span 2' }}>
-                    <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-tiny)', letterSpacing: '1px', marginBottom: '3px' }}>IMPACT</div>
-                    <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>{finding.exploit_detail.impact}</div>
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', padding: '16px', minHeight: '360px' }}>
+                  <AttackPathDiagram source={finding.exploit_detail.attack_path_mermaid} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr 1fr', gap: '12px' }}>
+                <div style={{ border: '1px solid var(--border)', padding: '8px' }}>
+                  <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-tiny)', letterSpacing: '1px', marginBottom: '3px' }}>DIFFICULTY</div>
+                  <div style={{ color: DIFFICULTY_COLOR[finding.exploit_detail.difficulty] ?? 'var(--text-primary)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}>
+                    {finding.exploit_detail.difficulty.toUpperCase()}
                   </div>
                 </div>
+                <div style={{ border: '1px solid var(--border)', padding: '8px' }}>
+                  <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-tiny)', letterSpacing: '1px', marginBottom: '3px' }}>IMPACT</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>{finding.exploit_detail.impact}</div>
+                </div>
                 {finding.exploit_detail.prerequisites.length > 0 && (
-                  <div style={{ marginTop: '8px' }}>
+                  <div style={{ border: '1px solid var(--border)', padding: '8px' }}>
                     <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-tiny)', letterSpacing: '1px', marginBottom: '4px' }}>PREREQUISITES</div>
                     <ul style={{ margin: 0, paddingLeft: '14px', color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>
                       {finding.exploit_detail.prerequisites.map((p, i) => <li key={i}>{p}</li>)}
@@ -310,14 +312,16 @@ export function FindingDetailPage() {
         <Panel>
           <SectionHeader label="POC SCRIPT" />
           {finding.poc_detail ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '6px' }}>SCRIPT</div>
                 <PoCScript poc={finding.poc_detail} />
               </div>
               <div>
                 <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '6px' }}>EXPLOIT SEQUENCE</div>
-                <ExploitSequenceDiagram source={finding.poc_detail.sequence_diagram} />
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', padding: '16px', minHeight: '360px' }}>
+                  <ExploitSequenceDiagram source={finding.poc_detail.sequence_diagram} />
+                </div>
               </div>
             </div>
           ) : (
