@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import httpx
 from app.swarm.agents.base import BaseAgent
+from app.ws import progress as ws_progress
 
 OSV_API = "https://api.osv.dev/v1/query"
 
@@ -33,6 +34,11 @@ class DependencyScannerAgent(BaseAgent):
             if not fpath.exists():
                 continue
             packages = self._parse_deps(fpath, ecosystem)
+            await ws_progress.progress(
+                self.engagement_id, "dependency_scanner.file",
+                f"scanning {dep_file} — {len(packages)} {ecosystem} packages",
+                file=dep_file, ecosystem=ecosystem, packages=len(packages),
+            )
             for pkg in packages[:30]:  # cap per file
                 packages_checked += 1
                 vulns = await self._check_osv(pkg['name'], pkg.get('version'), ecosystem)

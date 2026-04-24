@@ -92,6 +92,19 @@ function renderEvent(e: SwarmEvent): Rendered {
         ),
       }
     }
+    case 'progress': {
+      const phase = (p.phase ?? '') as string
+      const detail = (p.detail ?? '') as string
+      return {
+        tag: 'PROG', tagColor: 'var(--accent-glow)',
+        msg: (
+          <>
+            <span style={K}>{phase}</span>
+            {detail && <> <span>{detail}</span></>}
+          </>
+        ),
+      }
+    }
     case 'ping':
     default:
       return {

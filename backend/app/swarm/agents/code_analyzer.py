@@ -9,6 +9,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.swarm.agents.base import BaseAgent
 from app.config import settings
+from app.ws import progress as ws_progress
 
 SYSTEM_PROMPT = """You are a senior application security engineer performing a code security review.
 Analyze the provided source code for security vulnerabilities.
@@ -16,7 +17,15 @@ Analyze the provided source code for security vulnerabilities.
 Return ONLY a valid JSON array. Each item must have:
 - file: string (relative file path)
 - line_hint: string (line number or function name where issue appears, e.g. "L42" or "parse_input()")
-- vulnerability: string (vuln type: sqli, cmdi, path_traversal, hardcoded_secret, insecure_deserialization, ssrf, xxe, open_redirect, weak_crypto, missing_auth, idor, prototype_pollution, prompt_injection, sandbox_escape, other)
+- vulnerability: string — pick the MOST SPECIFIC category below. Use "other" only when nothing fits.
+    Injection: sqli, nosql_injection, ldap_injection, xpath_injection, template_injection, log_injection, header_injection, cmdi
+    Input/path: path_traversal, zip_slip, open_redirect, xxe, xss, csrf
+    Secrets/crypto: hardcoded_secret, weak_crypto, insecure_randomness, plaintext_password
+    Auth: missing_auth, auth_bypass, broken_access_control, idor, jwt_misconfig, session_fixation
+    Data/logic: insecure_deserialization, mass_assignment, race_condition, toctou, integer_overflow, buffer_overflow, use_after_free, format_string
+    Network: ssrf, dns_rebinding
+    Info/misc: info_disclosure, verbose_error, debug_endpoint, cors_misconfig, prototype_pollution, prompt_injection, sandbox_escape, insecure_file_upload
+    other — only when none of the above fit; include a best-guess label in the description.
 - severity: string (critical, high, medium, low)
 - description: string (what the vulnerability is and why it's exploitable)
 - evidence: string (the actual vulnerable code snippet)
@@ -81,9 +90,16 @@ class CodeAnalyzerAgent(BaseAgent):
                         pass
 
         all_findings: list[dict] = []
+        total_batches = (len(files_to_review) + 4) // 5
         # Review in batches of 5 files
         for i in range(0, len(files_to_review), 5):
             batch = files_to_review[i:i + 5]
+            batch_num = (i // 5) + 1
+            await ws_progress.progress(
+                self.engagement_id, "code_analyzer.batch",
+                f"reviewing batch {batch_num}/{total_batches} ({len(batch)} files)",
+                batch=batch_num, total=total_batches,
+            )
             code_block = "\n\n".join(
                 f"### {f['path']}\n```\n{f['content']}\n```" for f in batch
             )
@@ -99,6 +115,11 @@ class CodeAnalyzerAgent(BaseAgent):
                 batch_findings = json.loads(text)
                 if isinstance(batch_findings, list):
                     all_findings.extend(batch_findings)
+                    if batch_findings:
+                        await ws_progress.progress(
+                            self.engagement_id, "code_analyzer.batch",
+                            f"batch {batch_num} → {len(batch_findings)} findings",
+                        )
             except Exception:
                 pass
 

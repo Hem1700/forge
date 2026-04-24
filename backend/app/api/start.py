@@ -11,11 +11,10 @@ logger = logging.getLogger(__name__)
 
 from app.database import get_db, AsyncSessionLocal
 from app.models.engagement import Engagement, EngagementStatus
-from app.models.engagement_event import EngagementEvent
 from app.models.finding import Finding, Severity, ValidationStatus
 from app.models.task import Task, TaskStatus, Priority
 from app.models.agent import Agent, AgentType, AgentStatus
-from app.ws.stream import stream_manager
+from app.ws import progress as ws_progress
 
 router = APIRouter(prefix="/api/v1/engagements", tags=["orchestration"])
 
@@ -31,23 +30,7 @@ _SEVERITY_MAP = {
 
 
 async def _broadcast(engagement_id: str, event_type: str, payload: dict) -> None:
-    ts = datetime.now(timezone.utc)
-    try:
-        async with AsyncSessionLocal() as db:
-            db.add(EngagementEvent(
-                engagement_id=uuid.UUID(engagement_id),
-                type=event_type,
-                payload=payload,
-                timestamp=ts.replace(tzinfo=None),
-            ))
-            await db.commit()
-    except Exception:
-        pass
-    await stream_manager.broadcast(engagement_id, {
-        "type": event_type,
-        "payload": payload,
-        "timestamp": ts.isoformat(),
-    })
+    await ws_progress.broadcast(engagement_id, event_type, payload)
 
 
 async def _ensure_placeholder_task_agent(
@@ -202,7 +185,7 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
             # Phase 1: Model the codebase
             await _broadcast(eid, "agent_started", {"phase": "codebase_modeling", "path": target_path})
             modeler = CodebaseModeler()
-            semantic_model = await modeler.build(target_path)
+            semantic_model = await modeler.build(target_path, engagement_id=eid)
             engagement.semantic_model = semantic_model
             await db.commit()
             await _broadcast(eid, "agent_completed", {

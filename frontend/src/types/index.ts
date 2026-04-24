@@ -38,7 +38,7 @@ export interface AgentInfo {
 }
 
 export interface SwarmEvent {
-  type: 'agent_started' | 'agent_completed' | 'finding_discovered' | 'gate_triggered' | 'campaign_complete' | 'ping'
+  type: 'agent_started' | 'agent_completed' | 'finding_discovered' | 'gate_triggered' | 'campaign_complete' | 'progress' | 'ping'
   payload: Record<string, unknown>
   timestamp: string
 }

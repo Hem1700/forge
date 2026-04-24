@@ -7,6 +7,7 @@ from pathlib import Path
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.config import settings
+from app.ws import progress as ws_progress
 
 SYSTEM_PROMPT = """You are a senior security engineer analyzing a local codebase for a security assessment.
 Given a summary of the codebase structure and source code samples, produce a structured security model.
@@ -90,9 +91,16 @@ class CodebaseModeler:
             'files': files_collected,
         }
 
-    async def build(self, target_path: str) -> dict:
+    async def build(self, target_path: str, engagement_id: str | None = None) -> dict:
         """Build security model of a local codebase."""
+        await ws_progress.progress(engagement_id, "codebase_modeling.walk", f"walking {target_path}")
         profile = self.profile(target_path)
+        await ws_progress.progress(
+            engagement_id, "codebase_modeling.walk",
+            f"walked {len(profile['structure'])} files, {len(profile['files'])} selected for review",
+            files_found=len(profile['structure']),
+            files_selected=len(profile['files']),
+        )
 
         # Build a compact summary for the LLM
         file_summary = "\n\n".join(
@@ -112,7 +120,9 @@ Key file contents:
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=user_content),
         ]
+        await ws_progress.progress(engagement_id, "codebase_modeling.llm", "sending codebase summary to LLM")
         response = await self._llm.ainvoke(messages)
+        await ws_progress.progress(engagement_id, "codebase_modeling.llm", "LLM returned — parsing security model")
         text = response.content.strip()
         text = re.sub(r'^```json\s*', '', text)
         text = re.sub(r'\s*```$', '', text)
