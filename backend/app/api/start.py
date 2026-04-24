@@ -179,8 +179,10 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
         try:
             from app.brain.codebase_modeler import CodebaseModeler
             from app.swarm.agents.code_analyzer import CodeAnalyzerAgent
+            from app.swarm.agents.config_auditor import ConfigAuditorAgent
             from app.swarm.agents.dependency_scanner import DependencyScannerAgent
             from app.swarm.agents.fuzzer import FuzzerAgent
+            from app.swarm.agents.secret_scanner import SecretScannerAgent
 
             # Phase 1: Model the codebase
             await _broadcast(eid, "agent_started", {"phase": "codebase_modeling", "path": target_path})
@@ -201,6 +203,8 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
                 CodeAnalyzerAgent(agent_id=str(uuid.uuid4()), engagement_id=eid, agent_type="code_analyzer", tools=["llm_review"]),
                 DependencyScannerAgent(agent_id=str(uuid.uuid4()), engagement_id=eid, agent_type="dependency_scanner", tools=["osv_api"]),
                 FuzzerAgent(agent_id=str(uuid.uuid4()), engagement_id=eid, agent_type="fuzzer", tools=["subprocess"]),
+                SecretScannerAgent(agent_id=str(uuid.uuid4()), engagement_id=eid, agent_type="secret_scanner", tools=["regex"]),
+                ConfigAuditorAgent(agent_id=str(uuid.uuid4()), engagement_id=eid, agent_type="config_auditor", tools=["rules"]),
             ]
 
             for agent in agents:
