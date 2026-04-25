@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.finding import Finding, ValidationStatus
+from app.models.finding import Finding, TriageStatus, ValidationStatus
 from app.models.engagement import Engagement
 from app.brain.exploit_engine import ExploitEngine
 from app.brain.poc_engine import PoCEngine
@@ -25,6 +25,11 @@ class ExecuteRequest(BaseModel):
 
 class OverrideVerdictRequest(BaseModel):
     verdict: str
+
+
+class TriageRequest(BaseModel):
+    status: str | None = None
+    notes: str | None = None
 
 
 def _serialize_finding(f: Finding) -> dict:
@@ -44,6 +49,9 @@ def _serialize_finding(f: Finding) -> dict:
         "poc_detail": f.poc_detail,
         "exploit_script": f.exploit_script,
         "exploit_execution": f.exploit_execution,
+        "triage_status": f.triage_status.value,
+        "triage_notes": f.triage_notes,
+        "triage_updated_at": f.triage_updated_at.isoformat() if f.triage_updated_at else None,
         "created_at": f.created_at.isoformat(),
     }
 
@@ -56,6 +64,29 @@ async def get_finding(
     finding = await db.get(Finding, finding_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
+    return _serialize_finding(finding)
+
+
+@router.patch("/{finding_id}/triage")
+async def triage_finding(
+    finding_id: uuid.UUID,
+    payload: TriageRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from datetime import datetime
+    finding = await db.get(Finding, finding_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    if payload.status is not None:
+        try:
+            finding.triage_status = TriageStatus(payload.status)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid triage status: {payload.status}")
+    if payload.notes is not None:
+        finding.triage_notes = payload.notes[:2000]
+    finding.triage_updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(finding)
     return _serialize_finding(finding)
 
 

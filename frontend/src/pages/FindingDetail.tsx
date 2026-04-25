@@ -5,7 +5,7 @@ import { ExploitWalkthrough } from '../components/ExploitWalkthrough'
 import { AttackPathDiagram } from '../components/AttackPathDiagram'
 import { PoCScript } from '../components/PoCScript'
 import { ExploitSequenceDiagram } from '../components/ExploitSequenceDiagram'
-import type { FindingDetail, Severity } from '../types'
+import type { FindingDetail, Severity, TriageStatus } from '../types'
 
 const SEV_COLOR: Record<Severity, string> = {
   critical: 'var(--crit)',
@@ -80,15 +80,34 @@ export function FindingDetailPage() {
   const [executeLoading, setExecuteLoading] = useState(false)
   const [showExecuteModal, setShowExecuteModal] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [triageSaving, setTriageSaving] = useState(false)
+  const [triageNotes, setTriageNotes] = useState('')
 
   useEffect(() => {
     if (!findingId) return
     findingsApi
       .get(findingId)
-      .then(setFinding)
+      .then((f) => {
+        setFinding(f)
+        setTriageNotes(f.triage_notes ?? '')
+      })
       .catch(() => setError('Finding not found'))
       .finally(() => setLoading(false))
   }, [findingId])
+
+  async function handleTriage(status?: TriageStatus, notes?: string) {
+    if (!findingId) return
+    setTriageSaving(true)
+    try {
+      const updated = await findingsApi.triage(findingId, { status, notes })
+      setFinding(updated)
+      if (notes !== undefined) setTriageNotes(updated.triage_notes ?? '')
+    } catch {
+      setError('Failed to update triage.')
+    } finally {
+      setTriageSaving(false)
+    }
+  }
 
   async function handleGeneratePoC() {
     if (!findingId) return
@@ -243,6 +262,51 @@ export function FindingDetailPage() {
               </div>
             </div>
           </div>
+        </Panel>
+
+        {/* Triage */}
+        <Panel>
+          <SectionHeader label="TRIAGE" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+            {(['unreviewed', 'accepted', 'false_positive', 'fixed'] as TriageStatus[]).map((s) => {
+              const active = (finding.triage_status ?? 'unreviewed') === s
+              const color =
+                s === 'accepted' ? 'var(--running)' :
+                s === 'false_positive' ? 'var(--text-secondary)' :
+                s === 'fixed' ? 'var(--complete)' : 'var(--accent-glow)'
+              return (
+                <button
+                  key={s}
+                  onClick={() => handleTriage(s)}
+                  disabled={triageSaving}
+                  style={{
+                    padding: '4px 10px',
+                    background: active ? 'var(--border)' : 'transparent',
+                    border: `1px solid ${active ? color : 'var(--border)'}`,
+                    color: active ? color : 'var(--text-secondary)',
+                    fontSize: 'var(--fs-xs)', letterSpacing: '1px', cursor: 'pointer', opacity: triageSaving ? 0.5 : 1,
+                  }}
+                >
+                  {s.replace('_', ' ').toUpperCase()}
+                </button>
+              )
+            })}
+            {finding.triage_updated_at && (
+              <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-tiny)', marginLeft: '8px' }}>
+                updated {new Date(finding.triage_updated_at).toLocaleString()}
+              </span>
+            )}
+          </div>
+          <textarea
+            value={triageNotes}
+            onChange={(e) => setTriageNotes(e.target.value)}
+            onBlur={() => {
+              if (triageNotes !== (finding.triage_notes ?? '')) handleTriage(undefined, triageNotes)
+            }}
+            placeholder="notes — saved on blur"
+            rows={2}
+            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'var(--fs-xs)', padding: '6px 8px', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+          />
         </Panel>
 
         {/* Description + Evidence */}

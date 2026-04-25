@@ -22,6 +22,13 @@ class ValidationStatus(str, PyEnum):
     rejected = "rejected"
 
 
+class TriageStatus(str, PyEnum):
+    unreviewed = "unreviewed"
+    accepted = "accepted"
+    false_positive = "false_positive"
+    fixed = "fixed"
+
+
 class Finding(Base):
     __tablename__ = "findings"
 
@@ -44,4 +51,7 @@ class Finding(Base):
     poc_detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     exploit_script: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     exploit_execution: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    triage_status: Mapped[TriageStatus] = mapped_column(SAEnum(TriageStatus), default=TriageStatus.unreviewed)
+    triage_notes: Mapped[str] = mapped_column(String, default="")
+    triage_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -2,6 +2,7 @@ export type EngagementStatus = 'pending' | 'running' | 'paused_at_gate' | 'compl
 export type GateStatus = 'gate_1' | 'gate_2' | 'gate_3' | 'complete'
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info'
 export type TargetType = 'web' | 'local_codebase' | 'binary'
+export type TriageStatus = 'unreviewed' | 'accepted' | 'false_positive' | 'fixed'
 
 export interface Engagement {
   id: string
@@ -27,6 +28,9 @@ export interface Finding {
   description?: string
   evidence: string | string[]
   confidence_score: number
+  triage_status?: TriageStatus
+  triage_notes?: string
+  triage_updated_at?: string | null
   created_at: string
 }
 

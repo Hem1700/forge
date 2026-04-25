@@ -129,6 +129,8 @@ async def get_engagement_findings(
             "poc_detail": f.poc_detail,
             "exploit_script": f.exploit_script,
             "exploit_execution": f.exploit_execution,
+            "triage_status": f.triage_status.value,
+            "triage_notes": f.triage_notes,
         }
         for f in findings
     ]

@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { FindingDetail, ExploitDetail, PoCDetail, ExploitScript, ExploitExecution } from '../types'
+import type { FindingDetail, ExploitDetail, PoCDetail, ExploitScript, ExploitExecution, TriageStatus } from '../types'
 
 export const findingsApi = {
   get: (findingId: string) =>
@@ -30,5 +30,11 @@ export const findingsApi = {
     apiFetch<ExploitExecution>(`/api/v1/findings/${findingId}/exploit/execution`, {
       method: 'PATCH',
       body: JSON.stringify({ verdict }),
+    }),
+
+  triage: (findingId: string, payload: { status?: TriageStatus; notes?: string }) =>
+    apiFetch<FindingDetail>(`/api/v1/findings/${findingId}/triage`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
     }),
 }
