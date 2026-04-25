@@ -142,7 +142,20 @@ export function FindingsPanel() {
                   </Link>
                   <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{location}</span>
                   <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>{(f.confidence_score * 100).toFixed(0)}%</span>
-                  <span style={{ color: TRIAGE_COLOR[triage], fontSize: 'var(--fs-tiny)', letterSpacing: '1px' }}>{TRIAGE_LABEL[triage]}</span>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ color: TRIAGE_COLOR[triage], fontSize: 'var(--fs-tiny)', letterSpacing: '1px' }}>{TRIAGE_LABEL[triage]}</span>
+                    {f.triage_judgment && (
+                      <span
+                        title={f.triage_judgment.reasoning}
+                        style={{
+                          color: f.triage_judgment.likely_false_positive ? 'var(--text-secondary)' : 'var(--complete)',
+                          fontSize: 'var(--fs-tiny)', letterSpacing: '1px',
+                        }}
+                      >
+                        {f.triage_judgment.likely_false_positive ? 'AI: FP?' : 'AI: OK'}
+                      </span>
+                    )}
+                  </span>
                   <Link
                     to={`/engagement/${f.engagement_id}/findings/${f.id}`}
                     style={{ color: 'var(--accent-glow)', fontSize: 'var(--fs-xs)', textDecoration: 'none' }}

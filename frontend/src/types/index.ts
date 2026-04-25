@@ -31,6 +31,7 @@ export interface Finding {
   triage_status?: TriageStatus
   triage_notes?: string
   triage_updated_at?: string | null
+  triage_judgment?: TriageJudgment | null
   created_at: string
 }
 
@@ -41,8 +42,16 @@ export interface AgentInfo {
   engagement_id: string
 }
 
+export interface TriageJudgment {
+  likely_false_positive: boolean
+  confidence: number
+  reasoning: string
+  dedup_signature: string
+  suggested_severity?: Severity | null
+}
+
 export interface SwarmEvent {
-  type: 'agent_started' | 'agent_completed' | 'finding_discovered' | 'gate_triggered' | 'campaign_complete' | 'progress' | 'ping'
+  type: 'agent_started' | 'agent_completed' | 'finding_discovered' | 'finding_judged' | 'gate_triggered' | 'campaign_complete' | 'progress' | 'ping'
   payload: Record<string, unknown>
   timestamp: string
 }

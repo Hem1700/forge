@@ -26,8 +26,9 @@ export function useSwarmStream(engagementId: string | null) {
       try {
         const event: SwarmEvent = JSON.parse(msg.data)
         addEvent(event)
-        if (event.type === 'finding_discovered') {
-          // Raw agent payload lacks id/engagement_id; refetch the canonical list.
+        if (event.type === 'finding_discovered' || event.type === 'finding_judged') {
+          // Refetch the canonical list so judge verdicts and full finding shape
+          // arrive together. Debounced because both event types burst.
           if (refetchTimer.current) window.clearTimeout(refetchTimer.current)
           refetchTimer.current = window.setTimeout(() => {
             engagementsApi.findings(engagementId).then(setFindings).catch(() => {})

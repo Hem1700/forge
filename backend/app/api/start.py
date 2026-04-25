@@ -67,13 +67,63 @@ async def _ensure_placeholder_task_agent(
     return task_row.id, agent.id
 
 
+async def _judge_findings_async(engagement_id_str: str, finding_ids: list[uuid.UUID]) -> None:
+    """Background-task: grade a batch of findings via the LLM judge, persist verdicts,
+    and broadcast `finding_judged` events so the UI updates live."""
+    if not finding_ids:
+        return
+    from app.brain.findings_judge import FindingsJudge
+    from sqlalchemy import select
+
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(Finding).where(Finding.id.in_(finding_ids)))
+            findings = list(result.scalars().all())
+            payload = [
+                {
+                    "id": str(f.id),
+                    "vulnerability_class": f.vulnerability_class,
+                    "severity": f.severity.value,
+                    "affected_surface": f.affected_surface,
+                    "description": f.description,
+                    "evidence": f.evidence,
+                }
+                for f in findings
+            ]
+            judge = FindingsJudge()
+            verdicts = await judge.judge(payload)
+
+            by_id = {v.get("id"): v for v in verdicts}
+            for f in findings:
+                v = by_id.get(str(f.id))
+                if v is None:
+                    continue
+                f.triage_judgment = {
+                    "likely_false_positive": bool(v.get("likely_false_positive", False)),
+                    "confidence": float(v.get("confidence", 0.0)),
+                    "reasoning": str(v.get("reasoning", ""))[:600],
+                    "dedup_signature": str(v.get("dedup_signature", "")),
+                    "suggested_severity": v.get("suggested_severity"),
+                }
+            await db.commit()
+
+            for f in findings:
+                if f.triage_judgment is not None:
+                    await _broadcast(engagement_id_str, "finding_judged", {
+                        "finding_id": str(f.id),
+                        "judgment": f.triage_judgment,
+                    })
+    except Exception as exc:
+        logger.exception("findings judge failed for engagement %s: %s", engagement_id_str, exc)
+
+
 async def _save_finding(
     db: AsyncSession,
     engagement_id: uuid.UUID,
     task_id: uuid.UUID,
     agent_id: uuid.UUID,
     f: dict,
-) -> None:
+) -> uuid.UUID:
     """Persist a raw finding dict to the DB, conforming to the Finding schema."""
     severity = _SEVERITY_MAP.get(str(f.get("severity", "medium")).lower(), Severity.medium)
     title = str(f.get("vulnerability") or f.get("description") or "Finding")[:200]
@@ -100,6 +150,7 @@ async def _save_finding(
     )
     db.add(finding)
     await db.flush()
+    return finding.id
 
 
 async def _run_web_pipeline(engagement_id: uuid.UUID) -> None:
@@ -150,10 +201,14 @@ async def _run_web_pipeline(engagement_id: uuid.UUID) -> None:
                     "attack_class": hyp.get("attack_class", ""),
                     "surface": hyp.get("surface", "/"),
                 })
+                batch_ids: list[uuid.UUID] = []
                 for f in result.get("findings", []):
-                    await _save_finding(db, engagement_id, task_id, agent_id, f)
+                    fid = await _save_finding(db, engagement_id, task_id, agent_id, f)
+                    batch_ids.append(fid)
                     await _broadcast(eid, "finding_discovered", {"finding": f})
                 await db.commit()
+                if batch_ids:
+                    asyncio.create_task(_judge_findings_async(eid, batch_ids))
 
         except Exception as e:
             await db.rollback()
@@ -223,10 +278,14 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
                 agent_type = result.get("agent_type", "unknown")
                 findings = result.get("findings", [])
                 await _broadcast(eid, "agent_completed", {"agent_type": agent_type, "findings_count": len(findings)})
+                batch_ids: list[uuid.UUID] = []
                 for f in findings:
-                    await _save_finding(db, engagement_id, task_id, agent_id, f)
+                    fid = await _save_finding(db, engagement_id, task_id, agent_id, f)
+                    batch_ids.append(fid)
                     await _broadcast(eid, "finding_discovered", {"finding": f})
                 await db.commit()
+                if batch_ids:
+                    asyncio.create_task(_judge_findings_async(eid, batch_ids))
 
         except Exception as e:
             await db.rollback()

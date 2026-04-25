@@ -48,6 +48,21 @@ function renderEvent(e: SwarmEvent): Rendered {
         ),
       }
     }
+    case 'finding_judged': {
+      const j = (p.judgment ?? {}) as Record<string, unknown>
+      const fp = j.likely_false_positive as boolean | undefined
+      const reasoning = (j.reasoning as string | undefined) ?? ''
+      return {
+        tag: 'JUDGE',
+        tagColor: fp ? 'var(--text-secondary)' : 'var(--complete)',
+        msg: (
+          <>
+            <span style={K}>{fp ? 'likely FP' : 'real'}</span>
+            {reasoning && <> · <span style={{ color: 'var(--text-secondary)' }}>{reasoning}</span></>}
+          </>
+        ),
+      }
+    }
     case 'finding_discovered': {
       const f = (p.finding ?? {}) as Record<string, unknown>
       const sev = ((f.severity as string | undefined) ?? 'info') as Severity

@@ -54,4 +54,5 @@ class Finding(Base):
     triage_status: Mapped[TriageStatus] = mapped_column(SAEnum(TriageStatus), default=TriageStatus.unreviewed)
     triage_notes: Mapped[str] = mapped_column(String, default="")
     triage_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    triage_judgment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

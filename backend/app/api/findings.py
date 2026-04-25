@@ -52,6 +52,7 @@ def _serialize_finding(f: Finding) -> dict:
         "triage_status": f.triage_status.value,
         "triage_notes": f.triage_notes,
         "triage_updated_at": f.triage_updated_at.isoformat() if f.triage_updated_at else None,
+        "triage_judgment": f.triage_judgment,
         "created_at": f.created_at.isoformat(),
     }
 

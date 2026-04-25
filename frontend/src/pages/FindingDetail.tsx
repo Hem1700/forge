@@ -267,6 +267,39 @@ export function FindingDetailPage() {
         {/* Triage */}
         <Panel>
           <SectionHeader label="TRIAGE" />
+          {finding.triage_judgment && (
+            <div style={{
+              border: `1px solid ${finding.triage_judgment.likely_false_positive ? 'var(--text-secondary)' : 'var(--complete)'}`,
+              borderLeft: `2px solid ${finding.triage_judgment.likely_false_positive ? 'var(--text-secondary)' : 'var(--complete)'}`,
+              background: 'var(--bg)', padding: '10px', marginBottom: '10px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                <span style={{
+                  color: finding.triage_judgment.likely_false_positive ? 'var(--text-secondary)' : 'var(--complete)',
+                  fontSize: 'var(--fs-xs)', letterSpacing: '2px',
+                }}>
+                  AI JUDGE — {finding.triage_judgment.likely_false_positive ? 'LIKELY FALSE POSITIVE' : 'LIKELY REAL'} ({Math.round(finding.triage_judgment.confidence * 100)}%)
+                </span>
+                <button
+                  onClick={() => handleTriage(finding.triage_judgment!.likely_false_positive ? 'false_positive' : 'accepted')}
+                  disabled={triageSaving}
+                  style={{ background: 'transparent', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', padding: '3px 10px', cursor: 'pointer', opacity: triageSaving ? 0.5 : 1 }}
+                >
+                  ▶ ACCEPT SUGGESTION
+                </button>
+              </div>
+              {finding.triage_judgment.reasoning && (
+                <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', margin: '6px 0 0', lineHeight: 1.5 }}>
+                  {finding.triage_judgment.reasoning}
+                </p>
+              )}
+              {finding.triage_judgment.dedup_signature && (
+                <div style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-tiny)', marginTop: '4px' }}>
+                  dedup: <span style={{ color: 'var(--text-secondary)' }}>{finding.triage_judgment.dedup_signature}</span>
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
             {(['unreviewed', 'accepted', 'false_positive', 'fixed'] as TriageStatus[]).map((s) => {
               const active = (finding.triage_status ?? 'unreviewed') === s
