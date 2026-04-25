@@ -51,7 +51,7 @@ export interface TriageJudgment {
 }
 
 export interface SwarmEvent {
-  type: 'agent_started' | 'agent_completed' | 'finding_discovered' | 'finding_judged' | 'gate_triggered' | 'campaign_complete' | 'progress' | 'ping'
+  type: 'agent_started' | 'agent_completed' | 'finding_discovered' | 'finding_judged' | 'agent_thought' | 'gate_triggered' | 'campaign_complete' | 'progress' | 'ping'
   payload: Record<string, unknown>
   timestamp: string
 }

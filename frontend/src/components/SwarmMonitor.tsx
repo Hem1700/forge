@@ -48,6 +48,58 @@ function renderEvent(e: SwarmEvent): Rendered {
         ),
       }
     }
+    case 'agent_thought': {
+      const phase = (p.phase ?? 'thought') as string
+      const tool = (p.tool as string | undefined) ?? ''
+      const text = (p.text as string | undefined) ?? ''
+      const args = (p.args as string | undefined) ?? ''
+      const conf = p.confidence as number | undefined
+      const result = (p.result as string | undefined) ?? ''
+      if (phase === 'action') {
+        return {
+          tag: 'ACT', tagColor: 'var(--high)',
+          msg: (
+            <>
+              <span style={K}>{tool}</span>
+              {args && <> <span style={V}>{args}</span></>}
+            </>
+          ),
+        }
+      }
+      if (phase === 'observation') {
+        return {
+          tag: 'OBS', tagColor: 'var(--text-secondary)',
+          msg: (
+            <>
+              <span style={K}>{tool}</span>
+              {result && <> → <span style={{ color: 'var(--text-primary)' }}>{result}</span></>}
+            </>
+          ),
+        }
+      }
+      if (phase === 'conclusion') {
+        return {
+          tag: 'CONCL', tagColor: 'var(--complete)',
+          msg: (
+            <>
+              {text}
+              {conf != null && <> · <span style={K}>conf {Math.round(conf * 100)}%</span></>}
+            </>
+          ),
+        }
+      }
+      // thought (default)
+      return {
+        tag: 'THINK', tagColor: 'var(--accent)',
+        msg: (
+          <>
+            {text}
+            {tool && <> · <span style={K}>→ {tool}</span></>}
+            {conf != null && <> · <span style={K}>conf {Math.round(conf * 100)}%</span></>}
+          </>
+        ),
+      }
+    }
     case 'finding_judged': {
       const j = (p.judgment ?? {}) as Record<string, unknown>
       const fp = j.likely_false_positive as boolean | undefined

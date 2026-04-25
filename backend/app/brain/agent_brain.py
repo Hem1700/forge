@@ -9,6 +9,12 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.config import settings
 from app.brain.agent_tools import AgentTool
+from app.ws import progress as ws_progress
+
+
+def _truncate(s: str, n: int = 240) -> str:
+    s = s if isinstance(s, str) else str(s)
+    return s if len(s) <= n else s[: n - 1] + "…"
 
 
 class _LLMWrapper:
@@ -85,8 +91,32 @@ class AgentBrain:
             "Stop when your confidence is high or you have exhausted reasonable approaches."
         )
 
-    async def run(self, hypothesis: dict, context: dict) -> AgentBrainResult:
-        """Run the ReAct loop for a given hypothesis and target context."""
+    async def run(
+        self,
+        hypothesis: dict,
+        context: dict,
+        engagement_id: str | None = None,
+        agent_id: str | None = None,
+        agent_type: str | None = None,
+    ) -> AgentBrainResult:
+        """Run the ReAct loop for a given hypothesis and target context.
+
+        If engagement_id is provided, emits agent_thought events at each step
+        (thought / action / observation / conclusion) so the live console can
+        show what the agent is reasoning about in real time.
+        """
+
+        async def emit(phase: str, **payload) -> None:
+            if not engagement_id:
+                return
+            await ws_progress.broadcast(engagement_id, "agent_thought", {
+                "phase": phase,
+                "agent_id": agent_id or "",
+                "agent_type": agent_type or "",
+                "step": steps,
+                **payload,
+            })
+
         messages = [
             SystemMessage(content=self._build_system_prompt()),
             HumanMessage(
@@ -115,17 +145,23 @@ class AgentBrain:
             trace.append(parsed)
             steps += 1
 
+            reasoning = _truncate(str(parsed.get("reasoning", "")))
+            confidence = float(parsed.get("confidence", 0.0))
+
             if parsed.get("conclusion"):
+                await emit("conclusion", text=reasoning, confidence=confidence,
+                           findings_count=len(parsed.get("findings", [])))
                 return AgentBrainResult(
                     findings=parsed.get("findings", []),
-                    confidence=float(parsed.get("confidence", 0.0)),
+                    confidence=confidence,
                     steps_taken=steps,
                     reasoning_trace=trace,
                 )
 
             tool_name = parsed.get("tool", "")
             tool_args = parsed.get("args", {})
-            confidence = float(parsed.get("confidence", 0.0))
+
+            await emit("thought", text=reasoning, tool=tool_name, confidence=confidence)
 
             if confidence >= self.confidence_threshold:
                 return AgentBrainResult(
@@ -141,11 +177,15 @@ class AgentBrain:
                     f"Error: unknown tool '{tool_name}'. "
                     f"Available tools: {list(self.tools)}"
                 )
+                await emit("action", tool=tool_name, args=_truncate(json.dumps(tool_args)), error="unknown tool")
             else:
+                await emit("action", tool=tool_name, args=_truncate(json.dumps(tool_args)))
                 try:
                     tool_result = await tool.execute(tool_args)
                 except Exception as exc:
                     tool_result = f"Tool error: {exc}"
+
+            await emit("observation", tool=tool_name, result=_truncate(str(tool_result)))
 
             messages.append(response)
             messages.append(HumanMessage(content=f"Tool result:\n{tool_result}"))

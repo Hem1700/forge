@@ -38,7 +38,10 @@ class ProbeAgent(BaseAgent):
     async def _execute(self, task: dict) -> dict:
         hypothesis = task.get("hypothesis", task)
         context = task.get("context", {"target_url": task.get("surface", "")})
-        result = await self.brain.run(hypothesis, context)
+        result = await self.brain.run(
+            hypothesis, context,
+            engagement_id=self.engagement_id, agent_id=self.agent_id, agent_type=self.agent_type,
+        )
         return {
             "agent_type": "probe",
             "surface": task.get("surface", ""),
