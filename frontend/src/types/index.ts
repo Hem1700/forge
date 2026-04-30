@@ -122,12 +122,34 @@ export interface ExploitExecutionDiff {
   patched_blocked?: boolean | null
 }
 
+export interface ResearchAdvisory {
+  source: string
+  id: string
+  aliases?: string[]
+  summary?: string
+  details?: string
+  fix_refs?: string[]
+  advisory_refs?: string[]
+  first_fixed?: string | null
+  ranges?: { package: string; introduced?: string | null; fixed?: string | null }[]
+}
+
+export interface ResearchBundle {
+  sources: string[]
+  advisories: ResearchAdvisory[]
+  fix_refs: string[]
+  first_fixed: string | null
+  ranges: { package: string; introduced?: string | null; fixed?: string | null }[]
+  summary: string
+}
+
 export interface FindingDetail extends Finding {
   exploit_detail?: ExploitDetail | null
   poc_detail?: PoCDetail | null
   exploit_script?: ExploitScript | null
   exploit_execution?: ExploitExecution | null
   exploit_execution_diff?: ExploitExecutionDiff | null
+  research?: ResearchBundle | null
   reproduction_steps?: string[]
   validation_status?: string
 }

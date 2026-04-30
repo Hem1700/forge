@@ -15,6 +15,7 @@ from app.brain.poc_engine import PoCEngine
 from app.brain.exploit_script_engine import ExploitScriptEngine
 from app.brain.exploit_executor import ExploitExecutor
 from app.brain.execution_judge import ExecutionJudge
+from app.brain.researcher import Researcher
 
 router = APIRouter(prefix="/api/v1/findings", tags=["findings"])
 
@@ -50,6 +51,7 @@ def _serialize_finding(f: Finding) -> dict:
         "exploit_script": f.exploit_script,
         "exploit_execution": f.exploit_execution,
         "exploit_execution_diff": f.exploit_execution_diff,
+        "research": f.research,
         "triage_status": f.triage_status.value,
         "triage_notes": f.triage_notes,
         "triage_updated_at": f.triage_updated_at.isoformat() if f.triage_updated_at else None,
@@ -161,12 +163,35 @@ async def generate_poc(
 
 # ── Plan 11: Live Exploitation endpoints ─────────────────────────────────────
 
+@router.post("/{finding_id}/research")
+async def research_finding(
+    finding_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Fetch (or return cached) external advisory + fix metadata for a finding."""
+    finding = await db.get(Finding, finding_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    if finding.research and finding.research.get("advisories"):
+        return finding.research
+    researcher = Researcher()
+    research = await researcher.research(_serialize_finding(finding))
+    finding.research = research
+    await db.commit()
+    return research
+
+
 @router.post("/{finding_id}/exploit/generate")
 async def generate_exploit_script(
     finding_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Generate (or return cached) weaponized exploit script."""
+    """Generate (or return cached) weaponized exploit script.
+
+    Runs the Researcher first when research isn't cached. The advisory + fix
+    metadata is fed into the script engine so the LLM pins the right patched
+    version and references real fix commits instead of guessing.
+    """
     finding = await db.get(Finding, finding_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
@@ -182,8 +207,17 @@ async def generate_exploit_script(
         "app_type": (engagement.semantic_model or {}).get("app_type", "unknown") if engagement else "unknown",
     }
 
+    research = finding.research
+    if not research or not research.get("advisories"):
+        try:
+            research = await Researcher().research(_serialize_finding(finding))
+            finding.research = research
+            await db.commit()
+        except Exception:
+            research = None
+
     engine = ExploitScriptEngine()
-    script_data = await engine.generate(_serialize_finding(finding), context)
+    script_data = await engine.generate(_serialize_finding(finding), context, research=research)
 
     finding.exploit_script = script_data
     await db.commit()
@@ -227,8 +261,16 @@ async def execute_exploit(
             "target_type": engagement.target_type if engagement else "web",
             "app_type": (engagement.semantic_model or {}).get("app_type", "unknown") if engagement else "unknown",
         }
+        research = finding.research
+        if not research or not research.get("advisories"):
+            try:
+                research = await Researcher().research(_serialize_finding(finding))
+                finding.research = research
+                await db.commit()
+            except Exception:
+                research = None
         engine = ExploitScriptEngine()
-        finding.exploit_script = await engine.generate(_serialize_finding(finding), context)
+        finding.exploit_script = await engine.generate(_serialize_finding(finding), context, research=research)
         await db.commit()
 
     script_data = finding.exploit_script

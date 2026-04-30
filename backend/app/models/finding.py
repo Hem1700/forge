@@ -56,4 +56,5 @@ class Finding(Base):
     triage_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     triage_judgment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     exploit_execution_diff: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    research: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

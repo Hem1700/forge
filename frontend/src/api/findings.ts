@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { FindingDetail, ExploitDetail, PoCDetail, ExploitScript, ExploitExecution, ExploitExecutionDiff, TriageStatus } from '../types'
+import type { FindingDetail, ExploitDetail, PoCDetail, ExploitScript, ExploitExecution, ExploitExecutionDiff, ResearchBundle, TriageStatus } from '../types'
 
 export const findingsApi = {
   get: (findingId: string) =>
@@ -12,6 +12,11 @@ export const findingsApi = {
 
   generatePoC: (findingId: string) =>
     apiFetch<PoCDetail>(`/api/v1/findings/${findingId}/poc`, {
+      method: 'POST',
+    }),
+
+  research: (findingId: string) =>
+    apiFetch<ResearchBundle>(`/api/v1/findings/${findingId}/research`, {
       method: 'POST',
     }),
 

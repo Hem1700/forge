@@ -80,6 +80,7 @@ export function FindingDetailPage() {
   const [executeLoading, setExecuteLoading] = useState(false)
   const [showExecuteModal, setShowExecuteModal] = useState(false)
   const [diffLoading, setDiffLoading] = useState(false)
+  const [researchLoading, setResearchLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [triageSaving, setTriageSaving] = useState(false)
   const [triageNotes, setTriageNotes] = useState('')
@@ -149,6 +150,20 @@ export function FindingDetailPage() {
       setError('Failed to generate exploit script.')
     } finally {
       setScriptLoading(false)
+    }
+  }
+
+  async function handleResearch() {
+    if (!findingId) return
+    setResearchLoading(true)
+    setError(null)
+    try {
+      const research = await findingsApi.research(findingId)
+      setFinding((prev) => (prev ? { ...prev, research } : prev))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Research failed.')
+    } finally {
+      setResearchLoading(false)
     }
   }
 
@@ -372,6 +387,65 @@ export function FindingDetailPage() {
             </pre>
           </Panel>
         </div>
+
+        {/* External Research */}
+        <Panel>
+          <SectionHeader label="EXTERNAL RESEARCH" />
+          {finding.research && finding.research.advisories?.length ? (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                {finding.research.first_fixed && (
+                  <span style={{ color: 'var(--complete)', fontSize: 'var(--fs-sm)', letterSpacing: '1px', border: '1px solid var(--complete)', padding: '2px 8px' }}>
+                    FIRST FIXED: {finding.research.first_fixed}
+                  </span>
+                )}
+                <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-xs)' }}>
+                  source: {finding.research.sources.join(', ')}
+                </span>
+              </div>
+              {finding.research.advisories.map((a, i) => (
+                <div key={i} style={{ marginBottom: '10px', borderLeft: '2px solid var(--accent-dim)', paddingLeft: '10px' }}>
+                  <div style={{ color: 'var(--accent)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}>{a.id}</div>
+                  {a.summary && (
+                    <div style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-sm)', marginTop: '4px' }}>{a.summary}</div>
+                  )}
+                  {(a.ranges?.length ?? 0) > 0 && (
+                    <div style={{ marginTop: '6px' }}>
+                      <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-tiny)', letterSpacing: '1px' }}>AFFECTED RANGES</div>
+                      <ul style={{ margin: '2px 0 0', paddingLeft: '14px', color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>
+                        {a.ranges!.map((r, j) => (
+                          <li key={j}>{r.package}: introduced {r.introduced ?? '—'} → fixed {r.fixed ?? '—'}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {(a.fix_refs?.length ?? 0) > 0 && (
+                    <div style={{ marginTop: '6px' }}>
+                      <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-tiny)', letterSpacing: '1px' }}>PATCH / FIX REFS</div>
+                      <ul style={{ margin: '2px 0 0', paddingLeft: '14px', color: 'var(--accent-glow)', fontSize: 'var(--fs-xs)' }}>
+                        {a.fix_refs!.slice(0, 5).map((url, j) => (
+                          <li key={j}><a href={url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{url}</a></li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <ActionButton onClick={handleResearch} disabled={researchLoading}>
+                {researchLoading ? 'REFRESHING...' : '↻ REFRESH RESEARCH'}
+              </ActionButton>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', padding: '8px 0' }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>
+                &gt; no advisory research yet — fetches OSV / NVD for known CVE / GHSA references_
+              </div>
+              <ActionButton onClick={handleResearch} disabled={researchLoading}>
+                {researchLoading ? 'RESEARCHING...' : '▶ FETCH RESEARCH'}
+              </ActionButton>
+            </div>
+          )}
+        </Panel>
 
         {/* Exploit Intelligence */}
         <Panel>
