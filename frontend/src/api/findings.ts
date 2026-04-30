@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { FindingDetail, ExploitDetail, PoCDetail, ExploitScript, ExploitExecution, TriageStatus } from '../types'
+import type { FindingDetail, ExploitDetail, PoCDetail, ExploitScript, ExploitExecution, ExploitExecutionDiff, TriageStatus } from '../types'
 
 export const findingsApi = {
   get: (findingId: string) =>
@@ -22,6 +22,12 @@ export const findingsApi = {
 
   executeExploit: (findingId: string) =>
     apiFetch<ExploitExecution>(`/api/v1/findings/${findingId}/exploit/execute`, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    }),
+
+  executeExploitDiff: (findingId: string) =>
+    apiFetch<ExploitExecutionDiff>(`/api/v1/findings/${findingId}/exploit/execute-diff`, {
       method: 'POST',
       body: JSON.stringify({ confirmed: true }),
     }),

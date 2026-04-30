@@ -85,6 +85,8 @@ export interface ExploitScript {
   filename: string
   script: string
   setup: string[]
+  patched_setup?: string[]
+  patched_label?: string
   expected_output: string
   impact_achieved: string
 }
@@ -101,11 +103,31 @@ export interface ExploitExecution {
   override_verdict: 'confirmed' | 'failed' | 'inconclusive' | null
 }
 
+export interface ExecutionRunRaw {
+  stdout: string
+  stderr: string
+  exit_code: number
+  timed_out: boolean
+  executed_at: string
+}
+
+export interface ExploitExecutionDiff {
+  patched_label: string
+  vuln_run: ExecutionRunRaw
+  patched_run: ExecutionRunRaw
+  verdict: 'confirmed' | 'failed' | 'inconclusive'
+  confidence: number
+  reasoning: string
+  vuln_succeeded?: boolean | null
+  patched_blocked?: boolean | null
+}
+
 export interface FindingDetail extends Finding {
   exploit_detail?: ExploitDetail | null
   poc_detail?: PoCDetail | null
   exploit_script?: ExploitScript | null
   exploit_execution?: ExploitExecution | null
+  exploit_execution_diff?: ExploitExecutionDiff | null
   reproduction_steps?: string[]
   validation_status?: string
 }

@@ -49,6 +49,7 @@ def _serialize_finding(f: Finding) -> dict:
         "poc_detail": f.poc_detail,
         "exploit_script": f.exploit_script,
         "exploit_execution": f.exploit_execution,
+        "exploit_execution_diff": f.exploit_execution_diff,
         "triage_status": f.triage_status.value,
         "triage_notes": f.triage_notes,
         "triage_updated_at": f.triage_updated_at.isoformat() if f.triage_updated_at else None,
@@ -267,6 +268,98 @@ async def execute_exploit(
 
     await db.commit()
     return full_execution
+
+
+@router.post("/{finding_id}/exploit/execute-diff")
+async def execute_exploit_diff(
+    finding_id: uuid.UUID,
+    body: ExecuteRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Differential execution: run the exploit script twice — once with the
+    vulnerable dependency setup, once with the patched setup — and judge the diff."""
+    finding = await db.get(Finding, finding_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    if not body.confirmed:
+        engagement = await db.get(Engagement, finding.engagement_id)
+        target = (
+            (engagement.target_url if engagement else None)
+            or (engagement.target_path if engagement else None)
+            or "unknown"
+        )
+        impact = (finding.exploit_script or {}).get("impact_achieved", "Unknown impact")
+        return {"requires_confirmation": True, "target": target, "impact_achieved": impact}
+
+    # Auto-generate the script if missing
+    if not finding.exploit_script:
+        engagement = await db.get(Engagement, finding.engagement_id)
+        context = {
+            "target_url": engagement.target_url if engagement else None,
+            "target_path": engagement.target_path if engagement else None,
+            "target_type": engagement.target_type if engagement else "web",
+            "app_type": (engagement.semantic_model or {}).get("app_type", "unknown") if engagement else "unknown",
+        }
+        engine = ExploitScriptEngine()
+        finding.exploit_script = await engine.generate(_serialize_finding(finding), context)
+        await db.commit()
+
+    script_data = finding.exploit_script
+    patched_setup = script_data.get("patched_setup") or []
+    patched_label = script_data.get("patched_label") or "patched version"
+
+    if not patched_setup:
+        raise HTTPException(
+            status_code=422,
+            detail="No patched_setup available — diff test requires a pinnable upstream fix. "
+                   "Run the standard /exploit/execute instead.",
+        )
+
+    executor = ExploitExecutor()
+    vuln_run = await executor.execute(
+        script=script_data["script"],
+        language=script_data.get("language", "python"),
+        setup=script_data.get("setup", []),
+        timeout=60,
+    )
+    patched_run = await executor.execute(
+        script=script_data["script"],
+        language=script_data.get("language", "python"),
+        setup=patched_setup,
+        timeout=60,
+    )
+
+    judge = ExecutionJudge()
+    diff_verdict = await judge.judge_diff(
+        finding=_serialize_finding(finding),
+        script=script_data["script"],
+        vuln_stdout=vuln_run["stdout"],
+        vuln_stderr=vuln_run["stderr"],
+        vuln_exit=vuln_run["exit_code"],
+        patched_stdout=patched_run["stdout"],
+        patched_stderr=patched_run["stderr"],
+        patched_exit=patched_run["exit_code"],
+        patched_label=patched_label,
+    )
+
+    diff_record = {
+        "patched_label": patched_label,
+        "vuln_run": vuln_run,
+        "patched_run": patched_run,
+        "verdict": diff_verdict.get("verdict"),
+        "confidence": diff_verdict.get("confidence"),
+        "reasoning": diff_verdict.get("reasoning"),
+        "vuln_succeeded": diff_verdict.get("vuln_succeeded"),
+        "patched_blocked": diff_verdict.get("patched_blocked"),
+    }
+    finding.exploit_execution_diff = diff_record
+
+    if diff_verdict.get("verdict") == "confirmed":
+        finding.validation_status = ValidationStatus.confirmed
+
+    await db.commit()
+    return diff_record
 
 
 @router.patch("/{finding_id}/exploit/execution")

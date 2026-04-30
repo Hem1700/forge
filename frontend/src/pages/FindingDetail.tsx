@@ -79,6 +79,7 @@ export function FindingDetailPage() {
   const [scriptLoading, setScriptLoading] = useState(false)
   const [executeLoading, setExecuteLoading] = useState(false)
   const [showExecuteModal, setShowExecuteModal] = useState(false)
+  const [diffLoading, setDiffLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [triageSaving, setTriageSaving] = useState(false)
   const [triageNotes, setTriageNotes] = useState('')
@@ -163,6 +164,20 @@ export function FindingDetailPage() {
       setError('Execution failed.')
     } finally {
       setExecuteLoading(false)
+    }
+  }
+
+  async function handleExecuteDiff() {
+    if (!findingId) return
+    setDiffLoading(true)
+    setError(null)
+    try {
+      const diff = await findingsApi.executeExploitDiff(findingId)
+      setFinding((prev) => (prev ? { ...prev, exploit_execution_diff: diff } : prev))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Differential execution failed.')
+    } finally {
+      setDiffLoading(false)
     }
   }
 
@@ -522,6 +537,58 @@ export function FindingDetailPage() {
                   </ActionButton>
                   {error && <div style={{ color: 'var(--crit)', fontSize: 'var(--fs-xs)' }}>{error}</div>}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 3: Differential test */}
+          {finding.exploit_script && (finding.exploit_script.patched_setup?.length ?? 0) > 0 && (
+            <div style={{ marginTop: '14px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+              <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '8px' }}>
+                STEP 3 — DIFFERENTIAL TEST (vuln vs {finding.exploit_script.patched_label || 'patched'})
+              </div>
+              {finding.exploit_execution_diff ? (
+                <div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', border: `1px solid ${VERDICT_COLOR[finding.exploit_execution_diff.verdict] ?? 'var(--border)'}40`, padding: '4px 10px', marginBottom: '8px' }}>
+                    <span style={{ color: VERDICT_COLOR[finding.exploit_execution_diff.verdict] ?? 'var(--text-secondary)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}>
+                      DIFF: {finding.exploit_execution_diff.verdict.toUpperCase()} ({Math.round((finding.exploit_execution_diff.confidence ?? 0) * 100)}%)
+                    </span>
+                  </div>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginBottom: '10px' }}>
+                    {finding.exploit_execution_diff.reasoning}
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-tiny)', letterSpacing: '1px', marginBottom: '4px' }}>
+                        VULN RUN · exit={finding.exploit_execution_diff.vuln_run.exit_code}
+                        {finding.exploit_execution_diff.vuln_succeeded && <span style={{ color: 'var(--complete)', marginLeft: '6px' }}>· succeeded</span>}
+                      </div>
+                      <pre style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-tiny)', background: 'var(--bg)', padding: '8px', border: '1px solid var(--border)', overflow: 'auto', maxHeight: '200px', margin: 0, fontFamily: 'inherit', whiteSpace: 'pre-wrap' }}>
+                        {finding.exploit_execution_diff.vuln_run.stdout || '(no stdout)'}
+                        {finding.exploit_execution_diff.vuln_run.stderr ? `\n--- stderr ---\n${finding.exploit_execution_diff.vuln_run.stderr}` : ''}
+                      </pre>
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-tiny)', letterSpacing: '1px', marginBottom: '4px' }}>
+                        PATCHED RUN · exit={finding.exploit_execution_diff.patched_run.exit_code}
+                        {finding.exploit_execution_diff.patched_blocked && <span style={{ color: 'var(--complete)', marginLeft: '6px' }}>· blocked</span>}
+                      </div>
+                      <pre style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-tiny)', background: 'var(--bg)', padding: '8px', border: '1px solid var(--border)', overflow: 'auto', maxHeight: '200px', margin: 0, fontFamily: 'inherit', whiteSpace: 'pre-wrap' }}>
+                        {finding.exploit_execution_diff.patched_run.stdout || '(no stdout)'}
+                        {finding.exploit_execution_diff.patched_run.stderr ? `\n--- stderr ---\n${finding.exploit_execution_diff.patched_run.stderr}` : ''}
+                      </pre>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '8px' }}>
+                    <ActionButton onClick={handleExecuteDiff} disabled={diffLoading}>
+                      {diffLoading ? 'RE-RUNNING...' : '↻ RE-RUN DIFF'}
+                    </ActionButton>
+                  </div>
+                </div>
+              ) : (
+                <ActionButton onClick={handleExecuteDiff} disabled={diffLoading}>
+                  {diffLoading ? 'RUNNING DIFF...' : '▶ RUN DIFFERENTIAL TEST'}
+                </ActionButton>
               )}
             </div>
           )}
