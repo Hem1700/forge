@@ -295,6 +295,180 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
         await _finalize(engagement_id, db, eid, success=True)
 
 
+async def _run_cve_pipeline(engagement_id: uuid.UUID) -> None:
+    """CVE-driven pipeline.
+
+    Input is a CVE / GHSA id stored in engagement.target_url. The pipeline:
+      1. Researches the advisory (OSV → NVD).
+      2. Synthesises a Finding from the advisory metadata.
+      3. Generates a weaponized exploit script (research already cached so no
+         duplicate fetch).
+      4. Runs the differential test (vuln vs first-fixed) and judges the diff.
+      5. campaign_complete.
+    """
+    eid = str(engagement_id)
+    async with AsyncSessionLocal() as db:
+        engagement = await db.get(Engagement, engagement_id)
+        if engagement is None:
+            return
+
+        cve_id = (engagement.target_url or "").strip()
+        if not cve_id:
+            await _broadcast(eid, "campaign_complete", {"status": "error", "error": "target_url must be a CVE or GHSA id for cve engagements"})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
+
+        try:
+            from app.brain.researcher import Researcher
+            from app.brain.exploit_script_engine import ExploitScriptEngine
+            from app.brain.exploit_executor import ExploitExecutor
+            from app.brain.execution_judge import ExecutionJudge
+
+            await _broadcast(eid, "agent_started", {"phase": "cve_research", "cve": cve_id})
+            researcher = Researcher()
+            seed = {"description": cve_id, "evidence": [cve_id]}
+            research = await researcher.research(seed)
+            engagement.semantic_model = {"app_type": "cve", "research": research}
+            await db.commit()
+
+            advisories = research.get("advisories") or []
+            if not advisories:
+                await _broadcast(eid, "campaign_complete", {"status": "error", "error": f"no advisory found for {cve_id} in OSV/NVD"})
+                await _finalize(engagement_id, db, eid, success=False)
+                return
+
+            top = advisories[0]
+            ranges = research.get("ranges") or []
+            primary_pkg = next((r.get("package") for r in ranges if r.get("package")), "unknown")
+            first_fixed = research.get("first_fixed") or "unknown"
+            await _broadcast(eid, "agent_completed", {
+                "phase": "cve_research",
+                "advisory": top.get("id", cve_id),
+                "package": primary_pkg,
+                "first_fixed": first_fixed,
+            })
+
+            # Synthesise a Finding from the advisory
+            task_id, agent_id = await _ensure_placeholder_task_agent(db, engagement_id)
+            await db.commit()
+
+            severity = "high" if first_fixed != "unknown" else "medium"
+            synthetic = {
+                "vulnerability": "known_cve",
+                "vulnerability_class": "known_cve",
+                "severity": severity,
+                "title": top.get("id", cve_id),
+                "description": (top.get("summary") or top.get("details") or f"Advisory {cve_id}")[:1500],
+                "evidence": [
+                    f"Advisory: {top.get('id', cve_id)}",
+                    f"Package: {primary_pkg}",
+                    f"First fixed: {first_fixed}",
+                    *[f"Fix ref: {u}" for u in (research.get("fix_refs") or [])[:3]],
+                ],
+                "recommendation": f"Upgrade {primary_pkg} to {first_fixed}",
+                "osv_id": top.get("id", cve_id),
+                "file": "requirements.txt",
+                "package": primary_pkg,
+                "version": next((r.get("introduced") for r in ranges if r.get("introduced")), "unknown"),
+                "confidence_score": 0.9,
+            }
+            finding_db_id = await _save_finding(db, engagement_id, task_id, agent_id, synthetic)
+
+            # Cache the research bundle on the persisted finding so script gen reuses it
+            from sqlalchemy import select
+            row = (await db.execute(select(Finding).where(Finding.id == finding_db_id))).scalar_one()
+            row.research = research
+            await db.commit()
+
+            await _broadcast(eid, "finding_discovered", {"finding": synthetic})
+            asyncio.create_task(_judge_findings_async(eid, [finding_db_id]))
+
+            # Generate the weaponized exploit script
+            await _broadcast(eid, "agent_started", {"phase": "exploit_script_gen", "advisory": top.get("id", cve_id)})
+            script_engine = ExploitScriptEngine()
+            context = {
+                "target_url": cve_id,
+                "target_path": None,
+                "target_type": "cve",
+                "app_type": "cve",
+            }
+            # Re-fetch the row to get a serializable form
+            row = (await db.execute(select(Finding).where(Finding.id == finding_db_id))).scalar_one()
+            from app.api.findings import _serialize_finding
+            script_data = await script_engine.generate(_serialize_finding(row), context, research=research)
+            row.exploit_script = script_data
+            await db.commit()
+            await _broadcast(eid, "agent_completed", {
+                "phase": "exploit_script_gen",
+                "language": script_data.get("language"),
+                "patched_label": script_data.get("patched_label"),
+            })
+
+            # Differential test (vuln vs patched)
+            patched_setup = script_data.get("patched_setup") or []
+            if not patched_setup:
+                await _broadcast(eid, "campaign_complete", {"status": "error", "error": "ExploitScriptEngine did not produce patched_setup — diff test skipped"})
+                await _finalize(engagement_id, db, eid, success=False)
+                return
+
+            await _broadcast(eid, "agent_started", {"phase": "diff_execute", "patched_label": script_data.get("patched_label")})
+            executor = ExploitExecutor()
+            vuln_run = await executor.execute(
+                script=script_data["script"],
+                language=script_data.get("language", "python"),
+                setup=script_data.get("setup", []),
+                timeout=90,
+            )
+            patched_run = await executor.execute(
+                script=script_data["script"],
+                language=script_data.get("language", "python"),
+                setup=patched_setup,
+                timeout=90,
+            )
+
+            judge = ExecutionJudge()
+            row = (await db.execute(select(Finding).where(Finding.id == finding_db_id))).scalar_one()
+            verdict = await judge.judge_diff(
+                finding=_serialize_finding(row),
+                script=script_data["script"],
+                vuln_stdout=vuln_run["stdout"],
+                vuln_stderr=vuln_run["stderr"],
+                vuln_exit=vuln_run["exit_code"],
+                patched_stdout=patched_run["stdout"],
+                patched_stderr=patched_run["stderr"],
+                patched_exit=patched_run["exit_code"],
+                patched_label=script_data.get("patched_label", "patched version"),
+            )
+
+            row.exploit_execution_diff = {
+                "patched_label": script_data.get("patched_label", ""),
+                "vuln_run": vuln_run,
+                "patched_run": patched_run,
+                "verdict": verdict.get("verdict"),
+                "confidence": verdict.get("confidence"),
+                "reasoning": verdict.get("reasoning"),
+                "vuln_succeeded": verdict.get("vuln_succeeded"),
+                "patched_blocked": verdict.get("patched_blocked"),
+            }
+            if verdict.get("verdict") == "confirmed":
+                row.validation_status = ValidationStatus.confirmed
+            await db.commit()
+
+            await _broadcast(eid, "agent_completed", {
+                "phase": "diff_execute",
+                "verdict": verdict.get("verdict"),
+                "confidence": verdict.get("confidence"),
+            })
+
+        except Exception as e:
+            await db.rollback()
+            await _broadcast(eid, "campaign_complete", {"status": "error", "error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
+
+        await _finalize(engagement_id, db, eid, success=True)
+
+
 async def _finalize(engagement_id: uuid.UUID, db: AsyncSession, eid: str, success: bool = True) -> None:
     # Use a fresh session — the pipeline session may be in a stale/dirty state.
     # Engagement.completed_at is a naive TIMESTAMP column, so use naive utcnow().
@@ -327,7 +501,9 @@ async def start_engagement(
     await db.commit()
 
     target_type = engagement.target_type
-    if target_type in ("local_codebase", "binary"):
+    if target_type == "cve":
+        background_tasks.add_task(_run_cve_pipeline, engagement_id)
+    elif target_type in ("local_codebase", "binary"):
         background_tasks.add_task(_run_codebase_pipeline, engagement_id)
     else:
         background_tasks.add_task(_run_web_pipeline, engagement_id)

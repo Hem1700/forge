@@ -16,6 +16,7 @@ const TYPE: Record<TargetType, string> = {
   web: 'web',
   local_codebase: 'code',
   binary: 'binary',
+  cve: 'cve',
 }
 
 const COLS = '110px 1fr 70px 90px 65px 90px 30px'
@@ -30,6 +31,7 @@ export function EngagementDashboard() {
   const [targetType, setTargetType] = useState<TargetType>('web')
   const [targetUrl, setTargetUrl] = useState('')
   const [targetPath, setTargetPath] = useState('')
+  const [cveId, setCveId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [starting, setStarting] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -40,16 +42,20 @@ export function EngagementDashboard() {
     setSubmitting(true)
     setError(null)
     try {
-      const payload: Parameters<typeof engagementsApi.create>[0] = {
-        target_url: targetType === 'web' ? targetUrl.trim() : (targetPath.trim() || 'local'),
-        target_type: targetType,
-        target_path: targetType !== 'web' ? targetPath.trim() : undefined,
+      let payload: Parameters<typeof engagementsApi.create>[0]
+      if (targetType === 'cve') {
+        payload = { target_url: cveId.trim().toUpperCase(), target_type: 'cve' }
+      } else if (targetType === 'web') {
+        payload = { target_url: targetUrl.trim(), target_type: 'web' }
+      } else {
+        payload = { target_url: targetPath.trim() || 'local', target_type: targetType, target_path: targetPath.trim() }
       }
       await engagementsApi.create(payload)
       const list = await engagementsApi.list()
       setEngagements(list)
       setTargetUrl('')
       setTargetPath('')
+      setCveId('')
       setShowForm(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create engagement')
@@ -115,7 +121,7 @@ export function EngagementDashboard() {
           <div style={{ marginBottom: '8px' }}>
             <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>TARGET_TYPE</div>
             <div style={{ display: 'flex', gap: '4px' }}>
-              {(['web', 'local_codebase', 'binary'] as TargetType[]).map((t) => (
+              {(['web', 'local_codebase', 'binary', 'cve'] as TargetType[]).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -144,6 +150,21 @@ export function EngagementDashboard() {
                 placeholder="https://target.example.com"
                 style={{ width: '100%', padding: '5px 8px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', outline: 'none', boxSizing: 'border-box' }}
               />
+            </div>
+          ) : targetType === 'cve' ? (
+            <div style={{ marginBottom: '8px' }}>
+              <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>CVE_OR_GHSA_ID</div>
+              <input
+                type="text"
+                required
+                value={cveId}
+                onChange={(e) => setCveId(e.target.value)}
+                placeholder="CVE-2023-49081 or GHSA-g84x-mcqj-x9qq"
+                style={{ width: '100%', padding: '5px 8px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', outline: 'none', boxSizing: 'border-box' }}
+              />
+              <div style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-tiny)', marginTop: '3px' }}>
+                FORGE will research the advisory, generate an exploit, and run a vuln-vs-patched diff test.
+              </div>
             </div>
           ) : (
             <div style={{ marginBottom: '8px' }}>
