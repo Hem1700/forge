@@ -35,4 +35,5 @@ class Engagement(Base):
     gate_status: Mapped[GateStatus] = mapped_column(SAEnum(GateStatus), default=GateStatus.gate_1)
     semantic_model: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

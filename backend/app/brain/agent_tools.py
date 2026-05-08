@@ -1,6 +1,7 @@
 # backend/app/brain/agent_tools.py
 from __future__ import annotations
 import re
+import shlex
 from abc import ABC, abstractmethod
 
 import httpx
@@ -111,8 +112,14 @@ class SubprocessTool(AgentTool):
                 f"Choose from: {', '.join(sorted(self.ALLOWED_TOOLS))}"
             )
 
-        # Note: tool_args is passed to the container shell as-is. Only use with trusted input.
-        script = f"#!/bin/bash\n{tool_name} {tool_args}"
+        # The LLM is not a trusted source. Parse args via shlex and re-emit them
+        # quoted so shell metacharacters become literal data, not commands.
+        try:
+            argv = shlex.split(tool_args) if isinstance(tool_args, str) else [str(a) for a in tool_args]
+        except ValueError as exc:
+            return f"Error: could not parse args ({exc})"
+        quoted = shlex.join([tool_name, *argv])
+        script = f"#!/bin/bash\n{quoted}"
         executor = ExploitExecutor()
         result = await executor.execute(
             script=script,

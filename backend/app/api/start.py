@@ -476,7 +476,7 @@ async def _finalize(engagement_id: uuid.UUID, db: AsyncSession, eid: str, succes
         async with AsyncSessionLocal() as fresh_db:
             engagement = await fresh_db.get(Engagement, engagement_id)
             if engagement is not None:
-                engagement.status = EngagementStatus.complete if success else EngagementStatus.pending
+                engagement.status = EngagementStatus.complete if success else EngagementStatus.aborted
                 if success:
                     engagement.completed_at = datetime.utcnow()
                 await fresh_db.commit()
@@ -498,6 +498,7 @@ async def start_engagement(
         raise HTTPException(status_code=409, detail="Engagement already running")
 
     engagement.status = EngagementStatus.running
+    engagement.started_at = datetime.utcnow().replace(tzinfo=None)
     await db.commit()
 
     target_type = engagement.target_type

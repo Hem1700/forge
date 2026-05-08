@@ -16,7 +16,7 @@ from app.ws.stream import stream_manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Mark stale running/paused engagements as aborted on startup — any process
-    # that was running them is long gone if the row was created >1h ago.
+    # that was running them is long gone if it actually started >1h ago.
     cutoff = datetime.utcnow() - timedelta(hours=1)
     try:
         async with AsyncSessionLocal() as db:
@@ -24,7 +24,8 @@ async def lifespan(app: FastAPI):
                 update(Engagement)
                 .where(
                     Engagement.status.in_([EngagementStatus.running, EngagementStatus.paused_at_gate]),
-                    Engagement.created_at < cutoff,
+                    Engagement.started_at.is_not(None),
+                    Engagement.started_at < cutoff,
                 )
                 .values(status=EngagementStatus.aborted)
             )
