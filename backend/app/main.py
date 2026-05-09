@@ -10,6 +10,7 @@ from app.api.start import router as start_router
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models.engagement import Engagement, EngagementStatus
+from app.queue import close_pool
 from app.ws.stream import stream_manager
 
 
@@ -33,6 +34,7 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     yield
+    await close_pool()
 
 
 app = FastAPI(

@@ -1,4 +1,4 @@
-.PHONY: up down logs migrate test shell dev
+.PHONY: up down logs migrate test shell dev worker
 
 up:
 	docker compose up -d
@@ -20,3 +20,6 @@ shell:
 
 dev:
 	cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+worker:
+	cd backend && arq app.worker.WorkerSettings

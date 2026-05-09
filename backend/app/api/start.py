@@ -4,7 +4,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -14,6 +14,7 @@ from app.models.engagement import Engagement, EngagementStatus
 from app.models.finding import Finding, Severity, ValidationStatus
 from app.models.task import Task, TaskStatus, Priority
 from app.models.agent import Agent, AgentType, AgentStatus
+from app.queue import enqueue
 from app.ws import progress as ws_progress
 
 router = APIRouter(prefix="/api/v1/engagements", tags=["orchestration"])
@@ -208,7 +209,7 @@ async def _run_web_pipeline(engagement_id: uuid.UUID) -> None:
                     await _broadcast(eid, "finding_discovered", {"finding": f})
                 await db.commit()
                 if batch_ids:
-                    asyncio.create_task(_judge_findings_async(eid, batch_ids))
+                    await enqueue("judge_findings", eid, [str(fid) for fid in batch_ids])
 
         except Exception as e:
             await db.rollback()
@@ -285,7 +286,7 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
                     await _broadcast(eid, "finding_discovered", {"finding": f})
                 await db.commit()
                 if batch_ids:
-                    asyncio.create_task(_judge_findings_async(eid, batch_ids))
+                    await enqueue("judge_findings", eid, [str(fid) for fid in batch_ids])
 
         except Exception as e:
             await db.rollback()
@@ -381,7 +382,7 @@ async def _run_cve_pipeline(engagement_id: uuid.UUID) -> None:
             await db.commit()
 
             await _broadcast(eid, "finding_discovered", {"finding": synthetic})
-            asyncio.create_task(_judge_findings_async(eid, [finding_db_id]))
+            await enqueue("judge_findings", eid, [str(finding_db_id)])
 
             # Generate the weaponized exploit script
             await _broadcast(eid, "agent_started", {"phase": "exploit_script_gen", "advisory": top.get("id", cve_id)})
@@ -488,7 +489,6 @@ async def _finalize(engagement_id: uuid.UUID, db: AsyncSession, eid: str, succes
 @router.post("/{engagement_id}/start", status_code=202)
 async def start_engagement(
     engagement_id: uuid.UUID,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     engagement = await db.get(Engagement, engagement_id)
@@ -503,14 +503,17 @@ async def start_engagement(
 
     target_type = engagement.target_type
     if target_type == "cve":
-        background_tasks.add_task(_run_cve_pipeline, engagement_id)
+        job_name = "run_cve_pipeline"
     elif target_type in ("local_codebase", "binary"):
-        background_tasks.add_task(_run_codebase_pipeline, engagement_id)
+        job_name = "run_codebase_pipeline"
     else:
-        background_tasks.add_task(_run_web_pipeline, engagement_id)
+        job_name = "run_web_pipeline"
+
+    await enqueue(job_name, str(engagement_id))
 
     return {
         "status": "started",
         "engagement_id": str(engagement_id),
         "target_type": target_type,
+        "job": job_name,
     }

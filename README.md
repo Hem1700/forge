@@ -91,9 +91,19 @@ uvicorn app.main:app --port 8080
 
 Backend runs at `http://localhost:8080`. Interactive API docs at `http://localhost:8080/docs`.
 
-> Use `--reload` during development, but avoid it during active pentests — uvicorn reloads kill running background pipelines.
+### 4. Start the worker
 
-### 4. Start the frontend
+Engagement pipelines run in a separate worker process so they survive uvicorn restarts and so the API can scale horizontally. The worker pulls jobs off Redis and publishes live events back through Redis pub/sub — connected WebSocket clients on any API replica receive them.
+
+```bash
+cd backend
+source .venv/bin/activate
+arq app.worker.WorkerSettings
+```
+
+Or `make worker` from the repo root. **The pipeline will not run without this process** — `POST /engagements/{id}/start` enqueues a job, the worker picks it up.
+
+### 5. Start the frontend
 
 ```bash
 cd frontend
