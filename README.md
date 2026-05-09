@@ -13,6 +13,7 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 - **Adversarial Validator** — challenger, context filter, severity scorer, confidence threshold gate
 - **Knowledge Base** — Qdrant vector store + Neo4j graph store for cross-engagement learning
 - **REST API + WebSocket** — FastAPI backend with live swarm event streaming, events persisted for refresh-safe replay
+- **Job Queue + Worker** — engagement pipelines run on an Arq worker process backed by Redis; the API enqueues, the worker executes, and live events fan out via Redis pub/sub so any connected WebSocket client receives them regardless of which API replica it's attached to. The API detects crashed workers on startup and aborts orphaned engagements automatically.
 - **React Frontend** — terminal/hacker aesthetic (pure black, cyan accent, monospace), `ps aux`-style engagement dashboard, console-first engagement page with a live swarm log that rehydrates on refresh, per-finding detail pages, attack path + sequence diagrams, PoC viewer with copy/download, PDF report export, and human gate UI
 
 ---
@@ -310,7 +311,7 @@ forge report <id> --output report.md
 7. On the finding detail page, click **Generate Exploit** for a walkthrough + attack path, **Generate PoC** for a runnable script + sequence diagram, or **Execute Against Target** to run the weaponized script in a sandboxed Kali container
 8. Click **PDF ↓** in the engagement header to download the full report
 
-Click the **×** button on any dashboard row to delete an engagement (findings and events cascade). The backend auto-aborts any engagement stuck in `running`/`paused_at_gate` for over an hour on startup.
+Click the **×** button on any dashboard row to delete an engagement (findings and events cascade). On startup the backend looks up each `running` engagement's Arq job in Redis — if the job is gone (worker crashed or was killed mid-pipeline) the engagement is aborted immediately with reason `worker crashed before completion`. Engagements stuck at a human gate for over an hour are also swept.
 
 ### Via the API
 
@@ -395,7 +396,8 @@ Analyzes a compiled binary file (ELF, PE, Mach-O). Same agents as local codebase
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/health` | Health check |
+| `GET` | `/api/v1/health` | API liveness check |
+| `GET` | `/api/v1/health/worker` | Arq worker liveness — `{status: up\|down\|unknown, stats}` |
 | `POST` | `/api/v1/engagements/` | Create engagement |
 | `GET` | `/api/v1/engagements/` | List engagements |
 | `GET` | `/api/v1/engagements/{id}` | Get engagement |
@@ -428,7 +430,7 @@ cd backend
 pytest -v
 ```
 
-78 tests covering models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, and multi-target pipeline.
+Comprehensive test suite covering models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, multi-target pipeline, the orphan-engagement sweep, and the worker-health endpoint.
 
 ---
 
@@ -445,7 +447,9 @@ FORGE/
 │   │   ├── swarm/        # Agents, scheduler, health monitor, task board
 │   │   │   └── agents/   # recon, probe, evasion, code_analyzer, dependency_scanner, fuzzer, deep_exploit
 │   │   ├── validator/    # Challenger, context filter, severity scorer
-│   │   └── ws/           # WebSocket stream manager
+│   │   ├── ws/           # WebSocket stream manager + Redis pub/sub bridge
+│   │   ├── queue.py      # ArqRedis pool + enqueue/job_status helpers
+│   │   └── worker.py     # Arq WorkerSettings — runs engagement pipelines out-of-process
 │   ├── alembic/          # Database migrations
 │   └── tests/
 ├── frontend/
