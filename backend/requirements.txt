@@ -6,6 +6,7 @@ alembic==1.13.3
 pydantic-settings==2.5.2
 pydantic==2.9.2
 redis[hiredis]==5.1.1
+arq==0.26.1
 qdrant-client==1.11.3
 neo4j==5.25.0
 anthropic==0.37.1

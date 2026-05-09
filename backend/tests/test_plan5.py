@@ -166,10 +166,10 @@ async def test_start_endpoint_local_codebase(http_client):
     assert body["target_path"] == RAVEN_PATH
     engagement_id = body["id"]
 
-    # Mock the background pipeline so we don't actually hit Anthropic / subprocess
+    # Mock the queue so we don't actually need a Redis-backed worker
     with patch(
-        "app.api.start._run_codebase_pipeline", new=AsyncMock(return_value=None)
-    ) as mock_pipeline:
+        "app.api.start.enqueue", new=AsyncMock(return_value=None)
+    ) as mock_enqueue:
         response = await http_client.post(
             f"/api/v1/engagements/{engagement_id}/start"
         )
@@ -179,10 +179,8 @@ async def test_start_endpoint_local_codebase(http_client):
     assert payload["status"] == "started"
     assert payload["target_type"] == "local_codebase"
     assert payload["engagement_id"] == engagement_id
-    # BackgroundTasks runs the task after response is returned; inside
-    # httpx/ASGITransport this happens synchronously before the client
-    # yields the response object.
-    mock_pipeline.assert_called_once()
+    assert payload["job"] == "run_codebase_pipeline"
+    mock_enqueue.assert_called_once_with("run_codebase_pipeline", engagement_id)
 
 
 @pytest.mark.asyncio
@@ -197,12 +195,13 @@ async def test_start_endpoint_web_default(http_client):
     assert create_resp.json()["target_type"] == "web"
 
     with patch(
-        "app.api.start._run_web_pipeline", new=AsyncMock(return_value=None)
-    ) as mock_pipeline:
+        "app.api.start.enqueue", new=AsyncMock(return_value=None)
+    ) as mock_enqueue:
         response = await http_client.post(
             f"/api/v1/engagements/{engagement_id}/start"
         )
 
     assert response.status_code == 202
     assert response.json()["target_type"] == "web"
-    mock_pipeline.assert_called_once()
+    assert response.json()["job"] == "run_web_pipeline"
+    mock_enqueue.assert_called_once_with("run_web_pipeline", engagement_id)
