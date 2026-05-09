@@ -509,11 +509,17 @@ async def start_engagement(
     else:
         job_name = "run_web_pipeline"
 
-    await enqueue(job_name, str(engagement_id))
+    job = await enqueue(job_name, str(engagement_id))
+    # Persist job_id so the lifespan sweep can detect a crashed worker
+    # by looking the job up in Redis on next API startup.
+    if job is not None:
+        engagement.job_id = job.job_id
+        await db.commit()
 
     return {
         "status": "started",
         "engagement_id": str(engagement_id),
         "target_type": target_type,
         "job": job_name,
+        "job_id": job.job_id if job is not None else None,
     }
