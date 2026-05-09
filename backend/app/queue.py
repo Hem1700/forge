@@ -10,6 +10,7 @@ from typing import Any
 
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
+from arq.jobs import Job, JobStatus
 
 from app.config import settings
 
@@ -30,6 +31,18 @@ async def close_pool() -> None:
         _pool = None
 
 
-async def enqueue(function_name: str, *args: Any) -> None:
+async def enqueue(function_name: str, *args: Any) -> Job | None:
     pool = await get_pool()
-    await pool.enqueue_job(function_name, *args)
+    return await pool.enqueue_job(function_name, *args)
+
+
+async def job_status(job_id: str) -> JobStatus:
+    """Look up an Arq job's current status by id.
+
+    Returns JobStatus.not_found when the worker that owned this job has
+    crashed (or the result was evicted past `keep_result`). Either way,
+    from the API's perspective the job is no longer making progress and
+    the engagement attached to it should be considered orphaned.
+    """
+    pool = await get_pool()
+    return await Job(job_id, pool).status()

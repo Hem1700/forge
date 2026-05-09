@@ -37,3 +37,8 @@ class Engagement(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Arq job id of the most recent pipeline dispatch. Lets the API check on
+    # startup whether the worker that owned this engagement is still alive —
+    # if Arq no longer has the job, the worker died mid-pipeline and we
+    # mark the engagement aborted instead of letting it hang in `running`.
+    job_id: Mapped[str | None] = mapped_column(String, nullable=True)
