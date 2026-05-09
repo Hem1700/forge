@@ -49,6 +49,9 @@ def _redis_settings() -> RedisSettings:
     return RedisSettings.from_dsn(settings.redis_url)
 
 
+HEALTH_CHECK_KEY = "arq:queue:health-check"
+
+
 class WorkerSettings:
     functions = [run_web_pipeline, run_codebase_pipeline, run_cve_pipeline, judge_findings]
     redis_settings = _redis_settings()
@@ -57,3 +60,8 @@ class WorkerSettings:
     job_timeout = 60 * 30
     max_jobs = 4
     keep_result = 60 * 60
+    # Heartbeat Redis key + interval. The API's /health/worker endpoint
+    # reads this key to detect a dead worker. TTL is interval+1s so a
+    # missed beat shows up within a single check window.
+    health_check_key = HEALTH_CHECK_KEY
+    health_check_interval = 30
