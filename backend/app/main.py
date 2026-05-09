@@ -12,7 +12,8 @@ from app.api.start import router as start_router
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models.engagement import Engagement, EngagementStatus
-from app.queue import close_pool, job_status
+from app.queue import close_pool, get_pool, job_status
+from app.worker import HEALTH_CHECK_KEY
 from app.ws import progress as ws_progress
 from app.ws.stream import stream_manager
 
@@ -116,6 +117,28 @@ app.add_middleware(
 @app.get("/api/v1/health")
 async def health():
     return {"status": "ok", "version": "0.1.0"}
+
+
+@app.get("/api/v1/health/worker")
+async def worker_health():
+    """Return whether an Arq worker has recently written its heartbeat key.
+
+    Arq workers psetex `HEALTH_CHECK_KEY` every `health_check_interval`
+    seconds with TTL = interval + 1, so the key being absent means no
+    worker has reported in within the last interval. `stats` is the raw
+    Arq counter line (e.g. "j_complete=5 j_failed=0 j_ongoing=2 queued=1");
+    callers can parse it if they need structured fields.
+    """
+    try:
+        pool = await get_pool()
+        raw = await pool.get(HEALTH_CHECK_KEY)
+    except Exception:
+        return {"status": "unknown", "stats": None}
+    if raw is None:
+        return {"status": "down", "stats": None}
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    return {"status": "up", "stats": raw}
 
 
 app.include_router(engagements.router)
