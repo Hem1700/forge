@@ -8,7 +8,7 @@ from app.main import app
 # Import all models so their tables are registered with Base.metadata
 # before create_all runs. Without this, FK-bearing tables (findings,
 # tasks, agents) fail to resolve.
-from app.models import engagement, agent, task, finding, knowledge  # noqa: F401
+from app.models import engagement, agent, task, finding, knowledge, user, api_key  # noqa: F401
 
 TEST_DATABASE_URL = "postgresql+asyncpg://forge:forge@localhost:5432/forge_test"
 
