@@ -17,9 +17,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create the UserRole enum type
-    enum_type = postgresql.ENUM('viewer', 'analyst', 'admin', 'super_admin', name='userrole', create_type=True)
-    enum_type.create(op.get_bind(), checkfirst=True)
+    # Create the UserRole enum type using raw SQL to handle idempotence
+    op.execute("""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'userrole') THEN
+                CREATE TYPE userrole AS ENUM ('viewer', 'analyst', 'admin', 'super_admin');
+            END IF;
+        END $$;
+    """)
 
     # Create users table
     op.create_table(
@@ -27,7 +32,7 @@ def upgrade() -> None:
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('email', sa.String(), nullable=False),
         sa.Column('hashed_password', sa.String(), nullable=False),
-        sa.Column('role', enum_type, nullable=False),
+        sa.Column('role', postgresql.ENUM('viewer', 'analyst', 'admin', 'super_admin', name='userrole', create_type=False), nullable=False),
         sa.Column('is_active', sa.Boolean(), nullable=False),
         sa.Column('created_at', sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint('id'),
