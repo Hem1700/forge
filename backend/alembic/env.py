@@ -9,7 +9,7 @@ from app.config import settings
 from app.database import Base
 
 # import all models so Base knows about them
-from app.models import engagement, agent, task, finding, knowledge  # noqa
+from app.models import engagement, agent, task, finding, knowledge, user, api_key  # noqa
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
@@ -22,13 +22,24 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True, compare_type=True)
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        compare_type=True,
+        compare_server_default=True,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection: sa.engine.Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+        compare_server_default=True,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
