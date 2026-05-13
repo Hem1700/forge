@@ -7,7 +7,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, update
 
-from app.api import auth, engagements, findings, gates, knowledge, system
+from app.api import api_keys, auth, engagements, findings, gates, knowledge, system
 from app.api.start import router as start_router
 from app.config import settings
 from app.database import AsyncSessionLocal
@@ -141,6 +141,7 @@ async def worker_health():
     return {"status": "up", "stats": raw}
 
 
+app.include_router(api_keys.router)
 app.include_router(auth.router)
 app.include_router(engagements.router)
 app.include_router(findings.router)
