@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.engagement import Engagement
+from app.models.user import User
 from app.models.finding import Finding
 from app.models.knowledge import KnowledgeGraphEntry
 
@@ -13,7 +15,10 @@ router = APIRouter(prefix="/api/v1/system", tags=["system"])
 
 
 @router.get("/stats")
-async def system_stats(db: AsyncSession = Depends(get_db)) -> dict[str, int]:
+async def system_stats(
+    _: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, int]:
     engagements_count = (
         await db.execute(select(func.count()).select_from(Engagement))
     ).scalar_one()

@@ -9,8 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
+from app.api.deps import require_analyst
 from app.database import get_db, AsyncSessionLocal
 from app.models.engagement import Engagement, EngagementStatus
+from app.models.user import User
 from app.models.finding import Finding, Severity, ValidationStatus
 from app.models.task import Task, TaskStatus, Priority
 from app.models.agent import Agent, AgentType, AgentStatus
@@ -489,6 +491,7 @@ async def _finalize(engagement_id: uuid.UUID, db: AsyncSession, eid: str, succes
 @router.post("/{engagement_id}/start", status_code=202)
 async def start_engagement(
     engagement_id: uuid.UUID,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ):
     engagement = await db.get(Engagement, engagement_id)
