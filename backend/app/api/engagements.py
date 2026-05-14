@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user, require_analyst, require_admin
 from app.config import settings
 from app.database import get_db
 from app.models.agent import Agent
@@ -17,6 +18,7 @@ from app.models.engagement_event import EngagementEvent
 from app.models.finding import Finding
 from app.models.knowledge import KnowledgeGraphEntry
 from app.models.task import Bid, Task
+from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/engagements", tags=["engagements"])
 
@@ -49,6 +51,7 @@ class EngagementResponse(BaseModel):
 @router.post("/", response_model=EngagementResponse, status_code=status.HTTP_201_CREATED)
 async def create_engagement(
     payload: CreateEngagementRequest,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> EngagementResponse:
     engagement = Engagement(
@@ -66,6 +69,7 @@ async def create_engagement(
 
 @router.get("/", response_model=list[EngagementResponse])
 async def list_engagements(
+    _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[EngagementResponse]:
     result = await db.execute(select(Engagement))
@@ -76,6 +80,7 @@ async def list_engagements(
 @router.get("/{engagement_id}", response_model=EngagementResponse)
 async def get_engagement(
     engagement_id: uuid.UUID,
+    _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> EngagementResponse:
     engagement = await db.get(Engagement, engagement_id)
@@ -88,6 +93,7 @@ async def get_engagement(
 async def update_engagement_status(
     engagement_id: uuid.UUID,
     payload: UpdateStatusRequest,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> EngagementResponse:
     engagement = await db.get(Engagement, engagement_id)
@@ -105,6 +111,7 @@ async def update_engagement_status(
 @router.get("/{engagement_id}/findings")
 async def get_engagement_findings(
     engagement_id: uuid.UUID,
+    _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     engagement = await db.get(Engagement, engagement_id)
@@ -141,6 +148,7 @@ async def get_engagement_findings(
 async def get_engagement_events(
     engagement_id: uuid.UUID,
     limit: int = 500,
+    _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -159,6 +167,7 @@ async def get_engagement_events(
 @router.post("/{engagement_id}/report/pdf")
 async def generate_pdf_report(
     engagement_id: uuid.UUID,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     engagement = await db.get(Engagement, engagement_id)
@@ -189,6 +198,7 @@ async def generate_pdf_report(
 @router.delete("/{engagement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_engagement(
     engagement_id: uuid.UUID,
+    _: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     engagement = await db.get(Engagement, engagement_id)

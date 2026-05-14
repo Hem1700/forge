@@ -7,9 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user, require_analyst
 from app.database import get_db
 from app.models.finding import Finding, TriageStatus, ValidationStatus
 from app.models.engagement import Engagement
+from app.models.user import User
 from app.brain.exploit_engine import ExploitEngine
 from app.brain.poc_engine import PoCEngine
 from app.brain.exploit_script_engine import ExploitScriptEngine
@@ -63,6 +65,7 @@ def _serialize_finding(f: Finding) -> dict:
 @router.get("/{finding_id}")
 async def get_finding(
     finding_id: uuid.UUID,
+    _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     finding = await db.get(Finding, finding_id)
@@ -75,6 +78,7 @@ async def get_finding(
 async def triage_finding(
     finding_id: uuid.UUID,
     payload: TriageRequest,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     from datetime import datetime
@@ -97,6 +101,7 @@ async def triage_finding(
 @router.post("/{finding_id}/exploit")
 async def generate_exploit(
     finding_id: uuid.UUID,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     finding = await db.get(Finding, finding_id)
@@ -125,6 +130,7 @@ async def generate_exploit(
 @router.get("/{finding_id}/poc")
 async def get_poc(
     finding_id: uuid.UUID,
+    _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     finding = await db.get(Finding, finding_id)
@@ -136,6 +142,7 @@ async def get_poc(
 @router.post("/{finding_id}/poc")
 async def generate_poc(
     finding_id: uuid.UUID,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     finding = await db.get(Finding, finding_id)
@@ -166,6 +173,7 @@ async def generate_poc(
 @router.post("/{finding_id}/research")
 async def research_finding(
     finding_id: uuid.UUID,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Fetch (or return cached) external advisory + fix metadata for a finding."""
@@ -184,6 +192,7 @@ async def research_finding(
 @router.post("/{finding_id}/exploit/generate")
 async def generate_exploit_script(
     finding_id: uuid.UUID,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Generate (or return cached) weaponized exploit script.
@@ -228,6 +237,7 @@ async def generate_exploit_script(
 async def execute_exploit(
     finding_id: uuid.UUID,
     body: ExecuteRequest,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Execute the weaponized exploit script against the real target.
@@ -316,6 +326,7 @@ async def execute_exploit(
 async def execute_exploit_diff(
     finding_id: uuid.UUID,
     body: ExecuteRequest,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Differential execution: run the exploit script twice — once with the
@@ -408,6 +419,7 @@ async def execute_exploit_diff(
 async def override_verdict(
     finding_id: uuid.UUID,
     body: OverrideVerdictRequest,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Override the LLM verdict with a user-supplied verdict."""

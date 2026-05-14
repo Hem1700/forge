@@ -8,8 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.knowledge import KnowledgeGraphEntry
+from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/knowledge", tags=["knowledge"])
 
@@ -31,6 +33,7 @@ class KnowledgeEntryResponse(BaseModel):
 
 @router.get("/", response_model=list[KnowledgeEntryResponse])
 async def list_knowledge_entries(
+    _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[KnowledgeEntryResponse]:
     result = await db.execute(select(KnowledgeGraphEntry))
@@ -41,6 +44,7 @@ async def list_knowledge_entries(
 @router.get("/attack-class/{attack_class}", response_model=list[KnowledgeEntryResponse])
 async def list_by_attack_class(
     attack_class: str,
+    _: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[KnowledgeEntryResponse]:
     result = await db.execute(

@@ -1,9 +1,23 @@
 """Thin HTTP client for the FORGE backend API."""
 from __future__ import annotations
-import urllib.request
-import urllib.error
 import json
+import os
+import urllib.error
+import urllib.request
+from pathlib import Path
 from typing import Any
+
+CONFIG_PATH = Path.home() / ".forge" / "config.json"
+
+
+def _load_config() -> dict:
+    """Read ~/.forge/config.json; return empty dict if missing or malformed."""
+    if CONFIG_PATH.exists():
+        try:
+            return json.loads(CONFIG_PATH.read_text())
+        except Exception:
+            return {}
+    return {}
 
 
 class APIError(Exception):
@@ -13,19 +27,23 @@ class APIError(Exception):
 
 
 class ForgeClient:
-    def __init__(self, base_url: str = "http://localhost:8080"):
+    def __init__(self, base_url: str = "http://localhost:8080", api_key: str | None = None):
+        config = _load_config()
         self.base_url = base_url.rstrip("/")
+        self.api_key = api_key or config.get("api_key") or os.environ.get("FORGE_API_KEY")
+
+    def _auth_headers(self) -> dict:
+        """Return base request headers, including Bearer token when an API key is set."""
+        headers: dict = {"Content-Type": "application/json", "Accept": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
 
     def _request(self, method: str, path: str, body: dict | None = None, timeout: int = 30, json_body: dict | None = None) -> Any:
         url = f"{self.base_url}{path}"
         payload = json_body if json_body is not None else body
         data = json.dumps(payload).encode() if payload is not None else None
-        req = urllib.request.Request(
-            url,
-            data=data,
-            method=method,
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
-        )
+        req = urllib.request.Request(url, data=data, method=method, headers=self._auth_headers())
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 raw = resp.read()
@@ -47,11 +65,9 @@ class ForgeClient:
     def _request_bytes(self, method: str, path: str, timeout: int = 30) -> bytes:
         """Make a request and return raw response bytes (for binary downloads)."""
         url = f"{self.base_url}{path}"
-        req = urllib.request.Request(
-            url,
-            method=method,
-            headers={"Accept": "application/pdf"},
-        )
+        headers = self._auth_headers()
+        headers["Accept"] = "application/pdf"
+        req = urllib.request.Request(url, method=method, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return resp.read()

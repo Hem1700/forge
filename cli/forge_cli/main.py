@@ -12,7 +12,7 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.columns import Columns
 
-from forge_cli.api import ForgeClient, APIError
+from forge_cli.api import CONFIG_PATH, ForgeClient, APIError, _load_config
 from forge_cli.display import (
     console, engagement_table, findings_table, severity_summary,
     STATUS_COLORS, TARGET_ICONS,
@@ -22,7 +22,9 @@ DEFAULT_API = os.environ.get("FORGE_API_URL", "http://localhost:8080")
 
 
 def get_client(ctx) -> ForgeClient:
-    return ForgeClient(ctx.obj.get("api_url", DEFAULT_API))
+    config = _load_config()
+    api_url = ctx.obj.get("api_url") or config.get("api_url") or DEFAULT_API
+    return ForgeClient(api_url)
 
 
 def err(msg: str) -> NoReturn:
@@ -41,6 +43,51 @@ def cli(ctx, api_url):
     """
     ctx.ensure_object(dict)
     ctx.obj["api_url"] = api_url
+
+
+# ── forge configure ──────────────────────────────────────────────────────────
+
+@cli.command()
+@click.option("--url", default=None, help="FORGE API URL (e.g. http://localhost:8080)")
+@click.option("--key", default=None, help="API key for authentication", hide_input=True)
+@click.pass_context
+def configure(ctx, url, key):
+    """Save API URL and key to ~/.forge/config.
+
+    Prompts interactively if --url or --key are omitted.
+    All forge commands read this config automatically.
+
+    \b
+    Examples:
+      forge configure
+      forge configure --url http://localhost:8080
+      forge configure --url http://localhost:8080 --key mykey123
+    """
+    existing = _load_config()
+
+    if url is None:
+        url = click.prompt(
+            "FORGE API URL",
+            default=existing.get("api_url", DEFAULT_API),
+        )
+    if key is None:
+        key = click.prompt(
+            "API key (leave blank to skip / keep existing)",
+            default="",
+            hide_input=True,
+        )
+
+    config = existing.copy()
+    config["api_url"] = url.rstrip("/")
+    if key:
+        config["api_key"] = key
+
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(config, indent=2))
+    console.print(f"[green]✓[/green] Config saved to [bold]{CONFIG_PATH}[/bold]")
+    console.print(f"  API URL : [cyan]{config['api_url']}[/cyan]")
+    if "api_key" in config:
+        console.print(f"  API key : [cyan]{config['api_key'][:8]}…[/cyan] (stored)")
 
 
 # ── forge run ───────────────────────────────────────────────────────────────

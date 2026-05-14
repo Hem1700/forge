@@ -7,9 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import require_analyst
 from app.api.engagements import EngagementResponse
 from app.database import get_db
 from app.models.engagement import Engagement, EngagementStatus, GateStatus
+from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/gates", tags=["gates"])
 
@@ -42,6 +44,7 @@ def _advance_gate(current: GateStatus) -> GateStatus:
 async def decide_gate(
     engagement_id: uuid.UUID,
     payload: GateDecisionRequest,
+    _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> EngagementResponse:
     engagement = await db.get(Engagement, engagement_id)
