@@ -449,31 +449,6 @@ Analyzes a compiled binary file (ELF, PE, Mach-O). Same agents as local codebase
 
 ## API Reference
 
-<<<<<<< HEAD
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/health` | API liveness check |
-| `GET` | `/api/v1/health/worker` | Arq worker liveness — `{status: up\|down\|unknown, stats}` |
-| `POST` | `/api/v1/engagements/` | Create engagement |
-| `GET` | `/api/v1/engagements/` | List engagements |
-| `GET` | `/api/v1/engagements/{id}` | Get engagement |
-| `PATCH` | `/api/v1/engagements/{id}/status` | Update status (`pending`, `running`, `aborted`) |
-| `DELETE` | `/api/v1/engagements/{id}` | Delete engagement (cascades findings, tasks, agents, events, knowledge) |
-| `POST` | `/api/v1/engagements/{id}/start` | Launch the full pipeline |
-| `GET` | `/api/v1/engagements/{id}/events` | Replay recent swarm events (latest 500) |
-| `POST` | `/api/v1/engagements/{id}/report/pdf` | Generate a PDF report |
-| `POST` | `/api/v1/gates/{id}/decide` | Approve or reject a human gate |
-| `GET` | `/api/v1/findings/{id}` | Get full finding detail (includes `exploit_detail`, `poc_detail`, `exploit_script`, `exploit_execution` if generated) |
-| `POST` | `/api/v1/findings/{id}/exploit` | Generate (or return cached) exploit walkthrough |
-| `GET` | `/api/v1/findings/{id}/poc` | Get PoC detail for a finding (null if not yet generated) |
-| `POST` | `/api/v1/findings/{id}/poc` | Generate (or return cached) PoC script + sequence diagram |
-| `POST` | `/api/v1/findings/{id}/exploit-script` | Generate a weaponized exploit script |
-| `POST` | `/api/v1/findings/{id}/execute` | Execute the weaponized script against the target (sandboxed) |
-| `GET` | `/api/v1/knowledge/` | List knowledge base entries |
-| `GET` | `/api/v1/knowledge/attack-class/{class}` | Filter knowledge by attack class |
-| `GET` | `/api/v1/system/stats` | Engagement / finding / knowledge counts |
-| `WS` | `/ws/{engagement_id}` | Live swarm event stream |
-=======
 All endpoints (except `/health` and `/auth/register`/`/auth/login`) require `Authorization: Bearer <token>`.
 
 ### Auth & users
@@ -497,30 +472,29 @@ All endpoints (except `/health` and `/auth/register`/`/auth/login`) require `Aut
 
 | Method | Path | Role required | Description |
 |--------|------|---------------|-------------|
-| `GET` | `/api/v1/health` | — | Health check |
-| `GET` | `/api/v1/health/worker` | — | Arq worker liveness |
+| `GET` | `/api/v1/health` | — | API liveness check |
+| `GET` | `/api/v1/health/worker` | — | Arq worker liveness — `{status: up\|down\|unknown, stats}` |
 | `POST` | `/api/v1/engagements/` | analyst | Create engagement |
 | `GET` | `/api/v1/engagements/` | viewer | List engagements |
 | `GET` | `/api/v1/engagements/{id}` | viewer | Get engagement |
-| `PATCH` | `/api/v1/engagements/{id}/status` | analyst | Update status |
-| `DELETE` | `/api/v1/engagements/{id}` | admin | Delete engagement (cascades all children) |
+| `PATCH` | `/api/v1/engagements/{id}/status` | analyst | Update status (`pending`, `running`, `aborted`) |
+| `DELETE` | `/api/v1/engagements/{id}` | admin | Delete engagement (cascades findings, tasks, agents, events, knowledge) |
 | `POST` | `/api/v1/engagements/{id}/start` | analyst | Launch the full pipeline |
 | `GET` | `/api/v1/engagements/{id}/findings` | viewer | List findings |
 | `GET` | `/api/v1/engagements/{id}/events` | viewer | Replay swarm events (latest 500) |
 | `POST` | `/api/v1/engagements/{id}/report/pdf` | analyst | Generate PDF report |
 | `POST` | `/api/v1/gates/{id}/decide` | analyst | Approve or reject human gate |
-| `GET` | `/api/v1/findings/{id}` | viewer | Get finding detail |
+| `GET` | `/api/v1/findings/{id}` | viewer | Get full finding detail (includes `exploit_detail`, `poc_detail`, `exploit_script`, `exploit_execution` if generated) |
 | `PATCH` | `/api/v1/findings/{id}/triage` | analyst | Triage decision |
-| `POST` | `/api/v1/findings/{id}/exploit` | analyst | Generate exploit walkthrough |
-| `GET` | `/api/v1/findings/{id}/poc` | viewer | Get cached PoC |
-| `POST` | `/api/v1/findings/{id}/poc` | analyst | Generate PoC script |
-| `POST` | `/api/v1/findings/{id}/exploit-script` | analyst | Generate weaponized script |
-| `POST` | `/api/v1/findings/{id}/execute` | analyst | Run exploit (sandboxed) |
+| `POST` | `/api/v1/findings/{id}/exploit` | analyst | Generate (or return cached) exploit walkthrough |
+| `GET` | `/api/v1/findings/{id}/poc` | viewer | Get PoC detail (null if not yet generated) |
+| `POST` | `/api/v1/findings/{id}/poc` | analyst | Generate (or return cached) PoC script + sequence diagram |
+| `POST` | `/api/v1/findings/{id}/exploit-script` | analyst | Generate weaponized exploit script |
+| `POST` | `/api/v1/findings/{id}/execute` | analyst | Execute weaponized script against target (sandboxed) |
 | `GET` | `/api/v1/knowledge/` | viewer | List knowledge base entries |
-| `GET` | `/api/v1/knowledge/attack-class/{class}` | viewer | Filter by attack class |
-| `GET` | `/api/v1/system/stats` | viewer | Platform statistics |
+| `GET` | `/api/v1/knowledge/attack-class/{class}` | viewer | Filter knowledge by attack class |
+| `GET` | `/api/v1/system/stats` | viewer | Engagement / finding / knowledge counts |
 | `WS` | `/ws/{engagement_id}` | — | Live swarm event stream |
->>>>>>> 4978443 (docs: update README for auth layer, RBAC, forge configure, new endpoints)
 
 Full interactive docs: `http://localhost:8080/docs`
 
@@ -534,11 +508,7 @@ cd backend
 pytest -v
 ```
 
-<<<<<<< HEAD
-Comprehensive test suite covering models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, multi-target pipeline, the orphan-engagement sweep, and the worker-health endpoint.
-=======
-158 tests covering auth flows, RBAC enforcement, API key CRUD, org/super-admin routes, models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, orphan sweep, worker health, and multi-target pipeline.
->>>>>>> 4978443 (docs: update README for auth layer, RBAC, forge configure, new endpoints)
+158 tests covering auth flows, RBAC enforcement, API key CRUD, org/super-admin routes, models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, multi-target pipeline, orphan-engagement sweep, and worker-health endpoint.
 
 ---
 
