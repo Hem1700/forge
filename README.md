@@ -6,6 +6,7 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 
 ## Architecture
 
+- **Auth Layer** — JWT + API key dual authentication, 4-tier RBAC (Viewer / Analyst / Admin / Super-Admin), dependency-injection guards on every route
 - **Strategic Brain** — semantic app modeler, codebase modeler, campaign planner, evasion strategist, memory engine (LangChain + Claude)
 - **Exploit Engine** — on-demand LLM-generated exploit walkthroughs, Mermaid attack path diagrams, impact analysis, and difficulty scoring per finding
 - **PoC Engine** — on-demand runnable exploit script generation (Python or bash, auto-selected by vuln class), Mermaid sequence diagrams showing the attack flow, cached per finding
@@ -14,7 +15,7 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 - **Knowledge Base** — Qdrant vector store + Neo4j graph store for cross-engagement learning
 - **REST API + WebSocket** — FastAPI backend with live swarm event streaming, events persisted for refresh-safe replay
 - **Job Queue + Worker** — engagement pipelines run on an Arq worker process backed by Redis; the API enqueues, the worker executes, and live events fan out via Redis pub/sub so any connected WebSocket client receives them regardless of which API replica it's attached to. The API detects crashed workers on startup and aborts orphaned engagements automatically.
-- **React Frontend** — terminal/hacker aesthetic (pure black, cyan accent, monospace), `ps aux`-style engagement dashboard, console-first engagement page with a live swarm log that rehydrates on refresh, per-finding detail pages, attack path + sequence diagrams, PoC viewer with copy/download, PDF report export, and human gate UI
+- **React Frontend** — terminal/hacker aesthetic (pure black, cyan accent, monospace), `ps aux`-style engagement dashboard, console-first engagement page with a live swarm log that rehydrates on refresh, per-finding detail pages, attack path + sequence diagrams, PoC viewer with copy/download, PDF report export, human gate UI, login/profile/org-settings/admin panel
 
 ---
 
@@ -69,6 +70,7 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=forge_password
 QDRANT_URL=http://localhost:6333
 REDIS_URL=redis://localhost:6379
+JWT_SECRET=change-me-in-production
 ```
 
 Create `frontend/.env`:
@@ -116,6 +118,38 @@ Frontend runs at `http://localhost:5174`.
 
 ---
 
+## Authentication
+
+FORGE requires authentication on all API endpoints. On first launch, register the first account — it automatically becomes `super_admin`:
+
+```bash
+# Register (first account = super_admin, subsequent = viewer)
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "password": "changeme"}'
+
+# Login and get a JWT
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "password": "changeme"}'
+# → {"access_token": "eyJ...", "token_type": "bearer"}
+```
+
+Pass the token on every request: `Authorization: Bearer <token>`.
+
+Alternatively, create an API key (`POST /api/v1/auth/api-keys`) and pass it as a Bearer token — FORGE tries JWT first, then falls back to SHA256-hashed API key lookup.
+
+### Role system
+
+| Role | What they can do |
+|------|-----------------|
+| `viewer` | Read engagements, findings, events |
+| `analyst` | Viewer + create/start engagements, triage, generate exploits/PoC/report |
+| `admin` | Analyst + manage org users and roles, delete engagements |
+| `super_admin` | Admin + cross-org user management and provisioning |
+
+---
+
 ## CLI (forge)
 
 The `forge` command-line tool lets you run pentests, stream live events, and export results — no browser required.
@@ -133,13 +167,25 @@ Verify:
 forge --help
 ```
 
-Set the backend URL if it's not on `localhost:8080`:
+### Configuration
+
+Save your API endpoint and key once — all commands pick it up automatically:
 
 ```bash
-export FORGE_API_URL=http://your-server:8080
+forge configure --api-url http://localhost:8080 --api-key <your-api-key>
 ```
 
+Config is written to `~/.forge/config.json`. You can also set `FORGE_API_URL` and `FORGE_API_KEY` environment variables to override it per-session.
+
 ### Commands
+
+#### `forge configure` — save API endpoint and key
+
+```bash
+forge configure --api-url http://localhost:8080 --api-key forge_...
+```
+
+Writes to `~/.forge/config.json`. Run this once after creating an API key in the UI or via `POST /api/v1/auth/api-keys`. All other commands use these values automatically.
 
 #### `forge run <target>` — start a pentest
 
@@ -272,6 +318,9 @@ forge delete <engagement-id> --yes
 ### Typical workflow
 
 ```bash
+# 0. Authenticate once
+forge configure --api-url http://localhost:8080 --api-key forge_...
+
 # 1. Start a pentest and stream events live
 forge run /Users/you/Desktop/myproject
 
@@ -316,19 +365,25 @@ Click the **×** button on any dashboard row to delete an engagement (findings a
 ### Via the API
 
 ```bash
+TOKEN="eyJ..."   # from POST /auth/login
+
 # 1. Create engagement
 curl -X POST http://localhost:8080/api/v1/engagements/ \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"target_url": "https://example.com", "target_type": "web"}'
 
 # 2. Start pentest
-curl -X POST http://localhost:8080/api/v1/engagements/{id}/start
+curl -X POST http://localhost:8080/api/v1/engagements/{id}/start \
+  -H "Authorization: Bearer $TOKEN"
 
 # 3. Check status
-curl http://localhost:8080/api/v1/engagements/{id}
+curl http://localhost:8080/api/v1/engagements/{id} \
+  -H "Authorization: Bearer $TOKEN"
 
 # 4. Check findings count
-curl http://localhost:8080/api/v1/system/stats
+curl http://localhost:8080/api/v1/system/stats \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
@@ -394,6 +449,7 @@ Analyzes a compiled binary file (ELF, PE, Mach-O). Same agents as local codebase
 
 ## API Reference
 
+<<<<<<< HEAD
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/v1/health` | API liveness check |
@@ -417,6 +473,54 @@ Analyzes a compiled binary file (ELF, PE, Mach-O). Same agents as local codebase
 | `GET` | `/api/v1/knowledge/attack-class/{class}` | Filter knowledge by attack class |
 | `GET` | `/api/v1/system/stats` | Engagement / finding / knowledge counts |
 | `WS` | `/ws/{engagement_id}` | Live swarm event stream |
+=======
+All endpoints (except `/health` and `/auth/register`/`/auth/login`) require `Authorization: Bearer <token>`.
+
+### Auth & users
+
+| Method | Path | Role required | Description |
+|--------|------|---------------|-------------|
+| `POST` | `/api/v1/auth/register` | — | Register (first user = super_admin) |
+| `POST` | `/api/v1/auth/login` | — | Get JWT |
+| `GET` | `/api/v1/auth/me` | any | Current user info |
+| `GET` | `/api/v1/auth/api-keys` | any | List own API keys |
+| `POST` | `/api/v1/auth/api-keys` | any | Create API key |
+| `DELETE` | `/api/v1/auth/api-keys/{id}` | any | Revoke API key |
+| `GET` | `/api/v1/org/users` | admin | List org users |
+| `PATCH` | `/api/v1/org/users/{id}/role` | admin | Update user role (max = admin) |
+| `DELETE` | `/api/v1/org/users/{id}` | admin | Remove user |
+| `GET` | `/api/v1/admin/users` | super_admin | List all users |
+| `PATCH` | `/api/v1/admin/users/{id}/role` | super_admin | Set any role |
+| `POST` | `/api/v1/admin/provision` | super_admin | Provision user with role |
+
+### Engagements & findings
+
+| Method | Path | Role required | Description |
+|--------|------|---------------|-------------|
+| `GET` | `/api/v1/health` | — | Health check |
+| `GET` | `/api/v1/health/worker` | — | Arq worker liveness |
+| `POST` | `/api/v1/engagements/` | analyst | Create engagement |
+| `GET` | `/api/v1/engagements/` | viewer | List engagements |
+| `GET` | `/api/v1/engagements/{id}` | viewer | Get engagement |
+| `PATCH` | `/api/v1/engagements/{id}/status` | analyst | Update status |
+| `DELETE` | `/api/v1/engagements/{id}` | admin | Delete engagement (cascades all children) |
+| `POST` | `/api/v1/engagements/{id}/start` | analyst | Launch the full pipeline |
+| `GET` | `/api/v1/engagements/{id}/findings` | viewer | List findings |
+| `GET` | `/api/v1/engagements/{id}/events` | viewer | Replay swarm events (latest 500) |
+| `POST` | `/api/v1/engagements/{id}/report/pdf` | analyst | Generate PDF report |
+| `POST` | `/api/v1/gates/{id}/decide` | analyst | Approve or reject human gate |
+| `GET` | `/api/v1/findings/{id}` | viewer | Get finding detail |
+| `PATCH` | `/api/v1/findings/{id}/triage` | analyst | Triage decision |
+| `POST` | `/api/v1/findings/{id}/exploit` | analyst | Generate exploit walkthrough |
+| `GET` | `/api/v1/findings/{id}/poc` | viewer | Get cached PoC |
+| `POST` | `/api/v1/findings/{id}/poc` | analyst | Generate PoC script |
+| `POST` | `/api/v1/findings/{id}/exploit-script` | analyst | Generate weaponized script |
+| `POST` | `/api/v1/findings/{id}/execute` | analyst | Run exploit (sandboxed) |
+| `GET` | `/api/v1/knowledge/` | viewer | List knowledge base entries |
+| `GET` | `/api/v1/knowledge/attack-class/{class}` | viewer | Filter by attack class |
+| `GET` | `/api/v1/system/stats` | viewer | Platform statistics |
+| `WS` | `/ws/{engagement_id}` | — | Live swarm event stream |
+>>>>>>> 4978443 (docs: update README for auth layer, RBAC, forge configure, new endpoints)
 
 Full interactive docs: `http://localhost:8080/docs`
 
@@ -426,11 +530,15 @@ Full interactive docs: `http://localhost:8080/docs`
 
 ```bash
 cd backend
-# Requires Docker services running
+# Requires all Docker services running (postgres, redis, qdrant, neo4j)
 pytest -v
 ```
 
+<<<<<<< HEAD
 Comprehensive test suite covering models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, multi-target pipeline, the orphan-engagement sweep, and the worker-health endpoint.
+=======
+158 tests covering auth flows, RBAC enforcement, API key CRUD, org/super-admin routes, models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, orphan sweep, worker health, and multi-target pipeline.
+>>>>>>> 4978443 (docs: update README for auth layer, RBAC, forge configure, new endpoints)
 
 ---
 
@@ -440,10 +548,16 @@ Comprehensive test suite covering models, APIs, brain components (ExploitEngine,
 FORGE/
 ├── backend/
 │   ├── app/
-│   │   ├── api/          # REST endpoints (engagements, findings, gates, knowledge, system, start)
+│   │   ├── api/          # REST endpoints
+│   │   │   ├── auth.py         # register, login, GET /me
+│   │   │   ├── api_keys.py     # API key CRUD
+│   │   │   ├── deps.py         # get_current_user, require_analyst/admin/super_admin
+│   │   │   ├── org_admin.py    # list/update/delete org users (admin+)
+│   │   │   ├── super_admin.py  # cross-org management (super_admin only)
+│   │   │   └── engagements, findings, gates, knowledge, system, start
 │   │   ├── brain/        # SemanticModeler, CodebaseModeler, CampaignPlanner, ExploitEngine, PoCEngine, MemoryEngine
 │   │   ├── knowledge/    # Vector store (Qdrant) + graph store (Neo4j)
-│   │   ├── models/       # SQLAlchemy ORM models
+│   │   ├── models/       # SQLAlchemy ORM models (user, api_key, engagement, finding, task, agent, knowledge)
 │   │   ├── swarm/        # Agents, scheduler, health monitor, task board
 │   │   │   └── agents/   # recon, probe, evasion, code_analyzer, dependency_scanner, fuzzer, deep_exploit
 │   │   ├── validator/    # Challenger, context filter, severity scorer
@@ -454,11 +568,12 @@ FORGE/
 │   └── tests/
 ├── frontend/
 │   └── src/
-│       ├── api/          # Typed API clients (engagements, findings, gates)
-│       ├── components/   # EngagementDashboard, SwarmMonitor, HumanGate, FindingsPanel, ExploitWalkthrough, AttackPathDiagram, PoCScript, ExploitSequenceDiagram, ReportViewer
+│       ├── api/          # Typed API clients (auth, engagements, findings, gates)
+│       ├── components/   # EngagementDashboard, SwarmMonitor, HumanGate, FindingsPanel, ExploitWalkthrough, AttackPathDiagram, PoCScript, ExploitSequenceDiagram, ReportViewer, ProtectedRoute
 │       ├── hooks/        # useSwarmStream
-│       ├── pages/        # Home, Engagement, FindingDetail, PrintReport
-│       ├── store/        # Zustand engagement store
+│       ├── pages/        # Home, Engagement, FindingDetail, PrintReport, Login, Profile, OrgSettings, AdminPanel
+│       ├── store/        # Zustand engagement + auth stores
 │       └── types/        # Shared TypeScript types
+├── cli/                  # forge CLI (run, list, status, findings, exploit, poc, report, gate, configure, ...)
 └── docker-compose.yml
 ```
