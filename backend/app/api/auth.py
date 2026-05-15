@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from jose import jwt
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
@@ -24,8 +24,9 @@ pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 class RegisterRequest(BaseModel):
     email: str
     password: str
-    org_name: str
+    org_name: str = ""
     position: str | None = None
+    invite_token: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -66,11 +67,38 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # -- Invite token path --
+    if payload.invite_token:
+        try:
+            claims = jwt.decode(payload.invite_token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        except JWTError:
+            raise HTTPException(status_code=400, detail="Invalid or expired invite link")
+        if claims.get("type") != "invite":
+            raise HTTPException(status_code=400, detail="Invalid invite token")
+
+        org_id = uuid.UUID(claims["org_id"])
+        org = (await db.execute(select(Organization).where(Organization.id == org_id))).scalar_one_or_none()
+        if org is None:
+            raise HTTPException(status_code=400, detail="Organisation no longer exists")
+
+        role = UserRole(claims["role"])
+        user = User(
+            email=payload.email,
+            hashed_password=pwd_context.hash(payload.password),
+            role=role,
+            org_id=org.id,
+            position=payload.position,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return TokenResponse(access_token=_make_token(user.id))
+
+    # -- Normal registration path --
     org_name = payload.org_name.strip()
     if not org_name:
-        raise HTTPException(status_code=400, detail="org_name is required")
+        raise HTTPException(status_code=400, detail="org_name is required when not using an invite link")
 
-    # Find or create the organisation
     org = (
         await db.execute(select(Organization).where(func.lower(Organization.name) == org_name.lower()))
     ).scalar_one_or_none()

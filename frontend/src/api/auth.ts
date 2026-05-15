@@ -31,10 +31,10 @@ export const authApi = {
       body: JSON.stringify({ email, password }),
     }),
 
-  register: (email: string, password: string, org_name: string, position?: string) =>
+  register: (email: string, password: string, org_name: string, position?: string, invite_token?: string) =>
     apiFetch<{ access_token: string; token_type: string }>('/api/v1/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, org_name, position: position || undefined }),
+      body: JSON.stringify({ email, password, org_name, position: position || undefined, invite_token: invite_token || undefined }),
     }),
 
   me: () => apiFetch<AuthUser>('/api/v1/auth/me'),
@@ -52,6 +52,11 @@ export const authApi = {
 }
 
 export const adminApi = {
+  createInvite: (role: string) =>
+    apiFetch<{ token: string; invite_url: string; expires_in_days: number }>('/api/v1/org/invite', {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    }),
   listOrgUsers: () => apiFetch<AuthUser[]>('/api/v1/org/users'),
   updateUserRole: (userId: string, role: string) =>
     apiFetch<AuthUser>(`/api/v1/org/users/${userId}/role`, {

@@ -19,6 +19,12 @@ export function OrgSettings() {
   const [error, setError] = useState<string | null>(null)
   const { user: me } = useAuthStore()
 
+  // Invite state
+  const [inviteRole, setInviteRole] = useState<Role>('viewer')
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+
   useEffect(() => {
     adminApi
       .listOrgUsers()
@@ -46,11 +52,76 @@ export function OrgSettings() {
     }
   }
 
+  const handleCreateInvite = async () => {
+    setInviteLoading(true)
+    setInviteUrl(null)
+    setCopied(false)
+    try {
+      const res = await adminApi.createInvite(inviteRole)
+      setInviteUrl(res.invite_url)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to create invite')
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
+  const handleCopy = () => {
+    if (!inviteUrl) return
+    navigator.clipboard.writeText(inviteUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const inviteRoles = ROLES.filter((r) => me?.role === 'super_admin' || r !== 'super_admin')
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
       <NavBar />
 
-      <div style={{ maxWidth: '760px', margin: '0 auto', padding: '24px' }}>
+      <div style={{ maxWidth: '760px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+        {/* Invite section */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)', padding: '10px 16px', color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>INVITE_MEMBER</div>
+          <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>
+              Generate a 7-day invite link. The recipient registers via the link and immediately gets the chosen role.
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <select
+                value={inviteRole}
+                onChange={(e) => { setInviteRole(e.target.value as Role); setInviteUrl(null) }}
+                style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: ROLE_COLOR[inviteRole], fontSize: 'var(--fs-sm)', padding: '5px 10px', letterSpacing: '1px' }}
+              >
+                {inviteRoles.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <button
+                onClick={handleCreateInvite}
+                disabled={inviteLoading}
+                style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', padding: '5px 16px', letterSpacing: '1px', opacity: inviteLoading ? 0.5 : 1 }}
+              >
+                {inviteLoading ? '...' : '▶ generate link'}
+              </button>
+            </div>
+
+            {inviteUrl && (
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <code style={{ color: 'var(--accent)', fontSize: 'var(--fs-xs)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {inviteUrl}
+                </code>
+                <button
+                  onClick={handleCopy}
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: copied ? 'var(--complete)' : 'var(--text-secondary)', fontSize: 'var(--fs-xs)', padding: '3px 10px', letterSpacing: '1px', flexShrink: 0 }}
+                >
+                  {copied ? '✓ copied' : 'copy'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Users list */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <div style={{ borderBottom: '1px solid var(--border)', padding: '10px 16px', color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>USERS</div>
 
@@ -65,6 +136,9 @@ export function OrgSettings() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-md)' }}>{u.email}</span>
+                  {u.position && (
+                    <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-xs)' }}>{u.position}</span>
+                  )}
                   {u.id === me?.id && (
                     <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>(you)</span>
                   )}

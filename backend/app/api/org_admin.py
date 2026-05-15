@@ -7,14 +7,18 @@ Admins may not promote users to `super_admin` — that privilege is reserved
 for super-admins only.
 """
 import uuid
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from jose import jwt
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_admin
+from app.config import settings
 from app.database import get_db
+from app.models.organization import Organization
 from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/api/v1/org", tags=["org-admin"])
@@ -32,6 +36,16 @@ class UserResponse(BaseModel):
 
 class UpdateRoleRequest(BaseModel):
     role: UserRole
+
+
+class InviteRequest(BaseModel):
+    role: UserRole = UserRole.viewer
+
+
+class InviteResponse(BaseModel):
+    token: str
+    invite_url: str
+    expires_in_days: int = 7
 
 
 @router.get("/users", response_model=list[UserResponse])
@@ -91,3 +105,36 @@ async def delete_user(
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     target.is_active = False
     await db.commit()
+
+
+@router.post("/invite", response_model=InviteResponse)
+async def create_invite(
+    payload: InviteRequest,
+    requesting_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> InviteResponse:
+    """Generate a signed invite token granting a specific role in this org."""
+    if payload.role == UserRole.super_admin and requesting_user.role != UserRole.super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only super admins can invite with super_admin role",
+        )
+
+    org = (await db.execute(select(Organization).where(Organization.id == requesting_user.org_id))).scalar_one_or_none()
+    if org is None:
+        raise HTTPException(status_code=400, detail="Your account has no organisation")
+
+    expire = datetime.utcnow() + timedelta(days=7)
+    token = jwt.encode(
+        {
+            "type": "invite",
+            "org_id": str(org.id),
+            "org_name": org.name,
+            "role": payload.role.value,
+            "exp": expire,
+        },
+        settings.jwt_secret,
+        algorithm=settings.jwt_algorithm,
+    )
+    invite_url = f"{settings.frontend_url}/login?invite={token}"
+    return InviteResponse(token=token, invite_url=invite_url)
