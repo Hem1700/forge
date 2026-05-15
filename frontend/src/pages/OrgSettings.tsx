@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { adminApi, type AuthUser } from '../api/auth'
 import { useAuthStore } from '../store/auth'
+import { NavBar } from '../components/NavBar'
 
 const ROLES = ['viewer', 'analyst', 'admin', 'super_admin'] as const
 type Role = typeof ROLES[number]
 
-const ROLE_BADGE: Record<Role, string> = {
-  viewer: 'bg-neutral-700 text-neutral-300',
-  analyst: 'bg-blue-900 text-blue-300',
-  admin: 'bg-amber-900 text-amber-300',
-  super_admin: 'bg-red-900 text-red-300',
+const ROLE_COLOR: Record<Role, string> = {
+  viewer:      'var(--text-secondary)',
+  analyst:     'var(--accent)',
+  admin:       'var(--gate)',
+  super_admin: 'var(--crit)',
 }
 
 export function OrgSettings() {
@@ -18,6 +18,12 @@ export function OrgSettings() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { user: me } = useAuthStore()
+
+  // Invite state
+  const [inviteRole, setInviteRole] = useState<Role>('viewer')
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     adminApi
@@ -46,41 +52,103 @@ export function OrgSettings() {
     }
   }
 
-  // Suppress unused variable warning — ROLE_BADGE is defined for potential future use
-  void ROLE_BADGE
+  const handleCreateInvite = async () => {
+    setInviteLoading(true)
+    setInviteUrl(null)
+    setCopied(false)
+    try {
+      const res = await adminApi.createInvite(inviteRole)
+      setInviteUrl(res.invite_url)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to create invite')
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
+  const handleCopy = () => {
+    if (!inviteUrl) return
+    navigator.clipboard.writeText(inviteUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const inviteRoles = ROLES.filter((r) => me?.role === 'super_admin' || r !== 'super_admin')
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="border-b border-neutral-800 px-6 py-4 flex items-center gap-4">
-        <Link to="/" className="font-mono font-bold text-red-500 text-lg">FORGE</Link>
-        <span className="text-neutral-600 font-mono">/</span>
-        <span className="text-neutral-400 font-mono text-sm">Org Settings</span>
-      </header>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
+      <NavBar />
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-lg">
-          <div className="px-6 py-4 border-b border-neutral-800">
-            <h2 className="font-mono font-bold text-neutral-200">Users</h2>
+      <div style={{ maxWidth: '760px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+        {/* Invite section */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)', padding: '10px 16px', color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>INVITE_MEMBER</div>
+          <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>
+              Generate a 7-day invite link. The recipient registers via the link and immediately gets the chosen role.
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <select
+                value={inviteRole}
+                onChange={(e) => { setInviteRole(e.target.value as Role); setInviteUrl(null) }}
+                style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: ROLE_COLOR[inviteRole], fontSize: 'var(--fs-sm)', padding: '5px 10px', letterSpacing: '1px' }}
+              >
+                {inviteRoles.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <button
+                onClick={handleCreateInvite}
+                disabled={inviteLoading}
+                style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', padding: '5px 16px', letterSpacing: '1px', opacity: inviteLoading ? 0.5 : 1 }}
+              >
+                {inviteLoading ? '...' : '▶ generate link'}
+              </button>
+            </div>
+
+            {inviteUrl && (
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <code style={{ color: 'var(--accent)', fontSize: 'var(--fs-xs)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {inviteUrl}
+                </code>
+                <button
+                  onClick={handleCopy}
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: copied ? 'var(--complete)' : 'var(--text-secondary)', fontSize: 'var(--fs-xs)', padding: '3px 10px', letterSpacing: '1px', flexShrink: 0 }}
+                >
+                  {copied ? '✓ copied' : 'copy'}
+                </button>
+              </div>
+            )}
           </div>
+        </div>
 
-          {loading && <p className="text-neutral-500 font-mono text-sm px-6 py-4">Loading…</p>}
-          {error && <p className="text-red-400 font-mono text-sm px-6 py-4">{error}</p>}
+        {/* Users list */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)', padding: '10px 16px', color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>USERS</div>
 
-          <div className="divide-y divide-neutral-800">
+          {loading && <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', padding: '16px' }}>loading…</div>}
+          {error && <div style={{ color: 'var(--crit)', fontSize: 'var(--fs-sm)', padding: '16px' }}>{error}</div>}
+
+          <div>
             {users.map((u) => (
-              <div key={u.id} className="px-6 py-3 flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <span className="text-neutral-200 text-sm font-mono">{u.email}</span>
+              <div
+                key={u.id}
+                style={{ borderBottom: '1px solid var(--border-deep)', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-md)' }}>{u.email}</span>
+                  {u.position && (
+                    <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-xs)' }}>{u.position}</span>
+                  )}
                   {u.id === me?.id && (
-                    <span className="text-neutral-600 text-xs font-mono ml-2">(you)</span>
+                    <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>(you)</span>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <select
                     value={u.role}
                     onChange={(e) => handleRoleChange(u.id, e.target.value)}
                     disabled={u.id === me?.id}
-                    className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-neutral-300 disabled:opacity-50"
+                    style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: ROLE_COLOR[u.role as Role] ?? 'var(--text-primary)', fontSize: 'var(--fs-xs)', padding: '3px 8px', letterSpacing: '1px', opacity: u.id === me?.id ? 0.5 : 1 }}
                   >
                     {ROLES.filter((r) => {
                       if (r === 'super_admin' && me?.role !== 'super_admin') return false
@@ -92,9 +160,11 @@ export function OrgSettings() {
                   {u.id !== me?.id && (
                     <button
                       onClick={() => handleDelete(u.id)}
-                      className="text-neutral-500 hover:text-red-400 text-xs font-mono"
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', padding: 0 }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--crit)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
                     >
-                      Remove
+                      remove
                     </button>
                   )}
                 </div>
@@ -102,7 +172,7 @@ export function OrgSettings() {
             ))}
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

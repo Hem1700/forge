@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useEngagementStore } from '../store/engagement'
 import { engagementsApi } from '../api/engagements'
 import type { Engagement, EngagementStatus, TargetType } from '../types'
+import { NavBar } from './NavBar'
 
 const STATUS: Record<EngagementStatus, { color: string; label: string }> = {
   running:        { color: 'var(--running)', label: '● RUNNING' },
@@ -95,20 +96,18 @@ export function EngagementDashboard() {
   }
 
   return (
-    <div style={{ padding: '20px 24px' }}>
-      {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-          <span style={{ color: 'var(--accent)', fontSize: 'var(--fs-lg)', letterSpacing: '3px', fontWeight: 700 }}>FORGE</span>
-          <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}>v14.0 // offensive security platform</span>
-        </div>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          style={{ background: 'transparent', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', padding: '3px 12px', letterSpacing: '1px' }}
-        >
-          {showForm ? '× CANCEL' : '+ NEW'}
-        </button>
-      </div>
+    <div>
+      <NavBar
+        right={
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            style={{ background: 'transparent', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', padding: '3px 12px', letterSpacing: '1px' }}
+          >
+            {showForm ? '× CANCEL' : '+ NEW'}
+          </button>
+        }
+      />
+      <div style={{ padding: '16px 24px' }}>
 
       {/* New engagement form */}
       {showForm && (
@@ -259,6 +258,7 @@ export function EngagementDashboard() {
       <div style={{ color: 'var(--accent-glow)', fontSize: 'var(--fs-sm)', marginTop: '10px' }}>
         {engagements.length} engagement(s) loaded_
       </div>
+    </div>
     </div>
   )
 }

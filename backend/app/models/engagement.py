@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum as PyEnum
-from sqlalchemy import String, DateTime, JSON, Enum as SAEnum
+from sqlalchemy import ForeignKey, String, DateTime, JSON, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
@@ -42,3 +42,6 @@ class Engagement(Base):
     # if Arq no longer has the job, the worker died mid-pipeline and we
     # mark the engagement aborted instead of letting it hang in `running`.
     job_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True
+    )

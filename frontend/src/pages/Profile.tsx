@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 import { authApi, type ApiKey, type ApiKeyWithSecret } from '../api/auth'
+import { NavBar } from '../components/NavBar'
+
+const ROLE_COLOR: Record<string, string> = {
+  viewer:      'var(--text-secondary)',
+  analyst:     'var(--accent)',
+  admin:       'var(--gate)',
+  super_admin: 'var(--crit)',
+}
 
 export function Profile() {
-  const { user, setUser, logout } = useAuthStore()
+  const { user, setUser } = useAuthStore()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<ApiKeyWithSecret | null>(null)
@@ -38,109 +45,116 @@ export function Profile() {
     setKeys((prev) => prev.filter((k) => k.id !== id))
   }
 
-  const ROLE_BADGE: Record<string, string> = {
-    viewer: 'bg-neutral-700 text-neutral-300',
-    analyst: 'bg-blue-900 text-blue-300',
-    admin: 'bg-amber-900 text-amber-300',
-    super_admin: 'bg-red-900 text-red-300',
-  }
-
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="border-b border-neutral-800 px-6 py-4 flex items-center justify-between">
-        <Link to="/" className="font-mono font-bold text-red-500 text-lg">FORGE</Link>
-        <button onClick={logout} className="text-neutral-400 hover:text-neutral-200 text-sm font-mono">
-          Sign out
-        </button>
-      </header>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
+      <NavBar />
 
-      <main className="max-w-2xl mx-auto px-6 py-8 space-y-8">
-        <section className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 space-y-3">
-          <h2 className="font-mono font-bold text-neutral-200">Profile</h2>
+      <div style={{ maxWidth: '680px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Profile info */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)', padding: '10px 16px', color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>PROFILE</div>
           {user && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-400 text-sm font-mono">Email</span>
-                <span className="text-neutral-200 text-sm font-mono">{user.email}</span>
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>EMAIL</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-md)' }}>{user.email}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-400 text-sm font-mono">Role</span>
-                <span className={`text-xs font-mono px-2 py-0.5 rounded ${ROLE_BADGE[user.role] ?? ''}`}>
-                  {user.role}
-                </span>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 space-y-4">
-          <h2 className="font-mono font-bold text-neutral-200">API Keys</h2>
-          <p className="text-neutral-500 text-sm font-mono">
-            Use with <code className="text-red-400">forge configure --key &lt;key&gt;</code> or{' '}
-            <code className="text-red-400">Authorization: Bearer &lt;key&gt;</code>
-          </p>
-
-          {createdKey && (
-            <div className="bg-neutral-800 border border-green-800 rounded p-4 space-y-2">
-              <p className="text-green-400 text-xs font-mono font-bold uppercase tracking-wider">
-                Key created — copy it now, it won't be shown again
-              </p>
-              <code className="block text-green-300 text-sm break-all">{createdKey.key}</code>
-              <button
-                onClick={() => setCreatedKey(null)}
-                className="text-neutral-500 hover:text-neutral-300 text-xs font-mono"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-
-          <form onSubmit={handleCreateKey} className="flex gap-2">
-            <input
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              placeholder="Key name (e.g. my-laptop)"
-              className="flex-1 bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm font-mono text-neutral-100 focus:outline-none focus:border-neutral-500"
-            />
-            <button
-              type="submit"
-              disabled={creating || !newKeyName.trim()}
-              className="bg-red-700 hover:bg-red-600 text-white text-sm font-mono px-4 py-2 rounded disabled:opacity-50"
-            >
-              {creating ? '…' : 'Create'}
-            </button>
-          </form>
-          {error && <p className="text-red-400 text-sm font-mono">{error}</p>}
-
-          <div className="space-y-2">
-            {keys.length === 0 && (
-              <p className="text-neutral-600 text-sm font-mono">No API keys yet.</p>
-            )}
-            {keys.map((key) => (
-              <div
-                key={key.id}
-                className="flex items-center justify-between bg-neutral-800 rounded px-3 py-2"
-              >
-                <div>
-                  <span className="text-neutral-200 text-sm font-mono">{key.name}</span>
-                  <span className="text-neutral-500 text-xs font-mono ml-3">{key.prefix}…</span>
-                  {key.last_used_at && (
-                    <span className="text-neutral-600 text-xs font-mono ml-3">
-                      last used {new Date(key.last_used_at).toLocaleDateString()}
-                    </span>
-                  )}
+              {user.org_name && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>ORGANISATION</span>
+                  <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-md)' }}>{user.org_name}</span>
                 </div>
+              )}
+              {user.position && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>POSITION</span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-md)' }}>{user.position}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>ROLE</span>
+                <span style={{ color: ROLE_COLOR[user.role] ?? 'var(--text-primary)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}>{user.role}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* API Keys */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)', padding: '10px 16px', color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>API_KEYS</div>
+          <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>
+              use with{' '}
+              <code style={{ color: 'var(--accent)' }}>forge configure --key &lt;key&gt;</code>
+              {' '}or{' '}
+              <code style={{ color: 'var(--accent)' }}>Authorization: Bearer &lt;key&gt;</code>
+            </div>
+
+            {createdKey && (
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--complete)', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ color: 'var(--complete)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>KEY CREATED — COPY NOW, WON'T BE SHOWN AGAIN</div>
+                <code style={{ color: 'var(--complete)', fontSize: 'var(--fs-sm)', wordBreak: 'break-all' }}>{createdKey.key}</code>
                 <button
-                  onClick={() => handleRevoke(key.id)}
-                  className="text-neutral-500 hover:text-red-400 text-xs font-mono"
+                  onClick={() => setCreatedKey(null)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', padding: 0, textAlign: 'left' }}
                 >
-                  Revoke
+                  dismiss
                 </button>
               </div>
-            ))}
+            )}
+
+            <form onSubmit={handleCreateKey} style={{ display: 'flex', gap: '8px' }}>
+              <input
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="key name (e.g. my-laptop)"
+                style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', padding: '5px 8px', outline: 'none' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
+              />
+              <button
+                type="submit"
+                disabled={creating || !newKeyName.trim()}
+                style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', padding: '5px 16px', letterSpacing: '1px', opacity: (creating || !newKeyName.trim()) ? 0.5 : 1 }}
+              >
+                {creating ? '...' : 'create'}
+              </button>
+            </form>
+
+            {error && <div style={{ color: 'var(--crit)', fontSize: 'var(--fs-sm)' }}>{error}</div>}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {keys.length === 0 && (
+                <div style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-sm)' }}>&gt; no api keys yet_</div>
+              )}
+              {keys.map((key) => (
+                <div
+                  key={key.id}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg)', border: '1px solid var(--border-deep)', padding: '6px 10px' }}
+                >
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-md)' }}>{key.name}</span>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)' }}>{key.prefix}…</span>
+                    {key.last_used_at && (
+                      <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-sm)' }}>
+                        last used {new Date(key.last_used_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleRevoke(key.id)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--crit)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
+                  >
+                    revoke
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
-        </section>
-      </main>
+        </div>
+      </div>
     </div>
   )
 }

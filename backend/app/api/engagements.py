@@ -51,7 +51,7 @@ class EngagementResponse(BaseModel):
 @router.post("/", response_model=EngagementResponse, status_code=status.HTTP_201_CREATED)
 async def create_engagement(
     payload: CreateEngagementRequest,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> EngagementResponse:
     engagement = Engagement(
@@ -60,6 +60,7 @@ async def create_engagement(
         target_path=payload.target_path,
         target_scope=payload.target_scope,
         target_out_of_scope=payload.target_out_of_scope,
+        org_id=current_user.org_id,
     )
     db.add(engagement)
     await db.commit()
@@ -69,10 +70,12 @@ async def create_engagement(
 
 @router.get("/", response_model=list[EngagementResponse])
 async def list_engagements(
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[EngagementResponse]:
-    result = await db.execute(select(Engagement))
+    result = await db.execute(
+        select(Engagement).where(Engagement.org_id == current_user.org_id)
+    )
     engagements = result.scalars().all()
     return [EngagementResponse.model_validate(e) for e in engagements]
 
@@ -80,10 +83,17 @@ async def list_engagements(
 @router.get("/{engagement_id}", response_model=EngagementResponse)
 async def get_engagement(
     engagement_id: uuid.UUID,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> EngagementResponse:
-    engagement = await db.get(Engagement, engagement_id)
+    engagement = (
+        await db.execute(
+            select(Engagement).where(
+                Engagement.id == engagement_id,
+                Engagement.org_id == current_user.org_id,
+            )
+        )
+    ).scalar_one_or_none()
     if engagement is None:
         raise HTTPException(status_code=404, detail="Engagement not found")
     return EngagementResponse.model_validate(engagement)
@@ -198,10 +208,17 @@ async def generate_pdf_report(
 @router.delete("/{engagement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_engagement(
     engagement_id: uuid.UUID,
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    engagement = await db.get(Engagement, engagement_id)
+    engagement = (
+        await db.execute(
+            select(Engagement).where(
+                Engagement.id == engagement_id,
+                Engagement.org_id == current_user.org_id,
+            )
+        )
+    ).scalar_one_or_none()
     if engagement is None:
         raise HTTPException(status_code=404, detail="Engagement not found")
     # cascade delete children (no ON DELETE CASCADE in schema)

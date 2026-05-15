@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from jose import jwt
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.config import settings
 from app.database import get_db
+from app.models.organization import Organization
 from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -23,6 +24,9 @@ pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 class RegisterRequest(BaseModel):
     email: str
     password: str
+    org_name: str = ""
+    position: str | None = None
+    invite_token: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -43,6 +47,9 @@ class UserResponse(BaseModel):
     role: str
     is_active: bool
     created_at: datetime
+    org_id: uuid.UUID | None = None
+    org_name: str | None = None
+    position: str | None = None
 
 
 def _make_token(user_id: uuid.UUID) -> str:
@@ -60,13 +67,55 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    count = (await db.execute(select(func.count()).select_from(User))).scalar_one()
-    role = UserRole.super_admin if count == 0 else UserRole.viewer
+    # -- Invite token path --
+    if payload.invite_token:
+        try:
+            claims = jwt.decode(payload.invite_token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        except JWTError:
+            raise HTTPException(status_code=400, detail="Invalid or expired invite link")
+        if claims.get("type") != "invite":
+            raise HTTPException(status_code=400, detail="Invalid invite token")
+
+        org_id = uuid.UUID(claims["org_id"])
+        org = (await db.execute(select(Organization).where(Organization.id == org_id))).scalar_one_or_none()
+        if org is None:
+            raise HTTPException(status_code=400, detail="Organisation no longer exists")
+
+        role = UserRole(claims["role"])
+        user = User(
+            email=payload.email,
+            hashed_password=pwd_context.hash(payload.password),
+            role=role,
+            org_id=org.id,
+            position=payload.position,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return TokenResponse(access_token=_make_token(user.id))
+
+    # -- Normal registration path --
+    org_name = payload.org_name.strip()
+    if not org_name:
+        raise HTTPException(status_code=400, detail="org_name is required when not using an invite link")
+
+    existing_org = (
+        await db.execute(select(Organization).where(func.lower(Organization.name) == org_name.lower()))
+    ).scalar_one_or_none()
+    if existing_org is not None:
+        raise HTTPException(status_code=400, detail="Organisation name already taken — ask an admin for an invite link")
+
+    org = Organization(name=org_name)
+    db.add(org)
+    await db.flush()
+    role = UserRole.super_admin
 
     user = User(
         email=payload.email,
         hashed_password=pwd_context.hash(payload.password),
         role=role,
+        org_id=org.id,
+        position=payload.position,
     )
     db.add(user)
     await db.commit()
@@ -85,5 +134,18 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(user: User = Depends(get_current_user)) -> UserResponse:
-    return UserResponse.model_validate(user)
+async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> UserResponse:
+    org_name: str | None = None
+    if user.org_id:
+        org = (await db.execute(select(Organization).where(Organization.id == user.org_id))).scalar_one_or_none()
+        org_name = org.name if org else None
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        role=user.role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        org_id=user.org_id,
+        org_name=org_name,
+        position=user.position,
+    )

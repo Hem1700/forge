@@ -9,7 +9,7 @@ from app.config import settings
 from app.database import Base
 
 # import all models so Base knows about them
-from app.models import engagement, agent, task, finding, knowledge, user, api_key  # noqa
+from app.models import engagement, agent, task, finding, knowledge, user, api_key, organization  # noqa
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
