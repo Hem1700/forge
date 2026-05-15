@@ -6,11 +6,11 @@ import { useAuthStore } from '../store/auth'
 const ROLES = ['viewer', 'analyst', 'admin', 'super_admin'] as const
 type Role = typeof ROLES[number]
 
-const ROLE_BADGE: Record<Role, string> = {
-  viewer: 'bg-neutral-700 text-neutral-300',
-  analyst: 'bg-blue-900 text-blue-300',
-  admin: 'bg-amber-900 text-amber-300',
-  super_admin: 'bg-red-900 text-red-300',
+const ROLE_COLOR: Record<Role, string> = {
+  viewer:      'var(--text-secondary)',
+  analyst:     'var(--accent)',
+  admin:       'var(--gate)',
+  super_admin: 'var(--crit)',
 }
 
 export function OrgSettings() {
@@ -46,41 +46,39 @@ export function OrgSettings() {
     }
   }
 
-  // Suppress unused variable warning — ROLE_BADGE is defined for potential future use
-  void ROLE_BADGE
-
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="border-b border-neutral-800 px-6 py-4 flex items-center gap-4">
-        <Link to="/" className="font-mono font-bold text-red-500 text-lg">FORGE</Link>
-        <span className="text-neutral-600 font-mono">/</span>
-        <span className="text-neutral-400 font-mono text-sm">Org Settings</span>
-      </header>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
+      <div style={{ borderBottom: '1px solid var(--border)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <Link to="/" style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-lg)', letterSpacing: '3px', textDecoration: 'none' }}>FORGE</Link>
+        <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-sm)' }}>/</span>
+        <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}>ORG_SETTINGS</span>
+      </div>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-lg">
-          <div className="px-6 py-4 border-b border-neutral-800">
-            <h2 className="font-mono font-bold text-neutral-200">Users</h2>
-          </div>
+      <div style={{ maxWidth: '760px', margin: '0 auto', padding: '24px' }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)', padding: '10px 16px', color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>USERS</div>
 
-          {loading && <p className="text-neutral-500 font-mono text-sm px-6 py-4">Loading…</p>}
-          {error && <p className="text-red-400 font-mono text-sm px-6 py-4">{error}</p>}
+          {loading && <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', padding: '16px' }}>loading…</div>}
+          {error && <div style={{ color: 'var(--crit)', fontSize: 'var(--fs-sm)', padding: '16px' }}>{error}</div>}
 
-          <div className="divide-y divide-neutral-800">
+          <div>
             {users.map((u) => (
-              <div key={u.id} className="px-6 py-3 flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <span className="text-neutral-200 text-sm font-mono">{u.email}</span>
+              <div
+                key={u.id}
+                style={{ borderBottom: '1px solid var(--border-deep)', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-md)' }}>{u.email}</span>
                   {u.id === me?.id && (
-                    <span className="text-neutral-600 text-xs font-mono ml-2">(you)</span>
+                    <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>(you)</span>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <select
                     value={u.role}
                     onChange={(e) => handleRoleChange(u.id, e.target.value)}
                     disabled={u.id === me?.id}
-                    className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-neutral-300 disabled:opacity-50"
+                    style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: ROLE_COLOR[u.role as Role] ?? 'var(--text-primary)', fontSize: 'var(--fs-xs)', padding: '3px 8px', letterSpacing: '1px', opacity: u.id === me?.id ? 0.5 : 1 }}
                   >
                     {ROLES.filter((r) => {
                       if (r === 'super_admin' && me?.role !== 'super_admin') return false
@@ -92,9 +90,11 @@ export function OrgSettings() {
                   {u.id !== me?.id && (
                     <button
                       onClick={() => handleDelete(u.id)}
-                      className="text-neutral-500 hover:text-red-400 text-xs font-mono"
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', padding: 0 }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--crit)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
                     >
-                      Remove
+                      remove
                     </button>
                   )}
                 </div>
@@ -102,7 +102,7 @@ export function OrgSettings() {
             ))}
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

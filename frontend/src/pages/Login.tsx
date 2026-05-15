@@ -38,74 +38,78 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-8 w-full max-w-sm space-y-6">
-        <div>
-          <h1 className="text-2xl font-mono font-bold text-red-500">FORGE</h1>
-          <p className="text-neutral-500 text-sm mt-1">
-            {mode === 'login' ? 'Sign in to your account' : 'Create an account'}
-          </p>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '32px', width: '100%', maxWidth: '360px' }}>
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ color: 'var(--accent)', fontSize: 'var(--fs-lg)', fontWeight: 700, letterSpacing: '3px' }}>FORGE</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginTop: '4px' }}>
+            {mode === 'login' ? 'sign in to your account' : 'create an account'}
+          </div>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
-            <label className="block text-xs font-mono text-neutral-400 mb-1 uppercase tracking-wider">
-              Email
-            </label>
+            <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>EMAIL</div>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-neutral-100 text-sm font-mono focus:outline-none focus:border-red-700"
               required
               autoFocus
+              style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', padding: '6px 10px', outline: 'none', boxSizing: 'border-box' }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
             />
           </div>
           <div>
-            <label className="block text-xs font-mono text-neutral-400 mb-1 uppercase tracking-wider">
-              Password
-            </label>
+            <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>PASSWORD</div>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-neutral-100 text-sm font-mono focus:outline-none focus:border-red-700"
               required
+              style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', padding: '6px 10px', outline: 'none', boxSizing: 'border-box' }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
             />
           </div>
+
           {error && (
-            <p className="text-red-400 text-sm font-mono">{error}</p>
+            <div style={{ color: 'var(--crit)', fontSize: 'var(--fs-sm)' }}>{error}</div>
           )}
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-red-700 hover:bg-red-600 text-white font-mono text-sm py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ width: '100%', padding: '8px 0', background: 'var(--accent-bg)', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', letterSpacing: '1px', opacity: loading ? 0.5 : 1 }}
           >
-            {loading ? '…' : mode === 'login' ? 'Sign in' : 'Create account'}
+            {loading ? '...' : mode === 'login' ? '▶ SIGN IN' : '▶ CREATE ACCOUNT'}
           </button>
         </form>
-        <p className="text-neutral-500 text-sm text-center font-mono">
+
+        <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', textAlign: 'center', marginTop: '20px' }}>
           {mode === 'login' ? (
             <>
-              No account?{' '}
+              no account?{' '}
               <button
                 onClick={() => { setMode('register'); setError(null) }}
-                className="text-red-500 hover:text-red-400"
+                style={{ background: 'transparent', border: 'none', color: 'var(--accent)', fontSize: 'var(--fs-sm)', padding: 0 }}
               >
-                Register
+                register
               </button>
             </>
           ) : (
             <>
-              Have an account?{' '}
+              have an account?{' '}
               <button
                 onClick={() => { setMode('login'); setError(null) }}
-                className="text-red-500 hover:text-red-400"
+                style={{ background: 'transparent', border: 'none', color: 'var(--accent)', fontSize: 'var(--fs-sm)', padding: 0 }}
               >
-                Sign in
+                sign in
               </button>
             </>
           )}
-        </p>
+        </div>
       </div>
     </div>
   )

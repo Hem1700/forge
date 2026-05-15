@@ -3,6 +3,14 @@ import { Link } from 'react-router-dom'
 import { adminApi, type AuthUser } from '../api/auth'
 
 const ROLES = ['viewer', 'analyst', 'admin', 'super_admin'] as const
+type Role = typeof ROLES[number]
+
+const ROLE_COLOR: Record<Role, string> = {
+  viewer:      'var(--text-secondary)',
+  analyst:     'var(--accent)',
+  admin:       'var(--gate)',
+  super_admin: 'var(--crit)',
+}
 
 export function AdminPanel() {
   const [users, setUsers] = useState<AuthUser[]>([])
@@ -51,82 +59,98 @@ export function AdminPanel() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="border-b border-neutral-800 px-6 py-4 flex items-center gap-4">
-        <Link to="/" className="font-mono font-bold text-red-500 text-lg">FORGE</Link>
-        <span className="text-neutral-600 font-mono">/</span>
-        <span className="text-neutral-400 font-mono text-sm">Super Admin</span>
-      </header>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
+      <div style={{ borderBottom: '1px solid var(--border)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <Link to="/" style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-lg)', letterSpacing: '3px', textDecoration: 'none' }}>FORGE</Link>
+        <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-sm)' }}>/</span>
+        <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}>SUPER_ADMIN</span>
+      </div>
 
-      <main className="max-w-4xl mx-auto px-6 py-8 space-y-8">
-        <section className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 space-y-4">
-          <h2 className="font-mono font-bold text-neutral-200">Provision User</h2>
-          <form onSubmit={handleProvision} className="flex flex-wrap gap-2">
-            <input
-              value={provisionEmail}
-              onChange={(e) => setProvisionEmail(e.target.value)}
-              placeholder="email@example.com"
-              type="email"
-              required
-              className="flex-1 min-w-48 bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm font-mono text-neutral-100 focus:outline-none focus:border-neutral-500"
-            />
-            <input
-              value={provisionPassword}
-              onChange={(e) => setProvisionPassword(e.target.value)}
-              placeholder="Initial password"
-              type="password"
-              required
-              className="flex-1 min-w-40 bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm font-mono text-neutral-100 focus:outline-none focus:border-neutral-500"
-            />
-            <select
-              value={provisionRole}
-              onChange={(e) => setProvisionRole(e.target.value)}
-              className="bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm font-mono text-neutral-300"
-            >
-              {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
+      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Provision user */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)', padding: '10px 16px', color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>PROVISION_USER</div>
+          <div style={{ padding: '16px' }}>
+            <form onSubmit={handleProvision} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              <input
+                value={provisionEmail}
+                onChange={(e) => setProvisionEmail(e.target.value)}
+                placeholder="email@example.com"
+                type="email"
+                required
+                style={{ flex: '1 1 200px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', padding: '5px 10px', outline: 'none' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
+              />
+              <input
+                value={provisionPassword}
+                onChange={(e) => setProvisionPassword(e.target.value)}
+                placeholder="initial password"
+                type="password"
+                required
+                style={{ flex: '1 1 160px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', padding: '5px 10px', outline: 'none' }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
+              />
+              <select
+                value={provisionRole}
+                onChange={(e) => setProvisionRole(e.target.value)}
+                style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: ROLE_COLOR[provisionRole as Role] ?? 'var(--text-primary)', fontSize: 'var(--fs-sm)', padding: '5px 10px', letterSpacing: '1px' }}
+              >
+                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <button
+                type="submit"
+                disabled={provisioning}
+                style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', padding: '5px 16px', letterSpacing: '1px', opacity: provisioning ? 0.5 : 1 }}
+              >
+                {provisioning ? '...' : '▶ provision'}
+              </button>
+            </form>
+            {error && <div style={{ color: 'var(--crit)', fontSize: 'var(--fs-sm)', marginTop: '8px' }}>{error}</div>}
+          </div>
+        </div>
+
+        {/* All users */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>ALL_USERS ({users.length})</span>
             <button
-              type="submit"
-              disabled={provisioning}
-              className="bg-red-700 hover:bg-red-600 text-white text-sm font-mono px-4 py-2 rounded disabled:opacity-50"
+              onClick={load}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
             >
-              {provisioning ? '…' : 'Provision'}
-            </button>
-          </form>
-          {error && <p className="text-red-400 text-sm font-mono">{error}</p>}
-        </section>
-
-        <section className="bg-neutral-900 border border-neutral-800 rounded-lg">
-          <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
-            <h2 className="font-mono font-bold text-neutral-200">All Users ({users.length})</h2>
-            <button onClick={load} className="text-neutral-500 hover:text-neutral-300 text-xs font-mono">
-              Refresh
+              refresh
             </button>
           </div>
 
-          {loading && <p className="text-neutral-500 font-mono text-sm px-6 py-4">Loading…</p>}
+          {loading && <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', padding: '16px' }}>loading…</div>}
 
-          <div className="divide-y divide-neutral-800">
+          <div>
             {users.map((u) => (
-              <div key={u.id} className="px-6 py-3 flex items-center justify-between">
-                <div>
-                  <span className="text-neutral-200 text-sm font-mono">{u.email}</span>
+              <div
+                key={u.id}
+                style={{ borderBottom: '1px solid var(--border-deep)', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-md)' }}>{u.email}</span>
                   {!u.is_active && (
-                    <span className="text-neutral-600 text-xs font-mono ml-2">(inactive)</span>
+                    <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>(inactive)</span>
                   )}
                 </div>
                 <select
                   value={u.role}
                   onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                  className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs font-mono text-neutral-300"
+                  style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: ROLE_COLOR[u.role as Role] ?? 'var(--text-primary)', fontSize: 'var(--fs-xs)', padding: '3px 8px', letterSpacing: '1px' }}
                 >
                   {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
             ))}
           </div>
-        </section>
-      </main>
+        </div>
+      </div>
     </div>
   )
 }
