@@ -1,6 +1,8 @@
 """Org-admin routes: manage users within the organisation.
 
 Accessible to users with `admin` or `super_admin` role.
+All queries are scoped to the requesting user's org_id — admins cannot
+see or modify users from other organisations.
 Admins may not promote users to `super_admin` — that privilege is reserved
 for super-admins only.
 """
@@ -25,6 +27,7 @@ class UserResponse(BaseModel):
     email: str
     role: str
     is_active: bool
+    position: str | None = None
 
 
 class UpdateRoleRequest(BaseModel):
@@ -33,11 +36,16 @@ class UpdateRoleRequest(BaseModel):
 
 @router.get("/users", response_model=list[UserResponse])
 async def list_users(
-    _: User = Depends(require_admin),
+    requesting_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> list[UserResponse]:
-    """Return all active users in the organisation."""
-    result = await db.execute(select(User).where(User.is_active == True))  # noqa: E712
+    """Return all active users in the requesting user's organisation."""
+    result = await db.execute(
+        select(User).where(
+            User.org_id == requesting_user.org_id,
+            User.is_active == True,  # noqa: E712
+        )
+    )
     return [UserResponse.model_validate(u) for u in result.scalars().all()]
 
 
@@ -48,12 +56,10 @@ async def update_user_role(
     requesting_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    """Update the role of a user.
-
-    Admins may set any role except `super_admin`; only super-admins can
-    grant that level.
-    """
-    result = await db.execute(select(User).where(User.id == user_id))
+    """Update the role of a user within the same organisation."""
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.org_id == requesting_user.org_id)
+    )
     target = result.scalar_one_or_none()
     if target is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -74,11 +80,10 @@ async def delete_user(
     requesting_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Soft-delete a user by setting is_active=False.
-
-    An admin cannot delete their own account.
-    """
-    result = await db.execute(select(User).where(User.id == user_id))
+    """Soft-delete a user within the same organisation."""
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.org_id == requesting_user.org_id)
+    )
     target = result.scalar_one_or_none()
     if target is None:
         raise HTTPException(status_code=404, detail="User not found")

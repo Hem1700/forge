@@ -10,7 +10,7 @@ from app.models.user import User, UserRole
 from app.api.deps import get_current_user
 
 # Import all models so tables are registered with Base.metadata before create_all
-from app.models import engagement, agent, task, finding, knowledge, user, api_key  # noqa: F401
+from app.models import engagement, agent, task, finding, knowledge, user, api_key, organization  # noqa: F401
 
 TEST_DATABASE_URL = "postgresql+asyncpg://forge:forge@localhost:5432/forge_test"
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")

@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BASE_URL } from '../api/client'
+import { authApi } from '../api/auth'
 import { useAuthStore } from '../store/auth'
 
 export function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [orgName, setOrgName] = useState('')
+  const [position, setPosition] = useState('')
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -16,63 +18,65 @@ export function Login() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const endpoint = mode === 'login' ? '/api/v1/auth/login' : '/api/v1/auth/register'
     try {
-      const res = await fetch(`${BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.detail ?? 'Authentication failed')
-        return
+      let data: { access_token: string }
+      if (mode === 'login') {
+        data = await authApi.login(email, password)
+      } else {
+        data = await authApi.register(email, password, orgName, position || undefined)
       }
       setToken(data.access_token)
       navigate('/')
-    } catch {
-      setError('Cannot reach server')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Authentication failed')
     } finally {
       setLoading(false)
     }
   }
 
+  const field = (
+    label: string,
+    type: string,
+    value: string,
+    onChange: (v: string) => void,
+    placeholder?: string,
+  ) => (
+    <div>
+      <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>
+        {label}
+      </div>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', padding: '6px 10px', outline: 'none', boxSizing: 'border-box' }}
+        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+        onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
+      />
+    </div>
+  )
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '32px', width: '100%', maxWidth: '360px' }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '32px', width: '100%', maxWidth: '380px' }}>
         <div style={{ marginBottom: '24px' }}>
           <div style={{ color: 'var(--accent)', fontSize: 'var(--fs-lg)', fontWeight: 700, letterSpacing: '3px' }}>FORGE</div>
           <div style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', marginTop: '4px' }}>
-            {mode === 'login' ? 'sign in to your account' : 'create an account'}
+            {mode === 'login' ? 'sign in to your account' : 'create your account'}
           </div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div>
-            <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>EMAIL</div>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-              style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', padding: '6px 10px', outline: 'none', boxSizing: 'border-box' }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
-            />
-          </div>
-          <div>
-            <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>PASSWORD</div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', padding: '6px 10px', outline: 'none', boxSizing: 'border-box' }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
-            />
-          </div>
+          {field('EMAIL', 'email', email, setEmail)}
+          {field('PASSWORD', 'password', password, setPassword)}
+
+          {mode === 'register' && (
+            <>
+              {field('ORGANISATION', 'text', orgName, setOrgName, 'e.g. Acme Corp')}
+              {field('POSITION (optional)', 'text', position, setPosition, 'e.g. Security Engineer')}
+            </>
+          )}
 
           {error && (
             <div style={{ color: 'var(--crit)', fontSize: 'var(--fs-sm)' }}>{error}</div>
@@ -80,8 +84,8 @@ export function Login() {
 
           <button
             type="submit"
-            disabled={loading}
-            style={{ width: '100%', padding: '8px 0', background: 'var(--accent-bg)', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', letterSpacing: '1px', opacity: loading ? 0.5 : 1 }}
+            disabled={loading || (mode === 'register' && !orgName.trim())}
+            style={{ width: '100%', padding: '8px 0', background: 'var(--accent-bg)', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', letterSpacing: '1px', opacity: (loading || (mode === 'register' && !orgName.trim())) ? 0.5 : 1 }}
           >
             {loading ? '...' : mode === 'login' ? '▶ SIGN IN' : '▶ CREATE ACCOUNT'}
           </button>

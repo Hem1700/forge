@@ -59,6 +59,18 @@ export function Profile() {
                 <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>EMAIL</span>
                 <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-md)' }}>{user.email}</span>
               </div>
+              {user.org_name && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>ORGANISATION</span>
+                  <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-md)' }}>{user.org_name}</span>
+                </div>
+              )}
+              {user.position && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>POSITION</span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-md)' }}>{user.position}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>ROLE</span>
                 <span style={{ color: ROLE_COLOR[user.role] ?? 'var(--text-primary)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}>{user.role}</span>

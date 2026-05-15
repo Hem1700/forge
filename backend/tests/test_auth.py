@@ -6,10 +6,12 @@ from app.database import Base, get_db
 from app.main import app
 
 # Import all models so metadata is fully populated before create_all.
-from app.models import engagement, agent, task, finding, knowledge, user, api_key  # noqa: F401
+from app.models import engagement, agent, task, finding, knowledge, user, api_key, organization  # noqa: F401
 
 pytestmark = pytest.mark.asyncio
 TEST_DB = "postgresql+asyncpg://forge:forge@localhost:5432/forge_test"
+
+REG = {"org_name": "TestOrg"}
 
 
 @pytest.fixture
@@ -45,7 +47,7 @@ async def client():
 
 
 async def test_first_register_becomes_super_admin(client):
-    r = await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "pass1234"})
+    r = await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "pass1234", **REG})
     assert r.status_code == 201
     token = r.json()["access_token"]
     me = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
@@ -53,29 +55,40 @@ async def test_first_register_becomes_super_admin(client):
 
 
 async def test_second_register_becomes_viewer(client):
-    await client.post("/api/v1/auth/register", json={"email": "first@b.com", "password": "pass1234"})
-    r = await client.post("/api/v1/auth/register", json={"email": "second@b.com", "password": "pass1234"})
+    # Both users in the same org — second should be viewer
+    await client.post("/api/v1/auth/register", json={"email": "first@b.com", "password": "pass1234", **REG})
+    r = await client.post("/api/v1/auth/register", json={"email": "second@b.com", "password": "pass1234", **REG})
     assert r.status_code == 201
     token = r.json()["access_token"]
     me = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me.json()["role"] == "viewer"
 
 
+async def test_first_in_new_org_becomes_super_admin(client):
+    # Register first user in OrgA, second user in OrgB — OrgB user is also super_admin
+    await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "pass1234", "org_name": "OrgA"})
+    r = await client.post("/api/v1/auth/register", json={"email": "c@d.com", "password": "pass1234", "org_name": "OrgB"})
+    assert r.status_code == 201
+    token = r.json()["access_token"]
+    me = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.json()["role"] == "super_admin"
+
+
 async def test_duplicate_email_rejected(client):
-    await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "pass"})
-    r = await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "other"})
+    await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "pass", **REG})
+    r = await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "other", **REG})
     assert r.status_code == 400
 
 
 async def test_login_valid(client):
-    await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "secret"})
+    await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "secret", **REG})
     r = await client.post("/api/v1/auth/login", json={"email": "a@b.com", "password": "secret"})
     assert r.status_code == 200
     assert "access_token" in r.json()
 
 
 async def test_login_wrong_password(client):
-    await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "secret"})
+    await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "secret", **REG})
     r = await client.post("/api/v1/auth/login", json={"email": "a@b.com", "password": "wrong"})
     assert r.status_code == 401
 
@@ -86,10 +99,11 @@ async def test_me_without_token(client):
 
 
 async def test_me_with_valid_token(client):
-    reg = await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "pass"})
+    reg = await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "pass", **REG})
     token = reg.json()["access_token"]
     r = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
     data = r.json()
     assert data["email"] == "a@b.com"
     assert "hashed_password" not in data
+    assert data["org_name"] == "TestOrg"

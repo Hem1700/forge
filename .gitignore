@@ -4,3 +4,6 @@ backend/.venv/
 __pycache__/
 *.pyc
 .DS_Store
+.claude/
+.superpowers/
+cli/dist/
