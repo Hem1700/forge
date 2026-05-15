@@ -1,4 +1,5 @@
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
@@ -17,6 +18,7 @@ from app.models.engagement import Engagement, EngagementStatus
 from app.queue import close_pool, get_pool, job_status
 from app.worker import HEALTH_CHECK_KEY
 from app.ws import progress as ws_progress
+from app.ws.auth import user_from_token
 from app.ws.stream import stream_manager
 
 logger = logging.getLogger(__name__)
@@ -157,4 +159,41 @@ app.include_router(super_admin_router)
 
 @app.websocket("/ws/{engagement_id}")
 async def websocket_endpoint(engagement_id: str, websocket: WebSocket):
-    await stream_manager.handle(engagement_id, websocket)
+    """Authenticated, org-scoped event stream for a single engagement.
+
+    Auth: `?token=<jwt-or-api-key>` query param (WS handshake can't carry
+    a Bearer header reliably). The user's org must own the engagement.
+    Optional `?since=<event_id>` replays missed events on reconnect.
+    """
+    token = websocket.query_params.get("token", "")
+    since_raw = websocket.query_params.get("since")
+    try:
+        since = int(since_raw) if since_raw else None
+    except ValueError:
+        since = None
+
+    try:
+        engagement_uuid = uuid.UUID(engagement_id)
+    except ValueError:
+        await websocket.close(code=4400)
+        return
+
+    async with AsyncSessionLocal() as db:
+        user = await user_from_token(token, db)
+        if user is None:
+            await websocket.close(code=4401)
+            return
+
+        engagement = (
+            await db.execute(
+                select(Engagement).where(
+                    Engagement.id == engagement_uuid,
+                    Engagement.org_id == user.org_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if engagement is None:
+            await websocket.close(code=4403)
+            return
+
+    await stream_manager.handle(engagement_id, websocket, since=since)

@@ -158,9 +158,19 @@ async def get_engagement_findings(
 async def get_engagement_events(
     engagement_id: uuid.UUID,
     limit: int = 500,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    engagement = (
+        await db.execute(
+            select(Engagement).where(
+                Engagement.id == engagement_id,
+                Engagement.org_id == current_user.org_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if engagement is None:
+        raise HTTPException(status_code=404, detail="Engagement not found")
     result = await db.execute(
         select(EngagementEvent)
         .where(EngagementEvent.engagement_id == engagement_id)
@@ -169,7 +179,7 @@ async def get_engagement_events(
     )
     events = result.scalars().all()
     return [
-        {"type": e.type, "payload": e.payload, "timestamp": e.timestamp.isoformat()}
+        {"id": e.id, "type": e.type, "payload": e.payload, "timestamp": e.timestamp.isoformat()}
         for e in events
     ]
 

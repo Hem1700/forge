@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Engagement, Finding, AgentInfo, SwarmEvent } from '../types'
+import type { Engagement, Finding, AgentInfo, SwarmEvent, StreamState } from '../types'
 
 interface EngagementState {
   engagements: Engagement[]
@@ -7,6 +7,7 @@ interface EngagementState {
   findings: Finding[]
   agents: AgentInfo[]
   events: SwarmEvent[]
+  streamState: StreamState
   setEngagements: (e: Engagement[]) => void
   setActiveEngagement: (e: Engagement | null) => void
   upsertEngagement: (e: Engagement) => void
@@ -15,6 +16,7 @@ interface EngagementState {
   setAgents: (a: AgentInfo[]) => void
   addEvent: (e: SwarmEvent) => void
   setEvents: (e: SwarmEvent[]) => void
+  setStreamState: (s: StreamState) => void
 }
 
 export const useEngagementStore = create<EngagementState>((set) => ({
@@ -23,6 +25,7 @@ export const useEngagementStore = create<EngagementState>((set) => ({
   findings: [],
   agents: [],
   events: [],
+  streamState: 'idle',
   setEngagements: (engagements) => set({ engagements }),
   setActiveEngagement: (activeEngagement) => set({ activeEngagement }),
   upsertEngagement: (engagement) =>
@@ -37,4 +40,5 @@ export const useEngagementStore = create<EngagementState>((set) => ({
   setAgents: (agents) => set({ agents }),
   addEvent: (event) => set((s) => ({ events: [event, ...s.events].slice(0, 500) })),
   setEvents: (events) => set({ events: events.slice(0, 500) }),
+  setStreamState: (streamState) => set({ streamState }),
 }))
