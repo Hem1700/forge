@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
-import { authApi, ApiKey, ApiKeyWithSecret } from '../api/auth'
+import { authApi, type ApiKey, type ApiKeyWithSecret } from '../api/auth'
 
 export function Profile() {
   const { user, setUser, logout } = useAuthStore()

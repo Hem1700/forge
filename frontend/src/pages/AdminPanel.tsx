@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { adminApi, AuthUser } from '../api/auth'
+import { adminApi, type AuthUser } from '../api/auth'
 
 const ROLES = ['viewer', 'analyst', 'admin', 'super_admin'] as const
 
