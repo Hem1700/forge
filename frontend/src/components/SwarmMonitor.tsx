@@ -1,6 +1,14 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useEngagementStore } from '../store/engagement'
-import type { Severity, SwarmEvent } from '../types'
+import type { Severity, StreamState, SwarmEvent } from '../types'
+
+const STREAM_BADGE: Record<StreamState, { label: string; color: string }> = {
+  idle:         { label: '○ IDLE',         color: 'var(--text-secondary)' },
+  connecting:   { label: '◌ CONNECTING',   color: 'var(--text-secondary)' },
+  live:         { label: '● LIVE',         color: 'var(--running)' },
+  reconnecting: { label: '◌ RECONNECTING', color: 'var(--gate)' },
+  offline:      { label: '✕ OFFLINE',      color: 'var(--crit)' },
+}
 
 const SEV_COLOR: Record<Severity, string> = {
   critical: 'var(--crit)',
@@ -186,10 +194,10 @@ const COLS = '78px 68px 1fr'
 export function SwarmMonitor() {
   const events = useEngagementStore((s) => s.events)
   const agents = useEngagementStore((s) => s.agents)
-  const activeEngagement = useEngagementStore((s) => s.activeEngagement)
+  const streamState = useEngagementStore((s) => s.streamState)
   const bodyRef = useRef<HTMLDivElement>(null)
 
-  const streaming = activeEngagement?.status === 'running'
+  const badge = STREAM_BADGE[streamState]
   const ordered = [...events].reverse().slice(-80)
 
   useEffect(() => {
@@ -205,8 +213,8 @@ export function SwarmMonitor() {
         <div style={{ display: 'flex', gap: '8px', fontSize: 'var(--fs-xs)', color: 'var(--text-label)' }}>
           <span style={{ border: '1px solid var(--border)', padding: '1px 6px' }}>{agents.length} AGENT{agents.length === 1 ? '' : 'S'}</span>
           <span style={{ border: '1px solid var(--border)', padding: '1px 6px' }}>{events.length} EVENT{events.length === 1 ? '' : 'S'}</span>
-          <span style={{ border: '1px solid var(--border)', padding: '1px 6px', color: streaming ? 'var(--running)' : 'var(--text-secondary)' }}>
-            {streaming ? '● STREAMING' : '○ IDLE'}
+          <span style={{ border: '1px solid var(--border)', padding: '1px 6px', color: badge.color }}>
+            {badge.label}
           </span>
         </div>
       </div>

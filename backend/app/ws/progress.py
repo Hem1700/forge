@@ -40,21 +40,30 @@ async def _get_redis() -> aioredis.Redis:
 
 
 async def broadcast(engagement_id: str, event_type: str, payload: dict) -> None:
-    """Persist an event then publish it to subscribers."""
+    """Persist an event then publish it to subscribers.
+
+    Publishes with the DB row's autoincrement id so reconnecting clients
+    can ask for `?since=<id>` and skip already-seen events.
+    """
     ts = datetime.now(timezone.utc)
+    event_id: int | None = None
     try:
         async with AsyncSessionLocal() as db:
-            db.add(EngagementEvent(
+            row = EngagementEvent(
                 engagement_id=uuid.UUID(engagement_id),
                 type=event_type,
                 payload=payload,
                 timestamp=ts.replace(tzinfo=None),
-            ))
+            )
+            db.add(row)
             await db.commit()
+            await db.refresh(row)
+            event_id = row.id
     except Exception:
         logger.exception("failed to persist event %s for %s", event_type, engagement_id)
 
     event = {
+        "id": event_id,
         "type": event_type,
         "payload": payload,
         "timestamp": ts.isoformat(),

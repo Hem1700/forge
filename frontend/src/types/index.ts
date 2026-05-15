@@ -51,10 +51,13 @@ export interface TriageJudgment {
 }
 
 export interface SwarmEvent {
-  type: 'agent_started' | 'agent_completed' | 'finding_discovered' | 'finding_judged' | 'agent_thought' | 'gate_triggered' | 'campaign_complete' | 'progress' | 'ping'
+  id?: number | null
+  type: 'agent_started' | 'agent_completed' | 'finding_discovered' | 'finding_judged' | 'agent_thought' | 'gate_triggered' | 'campaign_complete' | 'progress' | 'ping' | 'stream_error'
   payload: Record<string, unknown>
   timestamp: string
 }
+
+export type StreamState = 'idle' | 'connecting' | 'live' | 'reconnecting' | 'offline'
 
 export interface ExploitStep {
   step: number
