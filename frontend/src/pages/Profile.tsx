@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 import { authApi, type ApiKey, type ApiKeyWithSecret } from '../api/auth'
+import { NavBar } from '../components/NavBar'
 
 const ROLE_COLOR: Record<string, string> = {
   viewer:      'var(--text-secondary)',
@@ -11,7 +11,7 @@ const ROLE_COLOR: Record<string, string> = {
 }
 
 export function Profile() {
-  const { user, setUser, logout } = useAuthStore()
+  const { user, setUser } = useAuthStore()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<ApiKeyWithSecret | null>(null)
@@ -47,17 +47,7 @@ export function Profile() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
-      <div style={{ borderBottom: '1px solid var(--border)', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link to="/" style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-lg)', letterSpacing: '3px', textDecoration: 'none' }}>FORGE</Link>
-        <button
-          onClick={logout}
-          style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-primary)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
-        >
-          sign out
-        </button>
-      </div>
+      <NavBar />
 
       <div style={{ maxWidth: '680px', margin: '0 auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* Profile info */}

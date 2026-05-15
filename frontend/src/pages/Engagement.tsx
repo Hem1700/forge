@@ -7,6 +7,7 @@ import { SwarmMonitor } from '../components/SwarmMonitor'
 import { HumanGate } from '../components/HumanGate'
 import { FindingsPanel } from '../components/FindingsPanel'
 import { ReportViewer } from '../components/ReportViewer'
+import { NavBar } from '../components/NavBar'
 import type { EngagementStatus, Finding, Severity, TargetType } from '../types'
 
 const STATUS: Record<EngagementStatus, { color: string; label: string }> = {
@@ -122,24 +123,28 @@ export function Engagement() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
-      {/* Header */}
-      <div style={{ borderBottom: '1px solid var(--border)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <NavBar
+        right={
+          <button
+            onClick={handleDownloadPdf}
+            disabled={pdfLoading}
+            style={{ background: 'transparent', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', padding: '3px 10px', letterSpacing: '1px', opacity: pdfLoading ? 0.5 : 1 }}
+          >
+            {pdfLoading ? '...' : 'PDF ↓'}
+          </button>
+        }
+      />
+      {/* Target breadcrumb bar */}
+      <div style={{ borderBottom: '1px solid var(--border-deep)', padding: '8px 24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <button
           onClick={() => navigate(-1)}
           style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', letterSpacing: '1px', padding: 0 }}
         >
-          ← FORGE
+          ←
         </button>
         <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-sm)' }}>/</span>
         <span style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-base)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
         <span style={{ color: st.color, fontSize: 'var(--fs-sm)', letterSpacing: '1px', border: `1px solid ${STATUS_DIM[activeEngagement.status]}`, padding: '2px 8px' }}>{st.label}</span>
-        <button
-          onClick={handleDownloadPdf}
-          disabled={pdfLoading}
-          style={{ background: 'transparent', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', padding: '3px 10px', letterSpacing: '1px', opacity: pdfLoading ? 0.5 : 1 }}
-        >
-          {pdfLoading ? '...' : 'PDF ↓'}
-        </button>
       </div>
 
       {/* Body — single-column, console-first */}

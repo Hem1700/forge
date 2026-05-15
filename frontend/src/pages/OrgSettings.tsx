@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { adminApi, type AuthUser } from '../api/auth'
 import { useAuthStore } from '../store/auth'
+import { NavBar } from '../components/NavBar'
 
 const ROLES = ['viewer', 'analyst', 'admin', 'super_admin'] as const
 type Role = typeof ROLES[number]
@@ -48,11 +48,7 @@ export function OrgSettings() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)' }}>
-      <div style={{ borderBottom: '1px solid var(--border)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Link to="/" style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-lg)', letterSpacing: '3px', textDecoration: 'none' }}>FORGE</Link>
-        <span style={{ color: 'var(--text-label)', fontSize: 'var(--fs-sm)' }}>/</span>
-        <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-sm)', letterSpacing: '1px' }}>ORG_SETTINGS</span>
-      </div>
+      <NavBar />
 
       <div style={{ maxWidth: '760px', margin: '0 auto', padding: '24px' }}>
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
