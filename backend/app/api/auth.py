@@ -99,19 +99,16 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     if not org_name:
         raise HTTPException(status_code=400, detail="org_name is required when not using an invite link")
 
-    org = (
+    existing_org = (
         await db.execute(select(Organization).where(func.lower(Organization.name) == org_name.lower()))
     ).scalar_one_or_none()
-    if org is None:
-        org = Organization(name=org_name)
-        db.add(org)
-        await db.flush()
+    if existing_org is not None:
+        raise HTTPException(status_code=400, detail="Organisation name already taken — ask an admin for an invite link")
 
-    # First user in this org becomes super_admin
-    org_user_count = (
-        await db.execute(select(func.count()).select_from(User).where(User.org_id == org.id))
-    ).scalar_one()
-    role = UserRole.super_admin if org_user_count == 0 else UserRole.viewer
+    org = Organization(name=org_name)
+    db.add(org)
+    await db.flush()
+    role = UserRole.super_admin
 
     user = User(
         email=payload.email,

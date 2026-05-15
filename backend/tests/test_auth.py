@@ -54,14 +54,12 @@ async def test_first_register_becomes_super_admin(client):
     assert me.json()["role"] == "super_admin"
 
 
-async def test_second_register_becomes_viewer(client):
-    # Both users in the same org — second should be viewer
+async def test_duplicate_org_name_rejected(client):
+    # Org name already taken — second registrant must use an invite link
     await client.post("/api/v1/auth/register", json={"email": "first@b.com", "password": "pass1234", **REG})
     r = await client.post("/api/v1/auth/register", json={"email": "second@b.com", "password": "pass1234", **REG})
-    assert r.status_code == 201
-    token = r.json()["access_token"]
-    me = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
-    assert me.json()["role"] == "viewer"
+    assert r.status_code == 400
+    assert "invite" in r.json()["detail"].lower()
 
 
 async def test_first_in_new_org_becomes_super_admin(client):
