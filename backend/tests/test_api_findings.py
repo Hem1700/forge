@@ -345,6 +345,59 @@ async def test_execute_exploit_confirmed_runs_and_persists(http_client, db_sessi
 
 
 @pytest.mark.asyncio
+async def test_get_engagement_findings_returns_404_for_other_org(db_session):
+    """A user in org B must not see findings of an engagement owned by org A."""
+    from httpx import AsyncClient, ASGITransport
+    from app.api.deps import get_current_user
+    from app.database import get_db
+    from app.main import app
+    from app.models.organization import Organization
+    from app.models.user import User, UserRole
+
+    org_a = Organization(name="org-a-findings-isolation")
+    org_b = Organization(name="org-b-findings-isolation")
+    db_session.add_all([org_a, org_b])
+    await db_session.flush()
+
+    user_b = User(
+        email="userb-findings-isolation@test.forge",
+        hashed_password="x",
+        role=UserRole.analyst,
+        org_id=org_b.id,
+    )
+    db_session.add(user_b)
+    await db_session.flush()
+
+    eng_a = Engagement(
+        target_url="https://a.test",
+        target_type="web",
+        status=EngagementStatus.complete,
+        gate_status=GateStatus.complete,
+        org_id=org_a.id,
+    )
+    db_session.add(eng_a)
+    await db_session.commit()
+
+    async def override_get_db():
+        yield db_session
+
+    async def override_get_current_user():
+        return user_b
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get(f"/api/v1/engagements/{eng_a.id}/findings")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_override_verdict_updates_exploit_execution(http_client, db_session):
     eng = await _create_engagement(db_session)
     finding = await _create_finding(db_session, eng.id)

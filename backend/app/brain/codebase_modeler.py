@@ -58,7 +58,9 @@ class CodebaseModeler:
         _chat = ChatAnthropic(
             model="claude-sonnet-4-6",
             api_key=settings.anthropic_api_key,
-            max_tokens=3000,
+            # 3000 was tight — security models for non-trivial codebases
+            # routinely exceeded it and got truncated mid-JSON.
+            max_tokens=8000,
         )
         self._llm = _LLMWrapper(_chat)
 
@@ -126,6 +128,27 @@ Key file contents:
         text = response.content.strip()
         text = re.sub(r'^```json\s*', '', text)
         text = re.sub(r'\s*```$', '', text)
-        result = json.loads(text)
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError as exc:
+            # Malformed/truncated response — surface it instead of crashing
+            # the whole campaign. Return a minimal model so downstream stages
+            # can decide what to do.
+            await ws_progress.progress(
+                engagement_id, "codebase_modeling.llm",
+                f"LLM returned unparseable JSON ({exc.msg} @ char {exc.pos}); using minimal model",
+                error=str(exc),
+            )
+            result = {
+                "app_type": "unknown",
+                "languages": [],
+                "frameworks": [],
+                "entry_points": [],
+                "attack_surfaces": [],
+                "data_flows": [],
+                "trust_boundaries": [],
+                "dependencies": [],
+                "interesting_files": [],
+            }
         result['_profile'] = {'root': profile['root'], 'file_count': len(profile['files'])}
         return result

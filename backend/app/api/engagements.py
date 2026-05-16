@@ -121,10 +121,17 @@ async def update_engagement_status(
 @router.get("/{engagement_id}/findings")
 async def get_engagement_findings(
     engagement_id: uuid.UUID,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
-    engagement = await db.get(Engagement, engagement_id)
+    engagement = (
+        await db.execute(
+            select(Engagement).where(
+                Engagement.id == engagement_id,
+                Engagement.org_id == current_user.org_id,
+            )
+        )
+    ).scalar_one_or_none()
     if engagement is None:
         raise HTTPException(status_code=404, detail="Engagement not found")
     result = await db.execute(select(Finding).where(Finding.engagement_id == engagement_id))
