@@ -16,10 +16,6 @@ const TERMINAL_CODES = new Set([4400, 4401, 4403])
 export function useSwarmStream(engagementId: string | null) {
   const ws = useRef<WebSocket | null>(null)
   const refetchTimer = useRef<number | null>(null)
-  const reconnectTimer = useRef<number | null>(null)
-  const attempts = useRef(0)
-  const lastEventId = useRef<number | null>(null)
-  const closedByEffect = useRef(false)
 
   const addEvent = useEngagementStore((s) => s.addEvent)
   const upsertEngagement = useEngagementStore((s) => s.upsertEngagement)
@@ -30,36 +26,43 @@ export function useSwarmStream(engagementId: string | null) {
 
   useEffect(() => {
     if (!engagementId || !token) return
-    closedByEffect.current = false
+
+    // Per-effect-run state. StrictMode double-mounts effects in dev:
+    // capturing these in closure (instead of a shared ref) ensures the
+    // dying socket from a torn-down effect can't trigger a reconnect
+    // after the next effect run has already opened a fresh socket.
+    let cancelled = false
+    let reconnectTimer: number | null = null
+    let attempts = 0
+    let lastEventId: number | null = null
 
     const connect = () => {
-      attempts.current === 0
-        ? setStreamState('connecting')
-        : setStreamState('reconnecting')
+      if (cancelled) return
+      setStreamState(attempts === 0 ? 'connecting' : 'reconnecting')
 
       const params = new URLSearchParams({ token })
-      if (lastEventId.current != null) {
-        params.set('since', String(lastEventId.current))
-      }
-      const url = `${WS_URL}/ws/${engagementId}?${params.toString()}`
-      const socket = new WebSocket(url)
+      if (lastEventId != null) params.set('since', String(lastEventId))
+      const socket = new WebSocket(`${WS_URL}/ws/${engagementId}?${params.toString()}`)
       ws.current = socket
 
       socket.onopen = () => {
-        attempts.current = 0
+        if (cancelled) {
+          socket.close()
+          return
+        }
+        attempts = 0
         setStreamState('live')
       }
 
       socket.onmessage = (msg) => {
+        if (cancelled) return
         if (msg.data === 'ping') {
           socket.send('pong')
           return
         }
         try {
           const event: SwarmEvent = JSON.parse(msg.data)
-          if (typeof event.id === 'number') {
-            lastEventId.current = event.id
-          }
+          if (typeof event.id === 'number') lastEventId = event.id
           if (event.type === 'stream_error') {
             setStreamState('offline')
             return
@@ -84,28 +87,26 @@ export function useSwarmStream(engagementId: string | null) {
       }
 
       socket.onclose = (ev) => {
-        if (closedByEffect.current) return
+        if (cancelled) return
         if (TERMINAL_CODES.has(ev.code)) {
           setStreamState('offline')
           return
         }
-        const delay = Math.min(BASE_BACKOFF_MS * 2 ** attempts.current, MAX_BACKOFF_MS)
-        attempts.current += 1
+        const delay = Math.min(BASE_BACKOFF_MS * 2 ** attempts, MAX_BACKOFF_MS)
+        attempts += 1
         setStreamState('reconnecting')
-        reconnectTimer.current = window.setTimeout(connect, delay)
+        reconnectTimer = window.setTimeout(connect, delay)
       }
     }
 
     connect()
 
     return () => {
-      closedByEffect.current = true
+      cancelled = true
       if (refetchTimer.current) window.clearTimeout(refetchTimer.current)
-      if (reconnectTimer.current) window.clearTimeout(reconnectTimer.current)
+      if (reconnectTimer) window.clearTimeout(reconnectTimer)
       ws.current?.close()
       ws.current = null
-      attempts.current = 0
-      lastEventId.current = null
       setStreamState('idle')
     }
   }, [engagementId, token, addEvent, setFindings, setActiveEngagement, upsertEngagement, setStreamState])
