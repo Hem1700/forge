@@ -17,6 +17,8 @@ from forge_cli.display import (
     console, engagement_table, findings_table, severity_summary,
     STATUS_COLORS, TARGET_ICONS,
 )
+from forge_cli.commands.auth import register, login, whoami, logout, api_keys_group
+from forge_cli.commands.users import users_group
 
 DEFAULT_API = os.environ.get("FORGE_API_URL", "http://localhost:8080")
 
@@ -43,6 +45,14 @@ def cli(ctx, api_url):
     """
     ctx.ensure_object(dict)
     ctx.obj["api_url"] = api_url
+
+
+cli.add_command(register)
+cli.add_command(login)
+cli.add_command(whoami)
+cli.add_command(logout)
+cli.add_command(api_keys_group)
+cli.add_command(users_group)
 
 
 # ── forge configure ──────────────────────────────────────────────────────────

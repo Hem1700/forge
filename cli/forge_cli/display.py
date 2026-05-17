@@ -358,6 +358,46 @@ def render_exploit_script(finding: dict, script_data: dict) -> None:
         console.print(f"[green]✓[/green] Saved to [cyan]{out_path}[/cyan]\n")
 
 
+def render_whoami(user: dict) -> None:
+    role = user.get("role", "")
+    role_color = {"super_admin": "red", "admin": "yellow",
+                  "analyst": "cyan", "viewer": "dim"}.get(role, "white")
+    org = user.get("org_name", user.get("org_id", "—"))
+    console.print(
+        f"[bold]{user.get('email', '—')}[/bold]  "
+        f"[[{role_color}]{role}[/{role_color}]]  "
+        f"org: [cyan]{org}[/cyan]"
+    )
+
+
+def render_api_keys(keys: list) -> None:
+    t = Table(box=box.ROUNDED, header_style="bold orange1", show_lines=False)
+    t.add_column("NAME")
+    t.add_column("CREATED")
+    t.add_column("ID (last 8)")
+    for k in keys:
+        t.add_row(
+            k.get("name", "—"),
+            _fmt_dt(k.get("created_at", "")),
+            k.get("id", "")[-8:],
+        )
+    console.print(t)
+
+
+def render_users(users: list) -> None:
+    role_color = {"super_admin": "red", "admin": "yellow",
+                  "analyst": "cyan", "viewer": "dim"}
+    t = Table(box=box.ROUNDED, header_style="bold orange1", show_lines=False)
+    t.add_column("EMAIL")
+    t.add_column("ROLE")
+    t.add_column("ID")
+    for u in users:
+        role = u.get("role", "")
+        c = role_color.get(role, "white")
+        t.add_row(u.get("email", ""), f"[{c}]{role}[/{c}]", u.get("id", ""))
+    console.print(t)
+
+
 def render_execution(finding: dict, execution: dict) -> None:
     """Print a Rich-formatted exploit execution result to the console."""
     from rich.panel import Panel as _Panel
