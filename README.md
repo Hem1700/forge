@@ -118,6 +118,26 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 
 ![Finding](docs/screenshots/finding.png)
 
+**Login** — JWT authentication with link to registration:
+
+![Login](docs/screenshots/auth-login.png)
+
+**Register** — org creation on first sign-up; email + password + org name + optional position:
+
+![Register](docs/screenshots/auth-register.png)
+
+**Profile / API keys** — user info (email, org, role) and API key management with `forge configure` hint:
+
+![Profile](docs/screenshots/auth-profile.png)
+
+**Org settings** — invite-link generator (7-day, role-scoped) and org member list with inline role controls:
+
+![Org settings](docs/screenshots/auth-org-settings.png)
+
+**Super admin panel** — provision users directly and manage roles across the entire platform:
+
+![Admin panel](docs/screenshots/auth-admin.png)
+
 ---
 
 ## Prerequisites
