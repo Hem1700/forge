@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -119,6 +120,21 @@ class ForgeClient:
 
     def stats(self) -> dict:
         return self._request("GET", "/api/v1/system/stats")
+
+    def wait_for_engagement(
+        self, eid: str, timeout: int = 1800, poll_interval: int = 15
+    ) -> dict:
+        """Poll GET /engagements/{eid} until status leaves 'running', or timeout."""
+        deadline = time.monotonic() + timeout
+        while True:
+            eng = self.get_engagement(eid)
+            if eng.get("status") != "running":
+                return eng
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"Timed out after {timeout}s waiting for engagement {eid}"
+                )
+            time.sleep(poll_interval)
 
     # ── Auth ─────────────────────────────────────────────────────────────────
 
