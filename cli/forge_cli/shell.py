@@ -1,5 +1,6 @@
 """Interactive FORGE shell — Metasploit-style REPL."""
 from __future__ import annotations
+import os
 import shlex
 from pathlib import Path
 
@@ -52,6 +53,7 @@ _COMPLETIONS = {
     "ci": {"scan": None, "report": None},
     "gate": {"approve": None, "reject": None},
     "help": None,
+    "clear": None,
     "exit": None,
     "quit": None,
 }
@@ -168,6 +170,10 @@ def launch(cli_group) -> None:
         if line in ("exit", "quit"):
             console.print("[dim]Goodbye.[/dim]")
             break
+        if line == "clear":
+            os.system("clear")
+            _print_banner()
+            continue
         if line == "help":
             _show_help(cli_group)
             continue
