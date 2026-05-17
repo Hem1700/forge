@@ -255,65 +255,61 @@ Alternatively, create an API key (`POST /api/v1/auth/api-keys`) and pass it as a
 
 A new FORGE instance has no users. The first person to register becomes `super_admin` of their org. Everyone else on the team joins through registration with the same org name and starts as `viewer` until promoted.
 
+You can onboard entirely from the terminal using the `forge` CLI — no browser required.
+
 ### Step 1 — Register the first account
 
 ```bash
+# CLI (recommended)
+forge register --email admin@yourorg.com --password changeme --org-name "Acme Security"
+# → ✓ Registered as admin@yourorg.com  [super_admin]  org: Acme Security
+#     API key saved to ~/.forge/config.json
+
+# Or via curl
 curl -X POST http://localhost:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@yourorg.com",
-    "password": "changeme",
-    "org_name": "Acme Security"
-  }'
-# → {"access_token": "eyJ...", "token_type": "bearer", "role": "super_admin"}
+  -d '{"email": "admin@yourorg.com", "password": "changeme", "org_name": "Acme Security"}'
 ```
 
-The `org_name` you pick here is your org's identifier. Share it with teammates so they can join.
+The `org_name` you pick here is your org's identifier — share it with teammates so they can join. `forge register` automatically creates a persistent API key and saves it to `~/.forge/config.json` so you're ready to run commands immediately.
 
-### Step 2 — Get a token
+### Step 2 — Sign in on subsequent machines
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@yourorg.com", "password": "changeme"}'
-# → {"access_token": "eyJ...", "token_type": "bearer"}
-
-export TOKEN="eyJ..."
+forge login --email admin@yourorg.com --password changeme
+# → ✓ Signed in as admin@yourorg.com  [super_admin]  org: Acme Security
+#     API key saved to ~/.forge/config.json
 ```
 
-### Step 3 — Create an API key (recommended for CLI + automation)
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/api-keys \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "my-key"}'
-# → {"key": "forge_...", ...}   ← shown once — save it now
-```
-
-### Step 4 — Point the CLI at your instance
+Or manually point an existing CLI at a running instance:
 
 ```bash
 forge configure --api-url http://localhost:8080 --api-key forge_...
 ```
 
-All `forge` commands now pick up the API URL and key automatically.
-
-### Step 5 — Invite teammates
-
-Each teammate registers with the **same `org_name`** and starts as `viewer`. Promote them via the Admin Panel in the UI, or via the API:
+### Step 3 — Confirm your identity
 
 ```bash
-# List your org's users
-curl http://localhost:8080/api/v1/org/users \
-  -H "Authorization: Bearer $TOKEN"
-
-# Promote a teammate to analyst
-curl -X PATCH http://localhost:8080/api/v1/org/users/<user-id>/role \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"role": "analyst"}'
+forge whoami
+# → admin@yourorg.com  [super_admin]  org: Acme Security
 ```
+
+### Step 4 — Invite and manage teammates
+
+Each teammate runs `forge register` with the **same `org_name`** and starts as `viewer`. Promote them from the CLI:
+
+```bash
+# List org members
+forge users list
+
+# Promote a teammate
+forge users promote teammate@yourorg.com analyst
+
+# Remove a user
+forge users remove ex-contractor@yourorg.com
+```
+
+Or via the Admin Panel at `http://localhost:5174/admin`.
 
 | Role | Capabilities |
 |------|-------------|
@@ -321,6 +317,14 @@ curl -X PATCH http://localhost:8080/api/v1/org/users/<user-id>/role \
 | `analyst` | Viewer + create/start engagements, triage, generate exploits/PoC/report |
 | `admin` | Analyst + manage org users and roles, delete engagements |
 | `super_admin` | Admin + cross-org user management and provisioning |
+
+### Step 5 — Manage API keys
+
+```bash
+forge api-keys list
+forge api-keys create ci-bot
+forge api-keys revoke <key-id>
+```
 
 ### Step 6 — Run your first engagement
 
@@ -367,13 +371,67 @@ Config is written to `~/.forge/config.json`. You can also set `FORGE_API_URL` an
 
 ### Commands
 
+#### `forge register` — create a new account and org
+
+```bash
+forge register --email you@example.com --password changeme --org-name "My Org"
+```
+
+Registers the account, creates a persistent CLI API key, and saves it to `~/.forge/config.json`. The first user to register for an org becomes `super_admin`.
+
+#### `forge login` — sign in and save an API key
+
+```bash
+forge login --email you@example.com --password changeme
+```
+
+Authenticates, exchanges the JWT for a persistent API key, and writes it to `~/.forge/config.json`. All subsequent `forge` commands pick it up automatically. Use this on any new machine.
+
+#### `forge whoami` — show the current user
+
+```bash
+forge whoami
+# → you@example.com  [analyst]  org: My Org
+```
+
+#### `forge logout` — remove the saved API key
+
+```bash
+forge logout
+```
+
+Removes `api_key` from `~/.forge/config.json`. Does not revoke the key on the server — use `forge api-keys revoke` for that.
+
+#### `forge api-keys` — manage API keys
+
+```bash
+forge api-keys list
+forge api-keys create ci-pipeline
+forge api-keys revoke <key-id>
+```
+
+#### `forge users` — manage org members (admin+)
+
+```bash
+# List all users in your org
+forge users list
+
+# Promote a user (roles: viewer, analyst, admin, super_admin)
+forge users promote teammate@example.com analyst
+
+# Remove a user
+forge users remove contractor@example.com --yes
+```
+
+`promote` and `remove` prompt for confirmation unless `--yes` is passed.
+
 #### `forge configure` — save API endpoint and key
 
 ```bash
 forge configure --api-url http://localhost:8080 --api-key forge_...
 ```
 
-Writes to `~/.forge/config.json`. Run this once after creating an API key in the UI or via `POST /api/v1/auth/api-keys`. All other commands use these values automatically.
+Writes to `~/.forge/config.json`. Use this to point an existing installation at a different instance. Prefer `forge login` for day-to-day use.
 
 #### `forge run <target>` — start a pentest
 
@@ -506,8 +564,9 @@ forge delete <engagement-id> --yes
 ### Typical workflow
 
 ```bash
-# 0. Authenticate once
-forge configure --api-url http://localhost:8080 --api-key forge_...
+# 0. Register (first time) or login (subsequent machines)
+forge register --email you@example.com --password changeme --org-name "My Org"
+# or: forge login --email you@example.com --password changeme
 
 # 1. Start a pentest and stream events live
 forge run /Users/you/Desktop/myproject
@@ -732,6 +791,12 @@ FORGE/
 │       ├── pages/        # Home, Engagement, FindingDetail, PrintReport, Login, Profile, OrgSettings, AdminPanel
 │       ├── store/        # Zustand engagement + auth stores
 │       └── types/        # Shared TypeScript types
-├── cli/                  # forge CLI (run, list, status, findings, exploit, poc, report, gate, configure, ...)
+├── cli/                  # forge CLI
+│   └── forge_cli/
+│       ├── commands/     # auth.py (register/login/whoami/logout/api-keys), users.py (list/promote/remove)
+│       ├── api.py        # ForgeClient — all HTTP calls to the backend
+│       ├── display.py    # Rich tables, panels, event formatters
+│       ├── main.py       # Click group + command registration
+│       └── stream.py     # WebSocket live event stream
 └── docker-compose.yml
 ```
