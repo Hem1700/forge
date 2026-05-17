@@ -6,7 +6,88 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 
 ## Architecture
 
-- **Auth Layer** — JWT + API key dual authentication, 4-tier RBAC (Viewer / Analyst / Admin / Super-Admin), dependency-injection guards on every route
+```
+  Browser / forge CLI
+        │  HTTP + WebSocket
+        ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                  FastAPI  (port 8080)                       │
+  │                                                             │
+  │  REST routers: auth · engagements · findings · gates        │
+  │                knowledge · system · start                   │
+  │                org_admin · super_admin                      │
+  │                                                             │
+  │  WS /ws/{engagement_id}  ← JWT/API-key auth, org-scoped,   │
+  │                             event replay on reconnect       │
+  │                                                             │
+  │  Startup: sweep orphaned engagements (worker crash recovery)│
+  └──────────────────────┬──────────────────────┬──────────────┘
+                         │ SQLAlchemy async      │ pub/sub + queue
+                         ▼                       ▼
+              ┌─────────────────┐     ┌─────────────────────────┐
+              │   PostgreSQL    │     │          Redis           │
+              │                 │     │                          │
+              │ users · orgs    │     │  Arq job queue           │
+              │ api_keys        │     │  └─ engagement pipelines │
+              │ engagements     │     │                          │
+              │ findings        │     │  pub/sub bridge          │
+              │ tasks · agents  │     │  └─ live event fan-out   │
+              │ events          │     │     to all WS clients    │
+              │ knowledge       │     └───────────┬─────────────┘
+              └─────────────────┘                 │
+                                                  ▼
+                                    ┌─────────────────────────────┐
+                                    │       Arq Worker            │
+                                    │  arq app.worker.WorkerSettings│
+                                    │                             │
+                                    │  run_web_pipeline           │
+                                    │    SemanticModeler          │
+                                    │    → CampaignPlanner        │
+                                    │    → ProbeAgents (parallel) │
+                                    │    → FindingsJudge          │
+                                    │                             │
+                                    │  run_codebase_pipeline      │
+                                    │    CodebaseModeler          │
+                                    │    → CodeAnalyzer           │
+                                    │    → DependencyScanner      │ (parallel)
+                                    │    → Fuzzer                 │
+                                    │    → SecretScanner          │
+                                    │    → ConfigAuditor          │
+                                    │                             │
+                                    │  judge_findings             │
+                                    │    FindingsJudge            │
+                                    │    (LLM verdict + dedup)    │
+                                    └─────────────────────────────┘
+
+  Strategic Brain (app/brain/)
+  ├── SemanticModeler      crawl + model web app surfaces
+  ├── CodebaseModeler      parse source, map logic + deps
+  ├── CampaignPlanner      LLM attack hypothesis generation
+  ├── ExploitEngine        walkthrough + Mermaid attack path
+  ├── PoCEngine            runnable PoC script + sequence diagram
+  ├── ExploitScriptEngine  weaponized exploit script
+  ├── ExploitExecutor      Docker sandboxed execution
+  ├── ExecutionJudge       LLM verdict (confirmed / failed / inconclusive)
+  └── Researcher           OSV/NVD CVE advisory fetch
+
+  Tactical Swarm (app/swarm/)
+  Agents: Recon · Probe · CodeAnalyzer · DependencyScanner
+          Fuzzer · SecretScanner · ConfigAuditor · DeepExploit · Evasion
+  Scheduler (auction-based bid) → TaskBoard → HealthMonitor
+
+  Knowledge Engine
+  ├── Qdrant   vector similarity (cross-engagement technique recall)
+  └── Neo4j    attack-pattern knowledge graph
+
+  External
+  ├── Anthropic API   Claude — all LLM reasoning
+  ├── Docker          sandboxed exploit execution
+  └── OSV / NVD APIs  CVE research
+```
+
+**Components at a glance:**
+
+- **Auth Layer** — JWT + API key dual authentication, 4-tier RBAC (Viewer / Analyst / Admin / Super-Admin), org-scoped data isolation on every route
 - **Strategic Brain** — semantic app modeler, codebase modeler, campaign planner, evasion strategist, memory engine (LangChain + Claude)
 - **Exploit Engine** — on-demand LLM-generated exploit walkthroughs, Mermaid attack path diagrams, impact analysis, and difficulty scoring per finding
 - **PoC Engine** — on-demand runnable exploit script generation (Python or bash, auto-selected by vuln class), Mermaid sequence diagrams showing the attack flow, cached per finding
@@ -147,6 +228,93 @@ Alternatively, create an API key (`POST /api/v1/auth/api-keys`) and pass it as a
 | `analyst` | Viewer + create/start engagements, triage, generate exploits/PoC/report |
 | `admin` | Analyst + manage org users and roles, delete engagements |
 | `super_admin` | Admin + cross-org user management and provisioning |
+
+---
+
+## Onboarding Your Org
+
+A new FORGE instance has no users. The first person to register becomes `super_admin` of their org. Everyone else on the team joins through registration with the same org name and starts as `viewer` until promoted.
+
+### Step 1 — Register the first account
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@yourorg.com",
+    "password": "changeme",
+    "org_name": "Acme Security"
+  }'
+# → {"access_token": "eyJ...", "token_type": "bearer", "role": "super_admin"}
+```
+
+The `org_name` you pick here is your org's identifier. Share it with teammates so they can join.
+
+### Step 2 — Get a token
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@yourorg.com", "password": "changeme"}'
+# → {"access_token": "eyJ...", "token_type": "bearer"}
+
+export TOKEN="eyJ..."
+```
+
+### Step 3 — Create an API key (recommended for CLI + automation)
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/api-keys \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-key"}'
+# → {"key": "forge_...", ...}   ← shown once — save it now
+```
+
+### Step 4 — Point the CLI at your instance
+
+```bash
+forge configure --api-url http://localhost:8080 --api-key forge_...
+```
+
+All `forge` commands now pick up the API URL and key automatically.
+
+### Step 5 — Invite teammates
+
+Each teammate registers with the **same `org_name`** and starts as `viewer`. Promote them via the Admin Panel in the UI, or via the API:
+
+```bash
+# List your org's users
+curl http://localhost:8080/api/v1/org/users \
+  -H "Authorization: Bearer $TOKEN"
+
+# Promote a teammate to analyst
+curl -X PATCH http://localhost:8080/api/v1/org/users/<user-id>/role \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "analyst"}'
+```
+
+| Role | Capabilities |
+|------|-------------|
+| `viewer` | Read engagements, findings, events |
+| `analyst` | Viewer + create/start engagements, triage, generate exploits/PoC/report |
+| `admin` | Analyst + manage org users and roles, delete engagements |
+| `super_admin` | Admin + cross-org user management and provisioning |
+
+### Step 6 — Run your first engagement
+
+```bash
+# Web app
+forge run https://your-target.com
+
+# Local codebase
+forge run /path/to/project
+```
+
+Or open `http://localhost:5174` → **+ NEW** → fill in target → **▶ CREATE** → **▶ LAUNCH**.
+
+> **Data isolation:** All engagement and finding data is org-scoped. Users from other orgs cannot read or touch your data regardless of their role.
 
 ---
 
@@ -508,7 +676,7 @@ cd backend
 pytest -v
 ```
 
-158 tests covering auth flows, RBAC enforcement, API key CRUD, org/super-admin routes, models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, multi-target pipeline, orphan-engagement sweep, and worker-health endpoint.
+170 tests covering auth flows, RBAC enforcement, API key CRUD, org/super-admin routes, org isolation (cross-org 404 enforcement), models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, multi-target pipeline, orphan-engagement sweep, and worker-health endpoint.
 
 ---
 
