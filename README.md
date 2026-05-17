@@ -592,6 +592,44 @@ forge poc <finding-id>
 forge report <id> --output report.md
 ```
 
+### CI/CD Integration
+
+`forge ci scan` runs a FORGE security scan from any CI pipeline and exits non-zero if findings breach the severity threshold. Native GitHub feedback (commit status check + PR/commit comment) is included when `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, and `GITHUB_SHA` are set.
+
+#### GitHub Actions (quickstart)
+
+Copy `cli/forge_ci_template.yml` to `.github/workflows/forge-scan.yml`, then set:
+
+| Setting | Where | Value |
+|---------|-------|-------|
+| `TARGET_URL` | Repo variable | URL or path to scan |
+| `FORGE_API_URL` | Repo variable | Your FORGE backend URL |
+| `FORGE_API_KEY` | Repo secret | From `forge api-keys create ci` |
+
+The workflow triggers on push to `main`/`master`, posts a commit status check (✓ / ✗), and adds a findings summary comment on the commit.
+
+#### Generic CI (GitLab, Jenkins, etc.)
+
+```bash
+forge ci scan "$TARGET_URL" --fail-on high --callback-url "$RESULTS_WEBHOOK"
+```
+
+`--callback-url` receives a JSON POST with the full findings payload when the scan completes.
+
+#### Manual usage
+
+```bash
+# Scan a web app, fail if any high+ finding
+forge ci scan https://app.example.com --fail-on high
+
+# Scan a local codebase, informational only (never fails build)
+forge ci scan /path/to/project --fail-on none
+
+# Post results for an existing engagement to GitHub
+forge ci report <engagement-id> \
+  --github-token $GITHUB_TOKEN --repo owner/repo --commit $SHA
+```
+
 ---
 
 ## Running a Pentest
