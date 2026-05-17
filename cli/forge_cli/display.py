@@ -93,6 +93,22 @@ def findings_table(findings: list[dict]) -> Table:
     return t
 
 
+def findings_id_list(findings: list[dict]) -> Text:
+    """Compact list of finding IDs for copy-paste into exploit/poc/execute commands."""
+    out = Text()
+    out.append("\nFinding IDs ", style="bold orange1")
+    out.append("(use with forge exploit / poc / execute)\n", style="dim")
+    for i, f in enumerate(findings, 1):
+        sev = f.get("severity", "info")
+        scolor = SEVERITY_COLORS.get(sev, "")
+        vuln = f.get("vulnerability_class", f.get("title", ""))[:30]
+        out.append(f"  #{i:<2} ", style="dim")
+        out.append(f"{f.get('id', '')}  ", style="cyan")
+        out.append(f"{sev.upper():<9}", style=scolor)
+        out.append(f" {vuln}\n", style="white")
+    return out
+
+
 def severity_summary(findings: list[dict]) -> Panel:
     counts: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
     for f in findings:

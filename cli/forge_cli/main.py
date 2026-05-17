@@ -299,8 +299,10 @@ def findings(ctx, engagement_id, severity, as_json, output, show_exploit, show_p
         console.print("[dim]No findings yet.[/dim]")
         return
 
+    from forge_cli.display import findings_id_list
     console.print(severity_summary(all_findings))
     console.print(findings_table(all_findings))
+    console.print(findings_id_list(all_findings))
 
     # If --exploit flag: generate and print exploit for each finding
     if show_exploit and all_findings and not as_json and not output:
