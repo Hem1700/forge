@@ -150,13 +150,13 @@ class ForgeClient:
         return self._request("GET", "/api/v1/auth/me")
 
     def list_api_keys(self) -> list:
-        return self._request("GET", "/api/v1/auth/api-keys")
+        return self._request("GET", "/api/v1/api-keys/")
 
     def create_api_key(self, name: str) -> dict:
-        return self._request("POST", "/api/v1/auth/api-keys", {"name": name})
+        return self._request("POST", "/api/v1/api-keys/", {"name": name})
 
     def revoke_api_key(self, key_id: str) -> None:
-        self._request("DELETE", f"/api/v1/auth/api-keys/{key_id}")
+        self._request("DELETE", f"/api/v1/api-keys/{key_id}")
 
     # ── Org users ─────────────────────────────────────────────────────────────
 
