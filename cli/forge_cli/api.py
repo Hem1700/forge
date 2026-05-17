@@ -119,3 +119,36 @@ class ForgeClient:
 
     def stats(self) -> dict:
         return self._request("GET", "/api/v1/system/stats")
+
+    # ── Auth ─────────────────────────────────────────────────────────────────
+
+    def register(self, email: str, password: str, org_name: str) -> dict:
+        return self._request("POST", "/api/v1/auth/register",
+                             {"email": email, "password": password, "org_name": org_name})
+
+    def login(self, email: str, password: str) -> dict:
+        return self._request("POST", "/api/v1/auth/login",
+                             {"email": email, "password": password})
+
+    def me(self) -> dict:
+        return self._request("GET", "/api/v1/auth/me")
+
+    def list_api_keys(self) -> list:
+        return self._request("GET", "/api/v1/auth/api-keys")
+
+    def create_api_key(self, name: str) -> dict:
+        return self._request("POST", "/api/v1/auth/api-keys", {"name": name})
+
+    def revoke_api_key(self, key_id: str) -> None:
+        self._request("DELETE", f"/api/v1/auth/api-keys/{key_id}")
+
+    # ── Org users ─────────────────────────────────────────────────────────────
+
+    def list_org_users(self) -> list:
+        return self._request("GET", "/api/v1/org/users")
+
+    def update_user_role(self, user_id: str, role: str) -> dict:
+        return self._request("PATCH", f"/api/v1/org/users/{user_id}/role", {"role": role})
+
+    def remove_user(self, user_id: str) -> None:
+        self._request("DELETE", f"/api/v1/org/users/{user_id}")
