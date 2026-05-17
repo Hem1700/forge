@@ -787,17 +787,42 @@ def _print_findings_summary(client: ForgeClient, eid: str):
     try:
         raw = client._request("GET", f"/api/v1/engagements/{eid}/findings")
         findings_list = raw if isinstance(raw, list) else []
-        if findings_list:
-            console.print(severity_summary(findings_list))
-            console.print(f"\n[dim]Full details:[/dim] forge findings {eid}")
-            console.print(f"[dim]Export:[/dim]      forge findings {eid} --output report.json")
-            console.print(f"[dim]Report:[/dim]      forge report {eid} --output report.md")
     except Exception:
-        s = client.stats()
-        n = s.get("findings", 0)
-        if n:
-            console.print(f"\n[bold green]{n} findings[/bold green] discovered.")
-            console.print(f"[dim]View:[/dim] forge findings {eid}")
+        findings_list = []
+
+    if findings_list:
+        console.print(severity_summary(findings_list))
+        # Pick top finding for sample commands (sorted by severity, then confidence)
+        sev_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+        top = sorted(
+            findings_list,
+            key=lambda f: (sev_rank.get(f.get("severity", "info"), 5),
+                           -float(f.get("confidence_score", 0))),
+        )[0]
+        fid = top.get("id", "<finding-id>")
+    else:
+        console.print(f"\n[dim]No findings stored for this engagement.[/dim]")
+        fid = "<finding-id>"
+
+    body = (
+        f"[bold orange1]View findings[/bold orange1]\n"
+        f"  [cyan]forge findings {eid}[/cyan]\n"
+        f"  [cyan]forge findings {eid} --severity critical[/cyan]\n\n"
+        f"[bold orange1]Per-finding actions[/bold orange1]   [dim](sample uses top finding)[/dim]\n"
+        f"  [dim]# exploit walkthrough[/dim]\n"
+        f"  [cyan]forge exploit {fid}[/cyan]\n"
+        f"  [dim]# PoC script written to ./poc.py[/dim]\n"
+        f"  [cyan]forge poc {fid}[/cyan]\n"
+        f"  [dim]# weaponized exploit script[/dim]\n"
+        f"  [cyan]forge exploit-script {fid}[/cyan]\n"
+        f"  [dim]# run exploit in Docker sandbox[/dim]\n"
+        f"  [cyan]forge execute {fid}[/cyan]\n\n"
+        f"[bold orange1]Reports[/bold orange1]\n"
+        f"  [cyan]forge report {eid} --output report.md[/cyan]\n"
+        f"  [cyan]forge report {eid} --pdf[/cyan]"
+    )
+    console.print(Panel(body, title="[bold]▶ NEXT STEPS[/bold]",
+                        border_style="orange1", padding=(1, 2)))
 
 
 if __name__ == "__main__":
