@@ -5,18 +5,30 @@ from pathlib import Path
 
 from rich.console import Console
 from rich.text import Text
+from rich.panel import Panel
+from rich.columns import Columns
 
 console = Console()
 
-_BANNER = """\
+# Left: flame (6 lines matching the logo height)
+_FLAME = [
+    "    )   (     ",
+    "   ) \\ / (    ",
+    "  (   X   )   ",
+    "   ) / \\ (    ",
+    "  (_/   \\_)   ",
+    "    `---'     ",
+]
 
-  ███████╗ ██████╗ ██████╗  ██████╗ ███████╗
-  ██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝
-  █████╗  ██║   ██║██████╔╝██║  ███╗█████╗
-  ██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝
-  ██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗
-  ╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝\
-"""
+# Right: FORGE block text (6 lines)
+_LOGO = [
+    "███████╗ ██████╗ ██████╗  ██████╗ ███████╗",
+    "██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝",
+    "█████╗  ██║   ██║██████╔╝██║  ███╗█████╗  ",
+    "██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝  ",
+    "██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗",
+    "╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝",
+]
 
 _COMPLETIONS = {
     "run": None,
@@ -45,6 +57,54 @@ _COMPLETIONS = {
 }
 
 
+def _print_banner() -> None:
+    from forge_cli.api import ForgeClient, _load_config
+
+    # ── Logo block ────────────────────────────────────────────────────────
+    console.print()
+    for flame, logo in zip(_FLAME, _LOGO):
+        console.print(
+            f"  [bold yellow]{flame}[/bold yellow][bold red]{logo}[/bold red]"
+        )
+    console.print()
+
+    # ── Tagline ───────────────────────────────────────────────────────────
+    console.print(
+        "  [bold white]Framework for Offensive Reasoning, Generation & Exploitation[/bold white]"
+        "  [dim]v1.0[/dim]"
+    )
+    console.print()
+
+    # ── Live stats (metasploit-style) ─────────────────────────────────────
+    cfg = _load_config()
+    url = cfg.get("api_url", "http://localhost:8080")
+
+    try:
+        client = ForgeClient(url)
+        s = client.stats()
+        eng      = s.get("engagements", 0)
+        findings = s.get("findings", 0)
+        status_tag = f"[green]online[/green]  [dim]{url}[/dim]"
+    except Exception:
+        eng = findings = "?"
+        status_tag = f"[red]offline[/red]  [dim]run [bold]forge configure[/bold] to set backend[/dim]"
+
+    _row(f"{eng} engagement(s)  ·  {findings} finding(s)")
+    _row("web  ·  local_codebase  ·  binary  targets")
+    _row(f"backend: {status_tag}")
+    console.print()
+    console.print(
+        "  [dim]Type [bold white]help[/bold white] for commands  "
+        "·  [bold white]help <cmd>[/bold white] for details  "
+        "·  [bold white]exit[/bold white] to quit[/dim]"
+    )
+    console.print()
+
+
+def _row(content: str) -> None:
+    console.print(f"  [dim]  + ──=[/dim] {content} [dim]=──[/dim]")
+
+
 def _build_prompt():
     """Return a prompt callable, using prompt_toolkit when available."""
     try:
@@ -70,7 +130,6 @@ def _build_prompt():
         return _prompt
 
     except ImportError:
-        # Fallback: plain input with readline history
         try:
             import readline
             hist = Path.home() / ".forge" / "history"
@@ -95,16 +154,7 @@ def launch(cli_group) -> None:
     import click
 
     prompt = _build_prompt()
-
-    console.print(Text(_BANNER, style="bold red"))
-    console.print()
-    console.print("  [bold]Framework for Offensive Reasoning, Generation & Exploitation[/bold]")
-    console.print(
-        "  [dim]Type [bold white]help[/bold white] for commands  "
-        "·  [bold white]help <cmd>[/bold white] for details  "
-        "·  [bold white]exit[/bold white] to quit[/dim]"
-    )
-    console.print()
+    _print_banner()
 
     while True:
         try:
