@@ -1,0 +1,42 @@
+# FORGE Security Scan — GitHub Actions workflow template
+#
+# Copy this file to .github/workflows/forge-scan.yml in your repo.
+#
+# Required repository configuration:
+#   Variables (Settings → Secrets and variables → Actions → Variables):
+#     TARGET_URL    — the URL or path to scan, e.g. https://app.yourcompany.com
+#     FORGE_API_URL — your FORGE backend, e.g. https://forge.yourcompany.com
+#   Secrets:
+#     FORGE_API_KEY — an API key from: forge api-keys create ci
+
+name: FORGE Security Scan
+
+on:
+  push:
+    branches: [main, master]
+
+jobs:
+  forge-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write      # post commit status check
+      issues: write        # post PR comment (if --pr is set)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install FORGE CLI
+        run: pip install forge-cli
+
+      - name: Run security scan
+        run: |
+          forge ci scan "$TARGET_URL" \
+            --fail-on high \
+            --github-token "$GITHUB_TOKEN" \
+            --repo "$GITHUB_REPOSITORY" \
+            --commit "$GITHUB_SHA"
+        env:
+          TARGET_URL: ${{ vars.TARGET_URL }}
+          FORGE_API_URL: ${{ vars.FORGE_API_URL }}
+          FORGE_API_KEY: ${{ secrets.FORGE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
