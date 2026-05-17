@@ -35,7 +35,7 @@ def err(msg: str) -> NoReturn:
     sys.exit(1)
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.option("--api-url", default=DEFAULT_API, envvar="FORGE_API_URL",
               help="FORGE backend URL (default: http://localhost:8080)")
 @click.pass_context
@@ -43,9 +43,13 @@ def cli(ctx, api_url):
     """FORGE — Framework for Offensive Reasoning, Generation and Exploitation
 
     Multi-agent autonomous pentesting platform.
+    Run without a subcommand to open the interactive shell.
     """
     ctx.ensure_object(dict)
     ctx.obj["api_url"] = api_url
+    if ctx.invoked_subcommand is None:
+        from forge_cli.shell import launch
+        launch(cli)
 
 
 cli.add_command(register)
