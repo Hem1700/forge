@@ -13,12 +13,20 @@ except ImportError:
     HAS_WEBSOCKETS = False
 
 
+_STALL_WARN = 30  # seconds of silence before printing a hint
+
+
 async def _stream(ws_url: str, stop_event: asyncio.Event):
     try:
         async with websockets.connect(ws_url, ping_interval=20, ping_timeout=10) as ws:
+            console.print("[dim green]✓ Stream connected[/dim green]")
+            silent_for = 0.0
+            stall_warned = False
             while not stop_event.is_set():
                 try:
                     raw = await asyncio.wait_for(ws.recv(), timeout=1.0)
+                    silent_for = 0.0
+                    stall_warned = False
                     if raw == "ping":
                         await ws.send("pong")
                         continue
@@ -27,6 +35,13 @@ async def _stream(ws_url: str, stop_event: asyncio.Event):
                     if event.get("type") == "campaign_complete":
                         stop_event.set()
                 except asyncio.TimeoutError:
+                    silent_for += 1.0
+                    if not stall_warned and silent_for >= _STALL_WARN:
+                        console.print(
+                            f"  [yellow]No events for {_STALL_WARN}s — is the worker running?[/yellow]\n"
+                            f"  [dim]Check: forge status <id>  ·  Ctrl+C to detach[/dim]"
+                        )
+                        stall_warned = True
                     continue
                 except Exception:
                     break
