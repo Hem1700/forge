@@ -283,9 +283,11 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
                 await _broadcast(eid, "agent_completed", {"agent_type": agent_type, "findings_count": len(findings)})
                 batch_ids: list[uuid.UUID] = []
                 for f in findings:
+                    # Match _save_finding's default so the live stream and DB agree.
+                    f.setdefault("confidence_score", 0.7)
                     fid = await _save_finding(db, engagement_id, task_id, agent_id, f)
                     batch_ids.append(fid)
-                    await _broadcast(eid, "finding_discovered", {"finding": f})
+                    await _broadcast(eid, "finding_discovered", {"finding": {**f, "id": str(fid)}})
                 await db.commit()
                 if batch_ids:
                     await enqueue("judge_findings", eid, [str(fid) for fid in batch_ids])
