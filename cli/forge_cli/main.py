@@ -194,7 +194,8 @@ def run(ctx, target, target_type, scope, out_of_scope, no_stream):
     # Stream live events
     console.print("[bold]Live event stream[/bold] [dim](Ctrl+C to detach)[/dim]\n")
     from forge_cli.stream import stream_events
-    stream_events(eid, ctx.obj["api_url"])
+    cfg = _load_config()
+    stream_events(eid, ctx.obj["api_url"], api_key=cfg.get("api_key"))
 
     # Show summary after completion
     console.print()
@@ -240,7 +241,8 @@ def status(ctx, engagement_id, watch):
     if watch and eng.get("status") == "running":
         console.print("\n[bold]Live event stream[/bold] [dim](Ctrl+C to detach)[/dim]\n")
         from forge_cli.stream import stream_events
-        stream_events(engagement_id, ctx.obj["api_url"])
+        cfg = _load_config()
+        stream_events(engagement_id, ctx.obj["api_url"], api_key=cfg.get("api_key"))
         _print_findings_summary(client, engagement_id)
 
 

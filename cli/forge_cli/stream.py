@@ -34,13 +34,15 @@ async def _stream(ws_url: str, stop_event: asyncio.Event):
         console.print(f"[dim]Stream disconnected: {e}[/dim]")
 
 
-def stream_events(engagement_id: str, base_url: str = "http://localhost:8080"):
+def stream_events(engagement_id: str, base_url: str = "http://localhost:8080", api_key: str | None = None):
     if not HAS_WEBSOCKETS:
         console.print("[yellow]websockets not installed — cannot stream live events[/yellow]")
         return
 
     ws_url = base_url.replace("http://", "ws://").replace("https://", "wss://")
     ws_url = f"{ws_url}/ws/{engagement_id}"
+    if api_key:
+        ws_url = f"{ws_url}?token={api_key}"
 
     stop_event = asyncio.Event()
 
