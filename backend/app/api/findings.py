@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_analyst
@@ -62,15 +63,34 @@ def _serialize_finding(f: Finding) -> dict:
     }
 
 
+async def _get_finding_scoped(
+    finding_id: uuid.UUID,
+    current_user: User,
+    db: AsyncSession,
+) -> tuple[Finding, Engagement]:
+    """Fetch a finding that belongs to the caller's org, or raise 404."""
+    row = (
+        await db.execute(
+            select(Finding, Engagement)
+            .join(Engagement, Finding.engagement_id == Engagement.id)
+            .where(
+                Finding.id == finding_id,
+                Engagement.org_id == current_user.org_id,
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    return row[0], row[1]
+
+
 @router.get("/{finding_id}")
 async def get_finding(
     finding_id: uuid.UUID,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    finding = await db.get(Finding, finding_id)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, _ = await _get_finding_scoped(finding_id, current_user, db)
     return _serialize_finding(finding)
 
 
@@ -78,13 +98,11 @@ async def get_finding(
 async def triage_finding(
     finding_id: uuid.UUID,
     payload: TriageRequest,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     from datetime import datetime
-    finding = await db.get(Finding, finding_id)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, _ = await _get_finding_scoped(finding_id, current_user, db)
     if payload.status is not None:
         try:
             finding.triage_status = TriageStatus(payload.status)
@@ -101,22 +119,19 @@ async def triage_finding(
 @router.post("/{finding_id}/exploit")
 async def generate_exploit(
     finding_id: uuid.UUID,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    finding = await db.get(Finding, finding_id)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, engagement = await _get_finding_scoped(finding_id, current_user, db)
 
     if finding.exploit_detail:
         return finding.exploit_detail
 
-    engagement = await db.get(Engagement, finding.engagement_id)
     context = {
-        "target_url": engagement.target_url if engagement else None,
-        "target_path": engagement.target_path if engagement else None,
-        "target_type": engagement.target_type if engagement else "web",
-        "app_type": (engagement.semantic_model or {}).get("app_type", "unknown") if engagement else "unknown",
+        "target_url": engagement.target_url,
+        "target_path": engagement.target_path,
+        "target_type": engagement.target_type,
+        "app_type": (engagement.semantic_model or {}).get("app_type", "unknown"),
     }
 
     engine = ExploitEngine()
@@ -130,34 +145,29 @@ async def generate_exploit(
 @router.get("/{finding_id}/poc")
 async def get_poc(
     finding_id: uuid.UUID,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    finding = await db.get(Finding, finding_id)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, _ = await _get_finding_scoped(finding_id, current_user, db)
     return {"poc_detail": finding.poc_detail}
 
 
 @router.post("/{finding_id}/poc")
 async def generate_poc(
     finding_id: uuid.UUID,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    finding = await db.get(Finding, finding_id)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, engagement = await _get_finding_scoped(finding_id, current_user, db)
 
     if finding.poc_detail:
         return finding.poc_detail
 
-    engagement = await db.get(Engagement, finding.engagement_id)
     context = {
-        "target_url": engagement.target_url if engagement else None,
-        "target_path": engagement.target_path if engagement else None,
-        "target_type": engagement.target_type if engagement else "web",
-        "app_type": (engagement.semantic_model or {}).get("app_type", "unknown") if engagement else "unknown",
+        "target_url": engagement.target_url,
+        "target_path": engagement.target_path,
+        "target_type": engagement.target_type,
+        "app_type": (engagement.semantic_model or {}).get("app_type", "unknown"),
     }
 
     engine = PoCEngine()
@@ -173,13 +183,11 @@ async def generate_poc(
 @router.post("/{finding_id}/research")
 async def research_finding(
     finding_id: uuid.UUID,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Fetch (or return cached) external advisory + fix metadata for a finding."""
-    finding = await db.get(Finding, finding_id)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, _ = await _get_finding_scoped(finding_id, current_user, db)
     if finding.research and finding.research.get("advisories"):
         return finding.research
     researcher = Researcher()
@@ -192,7 +200,7 @@ async def research_finding(
 @router.post("/{finding_id}/exploit/generate")
 async def generate_exploit_script(
     finding_id: uuid.UUID,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Generate (or return cached) weaponized exploit script.
@@ -201,19 +209,16 @@ async def generate_exploit_script(
     metadata is fed into the script engine so the LLM pins the right patched
     version and references real fix commits instead of guessing.
     """
-    finding = await db.get(Finding, finding_id)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, engagement = await _get_finding_scoped(finding_id, current_user, db)
 
     if finding.exploit_script:
         return finding.exploit_script
 
-    engagement = await db.get(Engagement, finding.engagement_id)
     context = {
-        "target_url": engagement.target_url if engagement else None,
-        "target_path": engagement.target_path if engagement else None,
-        "target_type": engagement.target_type if engagement else "web",
-        "app_type": (engagement.semantic_model or {}).get("app_type", "unknown") if engagement else "unknown",
+        "target_url": engagement.target_url,
+        "target_path": engagement.target_path,
+        "target_type": engagement.target_type,
+        "app_type": (engagement.semantic_model or {}).get("app_type", "unknown"),
     }
 
     research = finding.research
@@ -237,24 +242,17 @@ async def generate_exploit_script(
 async def execute_exploit(
     finding_id: uuid.UUID,
     body: ExecuteRequest,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Execute the weaponized exploit script against the real target.
 
     Requires body: {"confirmed": true} — without it returns a confirmation prompt.
     """
-    finding = await db.get(Finding, finding_id)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, engagement = await _get_finding_scoped(finding_id, current_user, db)
 
     if not body.confirmed:
-        engagement = await db.get(Engagement, finding.engagement_id)
-        target = (
-            (engagement.target_url if engagement else None)
-            or (engagement.target_path if engagement else None)
-            or "unknown"
-        )
+        target = engagement.target_url or engagement.target_path or "unknown"
         impact = (finding.exploit_script or {}).get("impact_achieved", "Unknown impact")
         return {
             "requires_confirmation": True,
@@ -264,12 +262,11 @@ async def execute_exploit(
 
     # Auto-generate exploit script if not cached
     if not finding.exploit_script:
-        engagement = await db.get(Engagement, finding.engagement_id)
         context = {
-            "target_url": engagement.target_url if engagement else None,
-            "target_path": engagement.target_path if engagement else None,
-            "target_type": engagement.target_type if engagement else "web",
-            "app_type": (engagement.semantic_model or {}).get("app_type", "unknown") if engagement else "unknown",
+            "target_url": engagement.target_url,
+            "target_path": engagement.target_path,
+            "target_type": engagement.target_type,
+            "app_type": (engagement.semantic_model or {}).get("app_type", "unknown"),
         }
         research = finding.research
         if not research or not research.get("advisories"):
@@ -326,33 +323,25 @@ async def execute_exploit(
 async def execute_exploit_diff(
     finding_id: uuid.UUID,
     body: ExecuteRequest,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Differential execution: run the exploit script twice — once with the
     vulnerable dependency setup, once with the patched setup — and judge the diff."""
-    finding = await db.get(Finding, finding_id)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, engagement = await _get_finding_scoped(finding_id, current_user, db)
 
     if not body.confirmed:
-        engagement = await db.get(Engagement, finding.engagement_id)
-        target = (
-            (engagement.target_url if engagement else None)
-            or (engagement.target_path if engagement else None)
-            or "unknown"
-        )
+        target = engagement.target_url or engagement.target_path or "unknown"
         impact = (finding.exploit_script or {}).get("impact_achieved", "Unknown impact")
         return {"requires_confirmation": True, "target": target, "impact_achieved": impact}
 
     # Auto-generate the script if missing
     if not finding.exploit_script:
-        engagement = await db.get(Engagement, finding.engagement_id)
         context = {
-            "target_url": engagement.target_url if engagement else None,
-            "target_path": engagement.target_path if engagement else None,
-            "target_type": engagement.target_type if engagement else "web",
-            "app_type": (engagement.semantic_model or {}).get("app_type", "unknown") if engagement else "unknown",
+            "target_url": engagement.target_url,
+            "target_path": engagement.target_path,
+            "target_type": engagement.target_type,
+            "app_type": (engagement.semantic_model or {}).get("app_type", "unknown"),
         }
         engine = ExploitScriptEngine()
         finding.exploit_script = await engine.generate(_serialize_finding(finding), context)
@@ -419,13 +408,11 @@ async def execute_exploit_diff(
 async def override_verdict(
     finding_id: uuid.UUID,
     body: OverrideVerdictRequest,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Override the LLM verdict with a user-supplied verdict."""
-    finding = await db.get(Finding, finding_id)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, _ = await _get_finding_scoped(finding_id, current_user, db)
 
     if not finding.exploit_execution:
         raise HTTPException(status_code=404, detail="No execution result found — run exploit first")

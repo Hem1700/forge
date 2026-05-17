@@ -16,17 +16,31 @@ router = APIRouter(prefix="/api/v1/system", tags=["system"])
 
 @router.get("/stats")
 async def system_stats(
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, int]:
     engagements_count = (
-        await db.execute(select(func.count()).select_from(Engagement))
+        await db.execute(
+            select(func.count()).select_from(Engagement).where(
+                Engagement.org_id == current_user.org_id
+            )
+        )
     ).scalar_one()
     findings_count = (
-        await db.execute(select(func.count()).select_from(Finding))
+        await db.execute(
+            select(func.count())
+            .select_from(Finding)
+            .join(Engagement, Finding.engagement_id == Engagement.id)
+            .where(Engagement.org_id == current_user.org_id)
+        )
     ).scalar_one()
     knowledge_count = (
-        await db.execute(select(func.count()).select_from(KnowledgeGraphEntry))
+        await db.execute(
+            select(func.count())
+            .select_from(KnowledgeGraphEntry)
+            .join(Engagement, KnowledgeGraphEntry.engagement_id == Engagement.id)
+            .where(Engagement.org_id == current_user.org_id)
+        )
     ).scalar_one()
     return {
         "engagements": int(engagements_count),

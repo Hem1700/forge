@@ -103,10 +103,17 @@ async def get_engagement(
 async def update_engagement_status(
     engagement_id: uuid.UUID,
     payload: UpdateStatusRequest,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> EngagementResponse:
-    engagement = await db.get(Engagement, engagement_id)
+    engagement = (
+        await db.execute(
+            select(Engagement).where(
+                Engagement.id == engagement_id,
+                Engagement.org_id == current_user.org_id,
+            )
+        )
+    ).scalar_one_or_none()
     if engagement is None:
         raise HTTPException(status_code=404, detail="Engagement not found")
     try:
@@ -194,10 +201,17 @@ async def get_engagement_events(
 @router.post("/{engagement_id}/report/pdf")
 async def generate_pdf_report(
     engagement_id: uuid.UUID,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    engagement = await db.get(Engagement, engagement_id)
+    engagement = (
+        await db.execute(
+            select(Engagement).where(
+                Engagement.id == engagement_id,
+                Engagement.org_id == current_user.org_id,
+            )
+        )
+    ).scalar_one_or_none()
     if engagement is None:
         raise HTTPException(status_code=404, detail="Engagement not found")
 

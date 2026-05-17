@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.api.deps import require_analyst
 from app.api.engagements import EngagementResponse
 from app.database import get_db
@@ -44,10 +46,17 @@ def _advance_gate(current: GateStatus) -> GateStatus:
 async def decide_gate(
     engagement_id: uuid.UUID,
     payload: GateDecisionRequest,
-    _: User = Depends(require_analyst),
+    current_user: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ) -> EngagementResponse:
-    engagement = await db.get(Engagement, engagement_id)
+    engagement = (
+        await db.execute(
+            select(Engagement).where(
+                Engagement.id == engagement_id,
+                Engagement.org_id == current_user.org_id,
+            )
+        )
+    ).scalar_one_or_none()
     if engagement is None:
         raise HTTPException(status_code=404, detail="Engagement not found")
 
