@@ -344,7 +344,7 @@ Or open `http://localhost:5174` → **+ NEW** → fill in target → **▶ CREAT
 
 ## CLI (forge)
 
-The `forge` command-line tool lets you run pentests, stream live events, and export results — no browser required.
+The `forge` command-line tool lets you run pentests, stream live events, export results, and gate CI/CD pipelines on findings severity — no browser required.
 
 ### Installation
 
@@ -524,6 +524,25 @@ Output includes:
 - ASCII exploit sequence (`Attacker ──► Server: GET /api/users?id=1' OR '1'='1`)
 - Saved file confirmation
 
+#### `forge exploit-script <finding-id>` — generate a weaponized exploit script
+
+Generate a ready-to-run exploit script for a finding. Unlike `forge poc` (which produces a proof-of-concept), this produces a fully weaponized script designed for real exploitation. Saved to disk and cached per finding.
+
+```bash
+forge exploit-script <finding-id>
+```
+
+#### `forge execute <finding-id>` — run an exploit against the target
+
+Generate the weaponized script (if not already cached) and execute it in an isolated Docker container. Produces an LLM verdict: `confirmed`, `failed`, or `inconclusive`.
+
+```bash
+forge execute <finding-id>
+
+# Skip the interactive confirmation prompt
+forge execute <finding-id> --confirm
+```
+
 #### `forge report <id>` — generate a markdown report
 
 ```bash
@@ -532,9 +551,48 @@ forge report <engagement-id>
 
 # Save to file
 forge report <engagement-id> --output report.md
+
+# Generate a PDF (requires Playwright in the backend)
+forge report <engagement-id> --pdf
 ```
 
 When exploit walkthroughs or PoC scripts have been generated, the report includes them automatically under each finding.
+
+#### `forge ci scan <target>` — CI/CD security gate
+
+Run a FORGE scan from any CI pipeline. Exits 0 if clean, exits 1 if findings breach the threshold. Posts a GitHub commit status check and comment when `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, and `GITHUB_SHA` are set (populated automatically in GitHub Actions).
+
+```bash
+# Scan a web app, fail on high+ findings (default)
+forge ci scan https://app.example.com
+
+# Change severity threshold
+forge ci scan https://app.example.com --fail-on critical
+
+# Informational scan that never fails the build
+forge ci scan https://app.example.com --fail-on none
+
+# With explicit GitHub feedback
+forge ci scan https://app.example.com \
+  --github-token $GITHUB_TOKEN \
+  --repo owner/repo \
+  --commit $GITHUB_SHA \
+  --pr $PR_NUMBER
+
+# With a generic webhook callback (GitLab, Jenkins, etc.)
+forge ci scan "$TARGET_URL" --fail-on high --callback-url "$RESULTS_WEBHOOK"
+```
+
+For GitHub Actions, copy `cli/forge_ci_template.yml` to `.github/workflows/forge-scan.yml` and set three repo variables (`TARGET_URL`, `FORGE_API_URL`) and one secret (`FORGE_API_KEY`).
+
+#### `forge ci report <engagement-id>` — post results for a finished engagement
+
+Re-post GitHub status + comment (or callback) for an engagement that already completed.
+
+```bash
+forge ci report <engagement-id> \
+  --github-token $GITHUB_TOKEN --repo owner/repo --commit $SHA
+```
 
 #### `forge gate approve/reject <id>` — human gate decisions
 
