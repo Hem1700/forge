@@ -11,17 +11,6 @@ from rich.columns import Columns
 
 console = Console()
 
-# Left: flame (6 lines matching the logo height)
-_FLAME = [
-    "    )   (     ",
-    "   ) \\ / (    ",
-    "  (   X   )   ",
-    "   ) / \\ (    ",
-    "  (_/   \\_)   ",
-    "    `---'     ",
-]
-
-# Right: FORGE block text (6 lines)
 _LOGO = [
     "███████╗ ██████╗ ██████╗  ██████╗ ███████╗",
     "██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝",
@@ -64,10 +53,8 @@ def _print_banner() -> None:
 
     # ── Logo block ────────────────────────────────────────────────────────
     console.print()
-    for flame, logo in zip(_FLAME, _LOGO):
-        console.print(
-            f"  [bold yellow]{flame}[/bold yellow][bold red]{logo}[/bold red]"
-        )
+    for line in _LOGO:
+        console.print(f"  [bold red]{line}[/bold red]")
     console.print()
 
     # ── Tagline ───────────────────────────────────────────────────────────
