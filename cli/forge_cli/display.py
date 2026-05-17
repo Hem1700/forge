@@ -4,6 +4,7 @@ from datetime import datetime
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.text import Text
 from rich import box
 
@@ -111,7 +112,8 @@ def severity_summary(findings: list[dict]) -> Panel:
     return Panel(lines, title="[bold]Findings Summary[/bold]", border_style="orange1")
 
 
-def format_event(event: dict) -> Text:
+def format_event(event: dict):
+    """Return a Rich renderable for a single stream event."""
     etype = event.get("type", "")
     payload = event.get("payload", {})
     ts = event.get("timestamp", "")
@@ -121,32 +123,182 @@ def format_event(event: dict) -> Text:
         except Exception:
             pass
 
-    color = EVENT_COLORS.get(etype, "white")
-    t = Text()
-    t.append(f"[{ts}] ", style="dim")
-    t.append(f"{etype}", style=f"bold {color}")
+    # ── silent / ignored ────────────────────────────────────────────────────
+    if etype in ("ping", "stream_error"):
+        return Text("")
 
+    # ── agent_started ────────────────────────────────────────────────────────
     if etype == "agent_started":
-        phase = payload.get("phase") or payload.get("agent_type") or payload.get("agent_id", "")
-        t.append(f" → {phase}", style="cyan")
-    elif etype == "agent_completed":
-        phase = payload.get("phase") or payload.get("agent_type", "")
-        n = payload.get("findings_count") or payload.get("hypotheses") or payload.get("attack_surfaces", "")
-        t.append(f" ✓ {phase}", style="green")
-        if n:
-            t.append(f" ({n})", style="dim")
-    elif etype == "finding_discovered":
-        f = payload.get("finding", {})
-        sev = f.get("severity", "")
-        vuln = f.get("vulnerability", f.get("vulnerability_class", ""))[:40]
-        t.append(f" 🔍 [{sev.upper()}] {vuln}", style=SEVERITY_COLORS.get(sev, "yellow"))
-    elif etype == "campaign_complete":
+        phase = payload.get("phase") or payload.get("agent_type") or ""
+        target = (payload.get("target") or payload.get("hypothesis")
+                  or payload.get("path") or payload.get("cve") or "")
+        t = Text()
+        t.append(f" {ts} ", style="dim")
+        t.append(" ▶ AGENT ", style="bold black on cyan")
+        t.append(f"  {phase}", style="bold cyan")
+        if target:
+            t.append(f"  ·  {str(target)[:80]}", style="dim")
+        return t
+
+    # ── agent_completed ──────────────────────────────────────────────────────
+    if etype == "agent_completed":
+        phase = payload.get("phase") or payload.get("agent_type") or ""
+        parts = []
+        if payload.get("findings_count"): parts.append(f"{payload['findings_count']} findings")
+        if payload.get("attack_surfaces"): parts.append(f"{payload['attack_surfaces']} surfaces")
+        if payload.get("hypotheses"):     parts.append(f"{payload['hypotheses']} hypotheses")
+        if payload.get("verdict"):        parts.append(str(payload["verdict"]))
+        t = Text()
+        t.append(f" {ts} ", style="dim")
+        t.append(" ✓ DONE  ", style="bold black on green")
+        t.append(f"  {phase}", style="bold green")
+        if parts:
+            t.append(f"  ({', '.join(parts)})", style="dim")
+        return t
+
+    # ── agent_thought ────────────────────────────────────────────────────────
+    if etype == "agent_thought":
+        phase = payload.get("phase", "thought")
+        step  = payload.get("step", "")
+
+        if phase == "thought":
+            text = str(payload.get("text", ""))[:120]
+            t = Text()
+            t.append(f" {ts} ", style="dim")
+            t.append(" 💭 THINK ", style="bold blue")
+            if step: t.append(f" {step} ", style="dim")
+            t.append(f" {text}", style="dim white")
+            return t
+
+        if phase == "action":
+            tool = payload.get("tool", "")
+            args = str(payload.get("args", ""))
+            if len(args) > 70: args = args[:70] + "…"
+            t = Text()
+            t.append(f" {ts} ", style="dim")
+            t.append(" ⚡ ACT   ", style="bold black on yellow")
+            t.append(f"  {tool}", style="bold yellow")
+            if args: t.append(f"({args})", style="dim")
+            return t
+
+        if phase == "observation":
+            err    = payload.get("error")
+            result = str(payload.get("result") or err or "")[:120]
+            tool   = payload.get("tool", "")
+            t = Text()
+            t.append(f" {ts} ", style="dim")
+            if err:
+                t.append(" 👁  OBS   ", style="bold red")
+                t.append(f"  {tool} ERROR: {str(err)[:80]}", style="red")
+            else:
+                t.append(" 👁  OBS   ", style="dim")
+                t.append(f"  {result}", style="dim")
+            return t
+
+        if phase == "conclusion":
+            text  = str(payload.get("text", ""))[:120]
+            conf  = payload.get("confidence")
+            n_f   = payload.get("findings_count")
+            t = Text()
+            t.append(f" {ts} ", style="dim")
+            t.append(" ✦ CONCL  ", style="bold magenta")
+            t.append(f"  {text}", style="white")
+            if conf is not None: t.append(f"  ({int(float(conf)*100)}%)", style="dim")
+            if n_f:              t.append(f"  · {n_f} findings", style="dim")
+            return t
+
+        # fallback sub-phase
+        t = Text()
+        t.append(f" {ts} ", style="dim")
+        t.append(f" {phase.upper():<8}", style="dim")
+        t.append(str(payload.get("text", ""))[:100], style="dim")
+        return t
+
+    # ── finding_discovered ───────────────────────────────────────────────────
+    if etype == "finding_discovered":
+        f     = payload.get("finding", {})
+        sev   = f.get("severity", "info")
+        vuln  = (f.get("vulnerability") or f.get("vulnerability_class") or f.get("title", ""))[:60]
+        loc   = (f.get("affected_surface") or f.get("endpoint") or f.get("file", ""))[:70]
+        conf  = int(float(f.get("confidence_score", 0)) * 100)
+        desc  = str(f.get("description", ""))[:120]
+        scolor = SEVERITY_COLORS.get(sev, "white").replace("bold ", "")
+
+        body = Text()
+        body.append(f"[{sev.upper()}] ", style=SEVERITY_COLORS.get(sev, "white"))
+        body.append(vuln, style="bold white")
+        if loc:  body.append(f"\n  Location:    {loc}", style="dim")
+        body.append(f"\n  Confidence:  {conf}%", style="dim")
+        if desc: body.append(f"\n  {desc}", style="dim white")
+
+        return Panel(body,
+                     title=f"[bold {scolor}]🔍 FINDING[/bold {scolor}]",
+                     border_style=scolor, padding=(0, 1))
+
+    # ── finding_judged ───────────────────────────────────────────────────────
+    if etype == "finding_judged":
+        fid      = str(payload.get("finding_id", ""))[:8]
+        j        = payload.get("judgment", {})
+        fp       = j.get("likely_false_positive", False)
+        conf     = int(float(j.get("confidence", 0)) * 100)
+        reasoning = str(j.get("reasoning", ""))[:100]
+        t = Text()
+        t.append(f" {ts} ", style="dim")
+        t.append(" ⚖ JUDGE ", style="bold magenta")
+        t.append(f"  {fid}…  ", style="dim")
+        t.append("likely false positive" if fp else "real finding",
+                 style="dim yellow" if fp else "green")
+        t.append(f"  ({conf}%)", style="dim")
+        if reasoning: t.append(f"  ·  {reasoning}", style="dim")
+        return t
+
+    # ── gate_triggered ───────────────────────────────────────────────────────
+    if etype == "gate_triggered":
+        gate = payload.get("gate_status", "gate")
+        return Panel(
+            "[bold yellow]Pipeline paused — human approval required[/bold yellow]\n"
+            "[dim]forge gate approve <engagement-id>[/dim]",
+            title=f"[bold yellow]⚠  GATE TRIGGERED  ({gate})[/bold yellow]",
+            border_style="yellow",
+        )
+
+    # ── progress ─────────────────────────────────────────────────────────────
+    if etype == "progress":
+        phase  = payload.get("phase", "")
+        detail = str(payload.get("detail", ""))[:80]
+        t = Text()
+        t.append(f" {ts} ", style="dim")
+        t.append(" ● PROG  ", style="dim cyan")
+        t.append(f"  {phase}", style="dim")
+        if detail: t.append(f"  ·  {detail}", style="dim")
+        return t
+
+    # ── campaign_complete ────────────────────────────────────────────────────
+    if etype == "campaign_complete":
         status = payload.get("status", "")
         if status == "error":
-            t.append(f" ✗ {payload.get('error', '')[:80]}", style="red")
-        else:
-            t.append(" ✓ done", style="bold green")
+            err = str(payload.get("error", ""))[:80]
+            return Panel(f"[red]✗ {err}[/red]",
+                         title="[bold red]✗ CAMPAIGN COMPLETE[/bold red]",
+                         border_style="red")
+        return Panel(
+            "[bold green]✓ Engagement finished[/bold green]\n"
+            "[dim]forge findings <id>[/dim]",
+            title="[bold green]✓ CAMPAIGN COMPLETE[/bold green]",
+            border_style="green",
+        )
 
+    # ── engagement_aborted ───────────────────────────────────────────────────
+    if etype == "engagement_aborted":
+        reason = str(payload.get("reason", "unknown"))
+        return Panel(f"[red]Reason: {reason}[/red]",
+                     title="[bold red]✗ ENGAGEMENT ABORTED[/bold red]",
+                     border_style="red")
+
+    # ── fallback for unknown event types ─────────────────────────────────────
+    t = Text()
+    t.append(f" {ts} ", style="dim")
+    t.append(f" {etype:<14}", style="dim")
     return t
 
 
