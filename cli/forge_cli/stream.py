@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import signal
-from rich.console import Console
+import urllib.request
 from forge_cli.display import format_event, console
 
 try:
@@ -16,7 +16,29 @@ except ImportError:
 _STALL_WARN = 30  # seconds of silence before printing a hint
 
 
-async def _stream(ws_url: str, stop_event: asyncio.Event):
+def _approve_gate(base_url: str, api_key: str, engagement_id: str) -> None:
+    url = f"{base_url}/api/v1/gates/{engagement_id}/decide"
+    data = json.dumps({"approved": True, "notes": "auto-approved by CLI"}).encode()
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+    req = urllib.request.Request(url, data=data, method="POST", headers=headers)
+    try:
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        console.print(f"  [yellow]Auto-approve failed: {e}[/yellow]")
+
+
+async def _stream(
+    ws_url: str,
+    stop_event: asyncio.Event,
+    engagement_id: str,
+    base_url: str,
+    api_key: str | None,
+    auto_approve: bool,
+):
+    loop = asyncio.get_event_loop()
     try:
         async with websockets.connect(ws_url, ping_interval=20, ping_timeout=10) as ws:
             console.print("[dim green]✓ Stream connected[/dim green]")
@@ -32,8 +54,17 @@ async def _stream(ws_url: str, stop_event: asyncio.Event):
                         continue
                     event = json.loads(raw)
                     console.print(format_event(event))
-                    if event.get("type") == "campaign_complete":
+
+                    etype = event.get("type")
+                    if etype == "campaign_complete":
                         stop_event.set()
+                    elif etype == "gate_triggered" and auto_approve and api_key:
+                        gate = event.get("payload", {}).get("gate_status", "gate")
+                        console.print(f"  [dim]Auto-approving {gate}…[/dim]")
+                        await loop.run_in_executor(
+                            None, _approve_gate, base_url, api_key, engagement_id
+                        )
+
                 except asyncio.TimeoutError:
                     silent_for += 1.0
                     if not stall_warned and silent_for >= _STALL_WARN:
@@ -49,7 +80,12 @@ async def _stream(ws_url: str, stop_event: asyncio.Event):
         console.print(f"[dim]Stream disconnected: {e}[/dim]")
 
 
-def stream_events(engagement_id: str, base_url: str = "http://localhost:8080", api_key: str | None = None):
+def stream_events(
+    engagement_id: str,
+    base_url: str = "http://localhost:8080",
+    api_key: str | None = None,
+    auto_approve: bool = True,
+):
     if not HAS_WEBSOCKETS:
         console.print("[yellow]websockets not installed — cannot stream live events[/yellow]")
         return
@@ -60,7 +96,6 @@ def stream_events(engagement_id: str, base_url: str = "http://localhost:8080", a
         ws_url = f"{ws_url}?token={api_key}"
 
     stop_event = asyncio.Event()
-
     loop = asyncio.new_event_loop()
 
     def _sigint(_sig, _frame):
@@ -68,7 +103,9 @@ def stream_events(engagement_id: str, base_url: str = "http://localhost:8080", a
 
     old = signal.signal(signal.SIGINT, _sigint)
     try:
-        loop.run_until_complete(_stream(ws_url, stop_event))
+        loop.run_until_complete(
+            _stream(ws_url, stop_event, engagement_id, base_url, api_key, auto_approve)
+        )
     finally:
         signal.signal(signal.SIGINT, old)
         loop.close()
