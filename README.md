@@ -359,6 +359,91 @@ Verify:
 forge --help
 ```
 
+### Interactive shell (Metasploit-style)
+
+Running `forge` with no arguments drops you into a persistent REPL — auto-completion, history, banner, and live backend stats. Every command from the table below works inside the shell with no `forge` prefix.
+
+```
+  ███████╗ ██████╗ ██████╗  ██████╗ ███████╗
+  ██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝
+  █████╗  ██║   ██║██████╔╝██║  ███╗█████╗
+  ██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝
+  ██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗
+  ╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
+
+  Framework for Offensive Reasoning, Generation & Exploitation  v1.0
+
+    + ──= 12 engagement(s)  ·  87 finding(s) =──
+    + ──= web  ·  local_codebase  ·  binary  targets =──
+    + ──= backend: online  http://localhost:8080 =──
+
+  Type help for commands  ·  help <cmd> for details  ·  exit to quit
+
+forge> run /path/to/raven
+╭──────────── FORGE — Starting Engagement ─────────────╮
+│ Target: 📁 /path/to/raven                            │
+│ Type:   local_codebase                               │
+╰──────────────────────────────────────────────────────╯
+Engagement ID: c238eb1a-00fb-413c-9716-e117876fa6e7
+✓ Pipeline started
+
+Live event stream (Ctrl+C to detach)
+✓ Stream connected
+
+ 22:26:10  ▶ AGENT   codebase_modeling  ·  /path/to/raven
+ 22:26:10  ● PROG    codebase_modeling.walk  ·  walking /path/to/raven
+ 22:26:45  ✦ CONCL   SQL injection confirmed in auth middleware  (95%)
+╭────────── 🔍 FINDING ──────────────────────────────╮
+│ [CRITICAL] SQL Injection                            │
+│   Location:    src/auth/middleware.py:42            │
+│   Confidence:  70%                                  │
+╰─────────────────────────────────────────────────────╯
+ 22:27:01  ⚖ JUDGE   real finding  (92%)  · Direct string interpolation
+ 22:27:30  ✓ DONE    codebase_modeling  (3 findings, 7 surfaces)
+╭────────── ✓ CAMPAIGN COMPLETE ─────────────────────╮
+│ ✓ Engagement finished                               │
+╰─────────────────────────────────────────────────────╯
+
+╭───────────── ▶ NEXT STEPS ─────────────────────────╮
+│  View findings                                      │
+│    forge findings c238eb1a-...                      │
+│    forge findings c238eb1a-... --severity critical  │
+│                                                     │
+│  Per-finding actions   (sample uses top finding)    │
+│    forge exploit <top-fid>                          │
+│    forge poc <top-fid>                              │
+│    forge exploit-script <top-fid>                   │
+│    forge execute <top-fid>                          │
+│                                                     │
+│  Reports                                            │
+│    forge report c238eb1a-... --output report.md     │
+│    forge report c238eb1a-... --pdf                  │
+╰─────────────────────────────────────────────────────╯
+```
+
+Live-stream event types you'll see:
+
+| Tag      | Event                | Meaning                                         |
+|----------|----------------------|-------------------------------------------------|
+| `▶ AGENT`  | `agent_started`      | Phase or agent began                           |
+| `✓ DONE`   | `agent_completed`    | Phase finished — shows finding counts          |
+| `💭 THINK` | `agent_thought`      | LLM reasoning step                             |
+| `⚡ ACT`    | `agent_thought`      | Tool invocation with args                      |
+| `👁 OBS`    | `agent_thought`      | Tool result / observation                      |
+| `✦ CONCL`  | `agent_thought`      | Agent's conclusion with confidence             |
+| `🔍 FINDING` | `finding_discovered` | New vulnerability — bordered panel             |
+| `⚖ JUDGE`  | `finding_judged`     | LLM judge verdict (real / likely false positive) |
+| `⚠ GATE`   | `gate_triggered`     | Pipeline paused — auto-approved by the CLI    |
+
+Built-in shell commands (no backend call):
+
+| Command            | What it does                          |
+|--------------------|---------------------------------------|
+| `help`             | Show all available commands           |
+| `help <cmd>`       | Detailed help for a specific command  |
+| `clear`            | Clear screen and redraw the banner    |
+| `exit` / `quit`    | Leave the shell                       |
+
 ### Configuration
 
 Save your API endpoint and key once — all commands pick it up automatically:
