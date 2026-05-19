@@ -1,9 +1,8 @@
 import uuid
 from datetime import datetime
 from enum import Enum as PyEnum
-from sqlalchemy import ForeignKey, String, DateTime, JSON, Enum as SAEnum
+from sqlalchemy import ForeignKey, String, DateTime, JSON, Enum as SAEnum, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 
 
@@ -25,7 +24,7 @@ class GateStatus(str, PyEnum):
 class Engagement(Base):
     __tablename__ = "engagements"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     target_url: Mapped[str] = mapped_column(String, nullable=False)
     target_type: Mapped[str] = mapped_column(String, default="web")
     target_path: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -43,5 +42,5 @@ class Engagement(Base):
     # mark the engagement aborted instead of letting it hang in `running`.
     job_id: Mapped[str | None] = mapped_column(String, nullable=True)
     org_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True
+        Uuid, ForeignKey("organizations.id"), nullable=True, index=True
     )
