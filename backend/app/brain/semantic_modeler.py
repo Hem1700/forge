@@ -2,9 +2,8 @@
 import json
 import re
 import httpx
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 
 
 SYSTEM_PROMPT = """You are a security researcher analyzing a web application.
@@ -21,24 +20,9 @@ Return ONLY valid JSON with these fields:
 """
 
 
-class _LLMWrapper:
-    """Thin wrapper so ainvoke is a plain instance attribute (patchable)."""
-
-    def __init__(self, llm):
-        self._llm = llm
-
-    async def ainvoke(self, messages):
-        return await self._llm.ainvoke(messages)
-
-
 class SemanticModeler:
-    def __init__(self):
-        _chat = ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            max_tokens=2000,
-        )
-        self._llm = _LLMWrapper(_chat)
+    def __init__(self, org_id=None):
+        self._org_id = org_id
 
     async def crawl(self, target_url: str) -> dict:
         """Lightweight passive crawl — just headers and a homepage fetch."""
@@ -66,7 +50,8 @@ Response headers: {json.dumps({k: v for k, v in crawl_data.get('headers', {}).it
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=user_content),
         ]
-        response = await self._llm.ainvoke(messages)
+        llm = await get_llm(TaskType.semantic_modeler, org_id=self._org_id)
+        response = await llm.ainvoke(messages)
         text = response.content.strip()
         text = re.sub(r"^```json\s*", "", text)
         text = re.sub(r"\s*```$", "", text)

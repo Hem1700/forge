@@ -1,10 +1,9 @@
 import json
 import re
 import httpx
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.swarm.agents.base import BaseAgent
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 
 LOGIC_KEYWORDS = ["flow", "logic", "business", "checkout", "transfer", "auth", "role", "permission", "workflow", "trust"]
 
@@ -19,14 +18,6 @@ Return ONLY valid JSON with:
 
 
 class LogicModelerAgent(BaseAgent):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._llm = ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            max_tokens=2000,
-        )
-
     async def _compute_confidence(self, task: dict) -> tuple[float, str, int, str]:
         text = f"{task.get('title', '')} {task.get('surface', '')}".lower()
         matches = sum(1 for kw in LOGIC_KEYWORDS if kw in text)
@@ -50,7 +41,8 @@ class LogicModelerAgent(BaseAgent):
                 SystemMessage(content=SYSTEM_PROMPT),
                 HumanMessage(content=f"Surface: {surface}\nPaths: {json.dumps(paths)}\nResponses: {json.dumps(responses)}"),
             ]
-            response = await self._llm.ainvoke(messages)
+            llm = await get_llm(TaskType.logic_modeler, org_id=None)
+            response = await llm.ainvoke(messages)
             text = response.content.strip()
             text = re.sub(r"^```json\s*", "", text)
             text = re.sub(r"\s*```$", "", text)

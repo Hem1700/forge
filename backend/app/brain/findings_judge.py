@@ -11,11 +11,9 @@ import json
 import re
 from typing import Iterable
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.brain.codebase_modeler import _LLMWrapper
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 
 
 SYSTEM_PROMPT = """You are a senior application-security engineer triaging findings produced by automated scanners.
@@ -43,12 +41,8 @@ MAX_CHARS = 600     # truncate description/evidence per finding
 
 
 class FindingsJudge:
-    def __init__(self) -> None:
-        self._llm = _LLMWrapper(ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            max_tokens=2500,
-        ))
+    def __init__(self, org_id=None) -> None:
+        self._org_id = org_id
 
     async def judge(self, findings: Iterable[dict]) -> list[dict]:
         """Judge a batch of findings. Returns parallel list of verdicts."""
@@ -67,6 +61,7 @@ class FindingsJudge:
         if not compact:
             return []
 
+        llm = await get_llm(TaskType.findings_judge, org_id=self._org_id)
         results: list[dict] = []
         for i in range(0, len(compact), MAX_BATCH):
             batch = compact[i:i + MAX_BATCH]
@@ -75,7 +70,7 @@ class FindingsJudge:
                 HumanMessage(content=json.dumps(batch, indent=2)),
             ]
             try:
-                response = await self._llm.ainvoke(messages)
+                response = await llm.ainvoke(messages)
                 text = response.content.strip()
                 text = re.sub(r'^```json\s*', '', text)
                 text = re.sub(r'\s*```$', '', text)

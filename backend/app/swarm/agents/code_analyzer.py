@@ -3,12 +3,11 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.swarm.agents.base import BaseAgent
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 from app.ws import progress as ws_progress
 
 SYSTEM_PROMPT = """You are a senior application security engineer performing a code security review.
@@ -41,17 +40,6 @@ MAX_FILE_CHARS = 4000
 
 @dataclass
 class CodeAnalyzerAgent(BaseAgent):
-    _llm: object = field(default=None, init=False, repr=False)
-
-    def __post_init__(self):
-        _chat = ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            max_tokens=4000,
-        )
-        from app.brain.codebase_modeler import _LLMWrapper
-        self._llm = _LLMWrapper(_chat)
-
     async def _execute(self, task: dict) -> dict:
         target_path = task.get('target_path', '')
         semantic_model = task.get('semantic_model', {})
@@ -89,6 +77,7 @@ class CodeAnalyzerAgent(BaseAgent):
                     except Exception:
                         pass
 
+        llm = await get_llm(TaskType.code_analyzer, org_id=None)
         all_findings: list[dict] = []
         total_batches = (len(files_to_review) + 4) // 5
         # Review in batches of 5 files
@@ -108,7 +97,7 @@ class CodeAnalyzerAgent(BaseAgent):
                 HumanMessage(content=f"App type: {semantic_model.get('app_type', 'unknown')}\n\nSource files:\n{code_block}"),
             ]
             try:
-                response = await self._llm.ainvoke(messages)
+                response = await llm.ainvoke(messages)
                 text = response.content.strip()
                 text = re.sub(r'^```json\s*', '', text)
                 text = re.sub(r'\s*```$', '', text)

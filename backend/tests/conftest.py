@@ -86,5 +86,26 @@ def mock_llm(monkeypatch):
     async def fake_get_llm(*args, **kw):
         return the_mock
 
-    monkeypatch.setattr("app.brain.llm_factory.get_llm", fake_get_llm)
+    _LLM_MODULES = [
+        "app.brain.llm_factory",
+        "app.brain.codebase_modeler",
+        "app.brain.campaign_planner",
+        "app.brain.evasion_strategist",
+        "app.brain.findings_judge",
+        "app.brain.poc_engine",
+        "app.brain.exploit_engine",
+        "app.brain.exploit_script_engine",
+        "app.brain.execution_judge",
+        "app.brain.agent_brain",
+        "app.brain.semantic_modeler",
+        "app.swarm.agents.code_analyzer",
+        "app.swarm.agents.logic_modeler",
+        "app.validator.severity",
+        "app.validator.challenger",
+    ]
+    for mod_path in _LLM_MODULES:
+        try:
+            monkeypatch.setattr(f"{mod_path}.get_llm", fake_get_llm)
+        except AttributeError:
+            pass  # Module not yet imported or doesn't reference get_llm
     return the_mock

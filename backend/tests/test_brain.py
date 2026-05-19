@@ -8,7 +8,7 @@ from app.brain.memory_engine import MemoryEngine
 
 
 @pytest.mark.asyncio
-async def test_semantic_modeler_returns_model():
+async def test_semantic_modeler_returns_model(mock_llm):
     modeler = SemanticModeler()
     mock_response = MagicMock()
     mock_response.content = '''
@@ -22,11 +22,11 @@ async def test_semantic_modeler_returns_model():
         "interesting_surfaces": ["/api/auth/login", "/api/users/{id}"]
     }
     '''
-    with patch.object(modeler._llm, "ainvoke", return_value=mock_response):
-        model = await modeler.build(
-            target_url="https://example.com",
-            crawl_data={"paths": ["/api/auth/login", "/api/users"], "headers": {"server": "nginx"}},
-        )
+    mock_llm.ainvoke.return_value = mock_response
+    model = await modeler.build(
+        target_url="https://example.com",
+        crawl_data={"paths": ["/api/auth/login", "/api/users"], "headers": {"server": "nginx"}},
+    )
     assert model["app_type"] == "saas"
     assert "nodejs" in model["tech_stack"]
     assert len(model["endpoints"]) > 0
@@ -41,7 +41,7 @@ async def test_semantic_modeler_crawl():
 
 
 @pytest.mark.asyncio
-async def test_campaign_planner_returns_hypotheses():
+async def test_campaign_planner_returns_hypotheses(mock_llm):
     planner = CampaignPlanner()
     semantic_model = {
         "app_type": "fintech",
@@ -71,15 +71,15 @@ async def test_campaign_planner_returns_hypotheses():
             "priority": "high"
         }
     ]'''
-    with patch.object(planner._llm, "ainvoke", return_value=mock_response):
-        hypotheses = await planner.generate(semantic_model=semantic_model, kb_context=[])
+    mock_llm.ainvoke.return_value = mock_response
+    hypotheses = await planner.generate(semantic_model=semantic_model, kb_context=[])
     assert len(hypotheses) == 2
     assert hypotheses[0]["attack_class"] == "race_condition"
     assert hypotheses[0]["confidence"] == 0.82
 
 
 @pytest.mark.asyncio
-async def test_evasion_strategist_returns_guidelines():
+async def test_evasion_strategist_returns_guidelines(mock_llm):
     strategist = EvasionStrategist()
     mock_response = MagicMock()
     mock_response.content = '''{
@@ -94,12 +94,12 @@ async def test_evasion_strategist_returns_guidelines():
         ],
         "stealth_level": "quiet"
     }'''
-    with patch.object(strategist._llm, "ainvoke", return_value=mock_response):
-        guidelines = await strategist.analyze(
-            target_url="https://example.com",
-            headers={"server": "cloudflare", "cf-ray": "abc123"},
-            response_codes=[200, 429, 403],
-        )
+    mock_llm.ainvoke.return_value = mock_response
+    guidelines = await strategist.analyze(
+        target_url="https://example.com",
+        headers={"server": "cloudflare", "cf-ray": "abc123"},
+        response_codes=[200, 429, 403],
+    )
     assert guidelines["waf_detected"] is True
     assert len(guidelines["guidelines"]) > 0
 

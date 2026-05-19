@@ -2,9 +2,8 @@
 from __future__ import annotations
 import json
 import re
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 
 SYSTEM_PROMPT = """You are a senior penetration tester generating a detailed, runnable proof-of-concept exploit script for a confirmed security vulnerability. This is for authorized security testing only.
 
@@ -33,15 +32,6 @@ The script must be specific to the target — use the actual URL, endpoints, and
 """
 
 
-class _LLMWrapper:
-    """Thin wrapper so ainvoke is a plain instance attribute — patchable in tests."""
-    def __init__(self, llm):
-        self._llm = llm
-
-    async def ainvoke(self, messages):
-        return await self._llm.ainvoke(messages)
-
-
 class PoCEngine:
     """Generates runnable PoC exploit scripts for confirmed vulnerabilities.
 
@@ -49,13 +39,8 @@ class PoCEngine:
     dependency setup commands, and usage notes for a given vulnerability finding.
     """
 
-    def __init__(self):
-        _chat = ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            max_tokens=8000,
-        )
-        self._llm = _LLMWrapper(_chat)
+    def __init__(self, org_id=None):
+        self._org_id = org_id
 
     async def generate(self, finding: dict, context: dict) -> dict:
         """Generate a PoC exploit script for a vulnerability finding.
@@ -90,7 +75,8 @@ class PoCEngine:
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=user_content),
         ]
-        response = await self._llm.ainvoke(messages)
+        llm = await get_llm(TaskType.poc_engine, org_id=self._org_id)
+        response = await llm.ainvoke(messages)
         text = response.content.strip()
         text = re.sub(r"^```json\s*", "", text)
         text = re.sub(r"\s*```$", "", text)

@@ -4,10 +4,9 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 from app.brain.agent_tools import AgentTool
 from app.ws import progress as ws_progress
 
@@ -15,16 +14,6 @@ from app.ws import progress as ws_progress
 def _truncate(s: str, n: int = 240) -> str:
     s = s if isinstance(s, str) else str(s)
     return s if len(s) <= n else s[: n - 1] + "…"
-
-
-class _LLMWrapper:
-    """Thin wrapper so ainvoke is a plain instance attribute — patchable in tests."""
-
-    def __init__(self, llm):
-        self._llm = llm
-
-    async def ainvoke(self, messages):
-        return await self._llm.ainvoke(messages)
 
 
 @dataclass
@@ -59,13 +48,9 @@ class AgentBrain:
         tools: list[AgentTool],
         confidence_threshold: float = 0.85,
         max_steps: int = 20,
+        org_id=None,
     ):
-        _chat = ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            max_tokens=4000,
-        )
-        self._llm = _LLMWrapper(_chat)
+        self._org_id = org_id
         self.system_prompt = system_prompt
         self.tools: dict[str, AgentTool] = {t.name: t for t in tools}
         self.confidence_threshold = confidence_threshold
@@ -117,6 +102,7 @@ class AgentBrain:
                 **payload,
             })
 
+        llm = await get_llm(TaskType.agent_brain, org_id=self._org_id)
         messages = [
             SystemMessage(content=self._build_system_prompt()),
             HumanMessage(
@@ -131,7 +117,7 @@ class AgentBrain:
         steps = 0
 
         while steps < self.max_steps:
-            response = await self._llm.ainvoke(messages)
+            response = await llm.ainvoke(messages)
             text = response.content.strip()
             text = re.sub(r"^```json\s*", "", text)
             text = re.sub(r"\s*```$", "", text)

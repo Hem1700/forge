@@ -1,9 +1,8 @@
 # backend/app/validator/severity.py
 import json
 import re
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 
 
 SYSTEM_PROMPT = """You are a security expert assessing the severity of a vulnerability.
@@ -17,21 +16,9 @@ Return ONLY valid JSON:
 """
 
 
-class _LLMWrapper:
-    def __init__(self, llm):
-        self._llm = llm
-
-    async def ainvoke(self, messages):
-        return await self._llm.ainvoke(messages)
-
-
 class SeverityAssessor:
-    def __init__(self):
-        self._llm = _LLMWrapper(ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            max_tokens=500,
-        ))
+    def __init__(self, org_id=None):
+        self._org_id = org_id
 
     async def assess(self, finding: dict, semantic_model: dict) -> dict:
         user_content = f"""
@@ -44,7 +31,8 @@ User Roles: {semantic_model.get('user_roles', [])}
 Business Flows: {semantic_model.get('business_flows', [])}
 """
         messages = [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_content)]
-        response = await self._llm.ainvoke(messages)
+        llm = await get_llm(TaskType.severity_assessor, org_id=self._org_id)
+        response = await llm.ainvoke(messages)
         text = response.content.strip()
         text = re.sub(r"^```json\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
