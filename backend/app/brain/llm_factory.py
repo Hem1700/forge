@@ -125,6 +125,18 @@ elif not any([settings.anthropic_api_key, settings.openai_api_key, settings.aws_
     )
 
 
+def _encrypt_key(plaintext: str) -> bytes:
+    if not _fernet:
+        raise RuntimeError("FORGE_SECRETS_KEY is not set; cannot encrypt credentials")
+    return _fernet.encrypt(plaintext.encode())
+
+
+def _decrypt_key(ciphertext: bytes) -> str:
+    if not _fernet:
+        raise RuntimeError("FORGE_SECRETS_KEY is not set; cannot decrypt credentials")
+    return _fernet.decrypt(ciphertext).decode()
+
+
 # ── Env-var fallback credentials ──────────────────────────────────────────────
 
 _ENV_CREDS: dict[Provider, ProviderCreds] = {
