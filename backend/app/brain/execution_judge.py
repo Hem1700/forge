@@ -2,9 +2,8 @@
 from __future__ import annotations
 import json
 import re
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 
 SYSTEM_PROMPT = """You are a senior penetration tester reviewing the output of a live exploit execution. Assess whether the exploit succeeded.
 
@@ -18,30 +17,11 @@ Given the vulnerability details, the script that was run, and its captured outpu
 """
 
 
-class _LLMWrapper:
-    """Thin wrapper so ainvoke is a plain instance attribute — patchable in tests."""
-    def __init__(self, llm):
-        self._llm = llm
-
-    async def ainvoke(self, messages):
-        return await self._llm.ainvoke(messages)
-
-
 class ExecutionJudge:
-    """Assesses whether a live exploit execution succeeded.
+    """Assesses whether a live exploit execution succeeded."""
 
-    Uses an LLM to evaluate script output against the expected exploitation
-    outcome, returning a verdict (confirmed/failed/inconclusive) with
-    confidence score and reasoning.
-    """
-
-    def __init__(self):
-        _chat = ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            max_tokens=2000,
-        )
-        self._llm = _LLMWrapper(_chat)
+    def __init__(self, org_id=None):
+        self._org_id = org_id
 
     async def judge(
         self,
@@ -51,18 +31,6 @@ class ExecutionJudge:
         stderr: str,
         exit_code: int,
     ) -> dict:
-        """Assess whether an exploit execution succeeded.
-
-        Args:
-            finding: Vulnerability details (vulnerability_class, severity, etc.)
-            script: The exploit script that was executed.
-            stdout: Captured standard output from the execution.
-            stderr: Captured standard error from the execution.
-            exit_code: Process exit code (0 typically means success).
-
-        Returns:
-            Dict with verdict, confidence, and reasoning fields.
-        """
         user_content = (
             f"Vulnerability:\n"
             f"- Class: {finding.get('vulnerability_class', 'unknown')}\n"
@@ -79,7 +47,8 @@ class ExecutionJudge:
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=user_content),
         ]
-        response = await self._llm.ainvoke(messages)
+        llm = await get_llm(TaskType.execution_judge, org_id=self._org_id)
+        response = await llm.ainvoke(messages)
         text = response.content.strip()
         text = re.sub(r"^```json\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
@@ -102,10 +71,7 @@ class ExecutionJudge:
         patched_exit: int,
         patched_label: str = "",
     ) -> dict:
-        """Differential judge: reasons over both runs to produce a high-confidence verdict.
-
-        Confirmed iff vuln-run shows exploitation AND patched-run does not.
-        """
+        """Differential judge: reasons over both runs to produce a high-confidence verdict."""
         user_content = (
             f"Vulnerability:\n"
             f"- Class: {finding.get('vulnerability_class', 'unknown')}\n"
@@ -141,7 +107,8 @@ class ExecutionJudge:
             SystemMessage(content=diff_prompt),
             HumanMessage(content=user_content),
         ]
-        response = await self._llm.ainvoke(messages)
+        llm = await get_llm(TaskType.execution_judge, org_id=self._org_id)
+        response = await llm.ainvoke(messages)
         text = response.content.strip()
         text = re.sub(r"^```json\s*", "", text)
         text = re.sub(r"\s*```$", "", text)

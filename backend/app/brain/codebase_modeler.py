@@ -4,9 +4,8 @@ import os
 import json
 import re
 from pathlib import Path
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 from app.ws import progress as ws_progress
 
 SYSTEM_PROMPT = """You are a senior security engineer analyzing a local codebase for a security assessment.
@@ -23,14 +22,6 @@ Return ONLY valid JSON with these fields:
 - dependencies: list of strings (key third-party dependencies)
 - interesting_files: list of strings (file paths most relevant for security review)
 """
-
-
-class _LLMWrapper:
-    def __init__(self, llm):
-        self._llm = llm
-
-    async def ainvoke(self, messages):
-        return await self._llm.ainvoke(messages)
 
 
 class CodebaseModeler:
@@ -54,15 +45,8 @@ class CodebaseModeler:
     MAX_FILE_CHARS = 3000
     MAX_FILES = 40
 
-    def __init__(self):
-        _chat = ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            # 3000 was tight — security models for non-trivial codebases
-            # routinely exceeded it and got truncated mid-JSON.
-            max_tokens=8000,
-        )
-        self._llm = _LLMWrapper(_chat)
+    def __init__(self, org_id=None):
+        self._org_id = org_id
 
     def profile(self, target_path: str) -> dict:
         """Walk the directory and collect file metadata + content samples."""
@@ -123,7 +107,8 @@ Key file contents:
             HumanMessage(content=user_content),
         ]
         await ws_progress.progress(engagement_id, "codebase_modeling.llm", "sending codebase summary to LLM")
-        response = await self._llm.ainvoke(messages)
+        llm = await get_llm(TaskType.codebase_modeling, org_id=self._org_id)
+        response = await llm.ainvoke(messages)
         await ws_progress.progress(engagement_id, "codebase_modeling.llm", "LLM returned — parsing security model")
         text = response.content.strip()
         text = re.sub(r'^```json\s*', '', text)
@@ -131,9 +116,6 @@ Key file contents:
         try:
             result = json.loads(text)
         except json.JSONDecodeError as exc:
-            # Malformed/truncated response — surface it instead of crashing
-            # the whole campaign. Return a minimal model so downstream stages
-            # can decide what to do.
             await ws_progress.progress(
                 engagement_id, "codebase_modeling.llm",
                 f"LLM returned unparseable JSON ({exc.msg} @ char {exc.pos}); using minimal model",

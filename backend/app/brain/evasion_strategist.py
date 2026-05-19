@@ -2,9 +2,8 @@
 import json
 import re
 import httpx
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 
 
 SYSTEM_PROMPT = """You are a red team expert analyzing a target's defensive posture.
@@ -21,24 +20,9 @@ Return ONLY valid JSON with:
 """
 
 
-class _LLMWrapper:
-    """Thin wrapper so ainvoke is a plain instance attribute (patchable)."""
-
-    def __init__(self, llm):
-        self._llm = llm
-
-    async def ainvoke(self, messages):
-        return await self._llm.ainvoke(messages)
-
-
 class EvasionStrategist:
-    def __init__(self):
-        _chat = ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            max_tokens=1000,
-        )
-        self._llm = _LLMWrapper(_chat)
+    def __init__(self, org_id=None):
+        self._org_id = org_id
 
     async def probe_defenses(self, target_url: str) -> tuple[dict, list[int]]:
         """Send passive probes to fingerprint the defensive stack."""
@@ -65,7 +49,8 @@ Observed Status Codes: {response_codes}
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=user_content),
         ]
-        response = await self._llm.ainvoke(messages)
+        llm = await get_llm(TaskType.evasion_strategist, org_id=self._org_id)
+        response = await llm.ainvoke(messages)
         text = response.content.strip()
         text = re.sub(r"^```json\s*", "", text)
         text = re.sub(r"\s*```$", "", text)

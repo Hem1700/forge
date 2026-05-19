@@ -1,9 +1,8 @@
 # backend/app/brain/campaign_planner.py
 import json
 import re
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from app.config import settings
+from app.brain.llm_factory import get_llm, TaskType
 
 
 SYSTEM_PROMPT = """You are a senior penetration tester generating a prioritized attack campaign.
@@ -22,24 +21,9 @@ Order by priority descending, then confidence descending. Maximum 15 hypotheses.
 """
 
 
-class _LLMWrapper:
-    """Thin wrapper so ainvoke is a plain instance attribute (patchable)."""
-
-    def __init__(self, llm):
-        self._llm = llm
-
-    async def ainvoke(self, messages):
-        return await self._llm.ainvoke(messages)
-
-
 class CampaignPlanner:
-    def __init__(self):
-        _chat = ChatAnthropic(
-            model="claude-sonnet-4-6",
-            api_key=settings.anthropic_api_key,
-            max_tokens=3000,
-        )
-        self._llm = _LLMWrapper(_chat)
+    def __init__(self, org_id=None):
+        self._org_id = org_id
 
     async def generate(self, semantic_model: dict, kb_context: list[dict]) -> list[dict]:
         kb_summary = "\n".join(
@@ -58,7 +42,8 @@ Relevant Knowledge Base History:
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=user_content),
         ]
-        response = await self._llm.ainvoke(messages)
+        llm = await get_llm(TaskType.campaign_planning, org_id=self._org_id)
+        response = await llm.ainvoke(messages)
         text = response.content.strip()
         text = re.sub(r"^```json\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
