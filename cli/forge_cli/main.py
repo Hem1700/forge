@@ -20,6 +20,7 @@ from forge_cli.display import (
 from forge_cli.commands.auth import register, login, whoami, logout, api_keys_group
 from forge_cli.commands.users import users_group
 from forge_cli.commands.ci import ci_group
+from forge_cli.commands.org_llm import org_llm_group
 
 DEFAULT_API = os.environ.get("FORGE_API_URL", "http://localhost:8080")
 
@@ -59,6 +60,14 @@ cli.add_command(logout)
 cli.add_command(api_keys_group)
 cli.add_command(users_group)
 cli.add_command(ci_group)
+
+
+@cli.group("org")
+def org_group() -> None:
+    """Organisation-level configuration (admin+)."""
+
+
+org_group.add_command(org_llm_group)
 
 
 # ── forge configure ──────────────────────────────────────────────────────────
