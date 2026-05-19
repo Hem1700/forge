@@ -41,8 +41,12 @@ async def run_cve_pipeline(ctx: dict, engagement_id: str) -> None:
     await _run_cve_pipeline(uuid.UUID(engagement_id))
 
 
-async def judge_findings(ctx: dict, engagement_id: str, finding_ids: list[str]) -> None:
-    await _judge_findings_async(engagement_id, [uuid.UUID(fid) for fid in finding_ids])
+async def judge_findings(ctx: dict, engagement_id: str, finding_ids: list[str], org_id: str | None = None) -> None:
+    await _judge_findings_async(
+        engagement_id,
+        [uuid.UUID(fid) for fid in finding_ids],
+        org_id=uuid.UUID(org_id) if org_id else None,
+    )
 
 
 def _redis_settings() -> RedisSettings:

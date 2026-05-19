@@ -134,7 +134,7 @@ async def generate_exploit(
         "app_type": (engagement.semantic_model or {}).get("app_type", "unknown"),
     }
 
-    engine = ExploitEngine()
+    engine = ExploitEngine(org_id=current_user.org_id)
     exploit = await engine.generate(_serialize_finding(finding), context)
 
     finding.exploit_detail = exploit
@@ -170,7 +170,7 @@ async def generate_poc(
         "app_type": (engagement.semantic_model or {}).get("app_type", "unknown"),
     }
 
-    engine = PoCEngine()
+    engine = PoCEngine(org_id=current_user.org_id)
     poc = await engine.generate(_serialize_finding(finding), context)
 
     finding.poc_detail = poc
@@ -230,7 +230,7 @@ async def generate_exploit_script(
         except Exception:
             research = None
 
-    engine = ExploitScriptEngine()
+    engine = ExploitScriptEngine(org_id=current_user.org_id)
     script_data = await engine.generate(_serialize_finding(finding), context, research=research)
 
     finding.exploit_script = script_data
@@ -276,7 +276,7 @@ async def execute_exploit(
                 await db.commit()
             except Exception:
                 research = None
-        engine = ExploitScriptEngine()
+        engine = ExploitScriptEngine(org_id=current_user.org_id)
         finding.exploit_script = await engine.generate(_serialize_finding(finding), context, research=research)
         await db.commit()
 
@@ -292,7 +292,7 @@ async def execute_exploit(
     )
 
     # Judge the result
-    judge = ExecutionJudge()
+    judge = ExecutionJudge(org_id=current_user.org_id)
     verdict_result = await judge.judge(
         finding=_serialize_finding(finding),
         script=script_data["script"],
@@ -343,7 +343,7 @@ async def execute_exploit_diff(
             "target_type": engagement.target_type,
             "app_type": (engagement.semantic_model or {}).get("app_type", "unknown"),
         }
-        engine = ExploitScriptEngine()
+        engine = ExploitScriptEngine(org_id=current_user.org_id)
         finding.exploit_script = await engine.generate(_serialize_finding(finding), context)
         await db.commit()
 
@@ -372,7 +372,7 @@ async def execute_exploit_diff(
         timeout=60,
     )
 
-    judge = ExecutionJudge()
+    judge = ExecutionJudge(org_id=current_user.org_id)
     diff_verdict = await judge.judge_diff(
         finding=_serialize_finding(finding),
         script=script_data["script"],

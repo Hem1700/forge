@@ -120,7 +120,13 @@ async def test_logic_modeler_bids_on_business_flow_tasks():
 
 
 @pytest.mark.asyncio
-async def test_probe_agent_execute_returns_result():
+async def test_probe_agent_execute_returns_result(mock_llm):
+    import json
+    from unittest.mock import MagicMock
+    mock_resp = MagicMock()
+    mock_resp.content = json.dumps({"conclusion": True, "confidence": 0.5, "findings": [], "reasoning": "nothing found"})
+    mock_llm.ainvoke.return_value = mock_resp
+
     agent = ProbeAgent(
         agent_id=str(uuid.uuid4()),
         engagement_id=str(uuid.uuid4()),

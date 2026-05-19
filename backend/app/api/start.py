@@ -70,7 +70,11 @@ async def _ensure_placeholder_task_agent(
     return task_row.id, agent.id
 
 
-async def _judge_findings_async(engagement_id_str: str, finding_ids: list[uuid.UUID]) -> None:
+async def _judge_findings_async(
+    engagement_id_str: str,
+    finding_ids: list[uuid.UUID],
+    org_id: uuid.UUID | None = None,
+) -> None:
     """Background-task: grade a batch of findings via the LLM judge, persist verdicts,
     and broadcast `finding_judged` events so the UI updates live."""
     if not finding_ids:
@@ -93,7 +97,7 @@ async def _judge_findings_async(engagement_id_str: str, finding_ids: list[uuid.U
                 }
                 for f in findings
             ]
-            judge = FindingsJudge()
+            judge = FindingsJudge(org_id=org_id)
             verdicts = await judge.judge(payload)
 
             by_id = {v.get("id"): v for v in verdicts}
@@ -169,7 +173,7 @@ async def _run_web_pipeline(engagement_id: uuid.UUID) -> None:
             from app.swarm.agents.probe import ProbeAgent
 
             await _broadcast(eid, "agent_started", {"phase": "crawl", "target": engagement.target_url})
-            modeler = SemanticModeler()
+            modeler = SemanticModeler(org_id=engagement.org_id)
             crawl_data = await modeler.crawl(engagement.target_url)
             semantic_model = await modeler.build(engagement.target_url, crawl_data)
             engagement.semantic_model = semantic_model
@@ -183,7 +187,7 @@ async def _run_web_pipeline(engagement_id: uuid.UUID) -> None:
             )
 
             await _broadcast(eid, "agent_started", {"phase": "campaign_planning"})
-            planner = CampaignPlanner()
+            planner = CampaignPlanner(org_id=engagement.org_id)
             hypotheses = await planner.generate(semantic_model, kb_context)
             await _broadcast(eid, "agent_completed", {"phase": "campaign_planning", "hypotheses": len(hypotheses)})
 
@@ -211,7 +215,7 @@ async def _run_web_pipeline(engagement_id: uuid.UUID) -> None:
                     await _broadcast(eid, "finding_discovered", {"finding": f})
                 await db.commit()
                 if batch_ids:
-                    await enqueue("judge_findings", eid, [str(fid) for fid in batch_ids])
+                    await enqueue("judge_findings", eid, [str(fid) for fid in batch_ids], str(engagement.org_id))
 
         except Exception as e:
             await db.rollback()
@@ -244,7 +248,7 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
 
             # Phase 1: Model the codebase
             await _broadcast(eid, "agent_started", {"phase": "codebase_modeling", "path": target_path})
-            modeler = CodebaseModeler()
+            modeler = CodebaseModeler(org_id=engagement.org_id)
             semantic_model = await modeler.build(target_path, engagement_id=eid)
             engagement.semantic_model = semantic_model
             await db.commit()
@@ -290,7 +294,7 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
                     await _broadcast(eid, "finding_discovered", {"finding": {**f, "id": str(fid)}})
                 await db.commit()
                 if batch_ids:
-                    await enqueue("judge_findings", eid, [str(fid) for fid in batch_ids])
+                    await enqueue("judge_findings", eid, [str(fid) for fid in batch_ids], str(engagement.org_id))
 
         except Exception as e:
             await db.rollback()
@@ -386,11 +390,11 @@ async def _run_cve_pipeline(engagement_id: uuid.UUID) -> None:
             await db.commit()
 
             await _broadcast(eid, "finding_discovered", {"finding": synthetic})
-            await enqueue("judge_findings", eid, [str(finding_db_id)])
+            await enqueue("judge_findings", eid, [str(finding_db_id)], str(engagement.org_id))
 
             # Generate the weaponized exploit script
             await _broadcast(eid, "agent_started", {"phase": "exploit_script_gen", "advisory": top.get("id", cve_id)})
-            script_engine = ExploitScriptEngine()
+            script_engine = ExploitScriptEngine(org_id=engagement.org_id)
             context = {
                 "target_url": cve_id,
                 "target_path": None,
@@ -431,7 +435,7 @@ async def _run_cve_pipeline(engagement_id: uuid.UUID) -> None:
                 timeout=90,
             )
 
-            judge = ExecutionJudge()
+            judge = ExecutionJudge(org_id=engagement.org_id)
             row = (await db.execute(select(Finding).where(Finding.id == finding_db_id))).scalar_one()
             verdict = await judge.judge_diff(
                 finding=_serialize_finding(row),

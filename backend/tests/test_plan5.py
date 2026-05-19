@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -21,9 +21,7 @@ def test_codebase_modeler_profile():
     if not Path(RAVEN_PATH).exists():
         pytest.skip(f"Raven test target not available at {RAVEN_PATH}")
 
-    with patch("app.brain.codebase_modeler.ChatAnthropic"):
-        modeler = CodebaseModeler()
-
+    modeler = CodebaseModeler()
     profile = modeler.profile(RAVEN_PATH)
 
     assert set(profile.keys()) == {"root", "structure", "files"}
@@ -46,9 +44,7 @@ def test_codebase_modeler_skips_venv(tmp_path):
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "keep.py").write_text("import os")
 
-    with patch("app.brain.codebase_modeler.ChatAnthropic"):
-        modeler = CodebaseModeler()
-
+    modeler = CodebaseModeler()
     profile = modeler.profile(str(tmp_path))
     paths = [f["path"] for f in profile["files"]]
     assert any("keep.py" in p for p in paths)
@@ -117,19 +113,17 @@ def test_fuzzer_payloads_defined():
 
 
 def test_code_analyzer_agent_defaults():
-    """CodeAnalyzerAgent should initialize with correct BaseAgent fields and an LLM wrapper."""
-    with patch("app.swarm.agents.code_analyzer.ChatAnthropic"):
-        agent = CodeAnalyzerAgent(
-            agent_id="agent-xyz",
-            engagement_id="eng-abc",
-            agent_type="code_analyzer",
-            tools=["llm_review"],
-        )
+    """CodeAnalyzerAgent should initialize with correct BaseAgent fields."""
+    agent = CodeAnalyzerAgent(
+        agent_id="agent-xyz",
+        engagement_id="eng-abc",
+        agent_type="code_analyzer",
+        tools=["llm_review"],
+    )
     assert agent.agent_id == "agent-xyz"
     assert agent.engagement_id == "eng-abc"
     assert agent.agent_type == "code_analyzer"
     assert agent.tools == ["llm_review"]
-    assert agent._llm is not None
 
 
 def test_fuzzer_agent_defaults():

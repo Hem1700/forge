@@ -1,7 +1,7 @@
 # backend/tests/test_execution_judge.py
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from app.brain.execution_judge import ExecutionJudge
 
 MOCK_VERDICT_CONFIRMED = {
@@ -24,11 +24,11 @@ MOCK_VERDICT_INCONCLUSIVE = {
 
 
 @pytest.mark.asyncio
-async def test_execution_judge_confirmed():
+async def test_execution_judge_confirmed(mock_llm):
     judge = ExecutionJudge()
     mock_response = MagicMock()
     mock_response.content = json.dumps(MOCK_VERDICT_CONFIRMED)
-    judge._llm.ainvoke = AsyncMock(return_value=mock_response)
+    mock_llm.ainvoke.return_value = mock_response
 
     finding = {"vulnerability_class": "sqli", "severity": "high", "affected_surface": "/api/users", "description": "SQLi"}
     result = await judge.judge(
@@ -45,11 +45,11 @@ async def test_execution_judge_confirmed():
 
 
 @pytest.mark.asyncio
-async def test_execution_judge_failed():
+async def test_execution_judge_failed(mock_llm):
     judge = ExecutionJudge()
     mock_response = MagicMock()
     mock_response.content = json.dumps(MOCK_VERDICT_FAILED)
-    judge._llm.ainvoke = AsyncMock(return_value=mock_response)
+    mock_llm.ainvoke.return_value = mock_response
 
     finding = {"vulnerability_class": "sqli", "severity": "high", "affected_surface": "/api/users", "description": "SQLi"}
     result = await judge.judge(
@@ -65,11 +65,11 @@ async def test_execution_judge_failed():
 
 
 @pytest.mark.asyncio
-async def test_execution_judge_passes_all_context_to_llm():
+async def test_execution_judge_passes_all_context_to_llm(mock_llm):
     judge = ExecutionJudge()
     mock_response = MagicMock()
     mock_response.content = json.dumps(MOCK_VERDICT_CONFIRMED)
-    judge._llm.ainvoke = AsyncMock(return_value=mock_response)
+    mock_llm.ainvoke.return_value = mock_response
 
     finding = {"vulnerability_class": "cmdi", "severity": "critical", "affected_surface": "/exec", "description": "RCE"}
     await judge.judge(
@@ -80,7 +80,7 @@ async def test_execution_judge_passes_all_context_to_llm():
         exit_code=0,
     )
 
-    call_args = judge._llm.ainvoke.call_args[0][0]
+    call_args = mock_llm.ainvoke.call_args[0][0]
     human_message = call_args[1]
     assert "cmdi" in human_message.content
     assert "uid=0(root)" in human_message.content
@@ -88,11 +88,11 @@ async def test_execution_judge_passes_all_context_to_llm():
 
 
 @pytest.mark.asyncio
-async def test_execution_judge_raises_on_invalid_json():
+async def test_execution_judge_raises_on_invalid_json(mock_llm):
     judge = ExecutionJudge()
     mock_response = MagicMock()
     mock_response.content = "this is not json"
-    judge._llm.ainvoke = AsyncMock(return_value=mock_response)
+    mock_llm.ainvoke.return_value = mock_response
 
     finding = {"vulnerability_class": "sqli", "severity": "high", "affected_surface": "/api", "description": "SQLi"}
     with pytest.raises(ValueError, match="ExecutionJudge"):

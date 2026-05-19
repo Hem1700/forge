@@ -28,13 +28,13 @@ def make_finding():
 
 
 @pytest.mark.asyncio
-async def test_challenger_reproduces_finding():
+async def test_challenger_reproduces_finding(mock_llm):
     challenger = Challenger()
     finding = make_finding()
     mock_response = MagicMock()
     mock_response.content = '{"reproduced": true, "confidence": 0.88, "notes": "Confirmed IDOR - user 2 data returned without authorization"}'
-    with patch.object(challenger._llm, "ainvoke", return_value=mock_response):
-        result = await challenger.challenge(finding)
+    mock_llm.ainvoke.return_value = mock_response
+    result = await challenger.challenge(finding)
     assert result["reproduced"] is True
     assert result["confidence"] >= 0.8
 
@@ -58,14 +58,14 @@ async def test_context_checker_rejects_out_of_scope():
 
 
 @pytest.mark.asyncio
-async def test_severity_assessor_returns_cvss():
+async def test_severity_assessor_returns_cvss(mock_llm):
     assessor = SeverityAssessor()
     finding = make_finding()
     semantic_model = {"app_type": "saas", "user_roles": ["user", "admin"]}
     mock_response = MagicMock()
     mock_response.content = '{"severity": "high", "cvss_score": 7.5, "business_impact": "Cross-user data exposure", "justification": "IDOR allows horizontal privilege escalation"}'
-    with patch.object(assessor._llm, "ainvoke", return_value=mock_response):
-        result = await assessor.assess(finding, semantic_model)
+    mock_llm.ainvoke.return_value = mock_response
+    result = await assessor.assess(finding, semantic_model)
     assert result["severity"] == "high"
     assert result["cvss_score"] == 7.5
 

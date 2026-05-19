@@ -1,7 +1,7 @@
 # backend/tests/test_poc_engine.py
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from app.brain.poc_engine import PoCEngine
 
 MOCK_POC = {
@@ -15,11 +15,11 @@ MOCK_POC = {
 
 
 @pytest.mark.asyncio
-async def test_poc_engine_generate_returns_structured_output():
+async def test_poc_engine_generate_returns_structured_output(mock_llm):
     engine = PoCEngine()
     mock_response = MagicMock()
     mock_response.content = json.dumps(MOCK_POC)
-    engine._llm.ainvoke = AsyncMock(return_value=mock_response)
+    mock_llm.ainvoke.return_value = mock_response
 
     finding = {
         "vulnerability_class": "sqli",
@@ -45,11 +45,11 @@ async def test_poc_engine_generate_returns_structured_output():
 
 
 @pytest.mark.asyncio
-async def test_poc_engine_strips_markdown_fences():
+async def test_poc_engine_strips_markdown_fences(mock_llm):
     engine = PoCEngine()
     mock_response = MagicMock()
     mock_response.content = f"```json\n{json.dumps(MOCK_POC)}\n```"
-    engine._llm.ainvoke = AsyncMock(return_value=mock_response)
+    mock_llm.ainvoke.return_value = mock_response
 
     finding = {"vulnerability_class": "xss", "severity": "medium", "affected_surface": "/search", "description": "XSS", "evidence": []}
     context = {"target_url": "https://target.com", "target_type": "web", "app_type": "saas"}
@@ -59,29 +59,29 @@ async def test_poc_engine_strips_markdown_fences():
 
 
 @pytest.mark.asyncio
-async def test_poc_engine_passes_target_context_to_llm():
+async def test_poc_engine_passes_target_context_to_llm(mock_llm):
     engine = PoCEngine()
     mock_response = MagicMock()
     mock_response.content = json.dumps(MOCK_POC)
-    engine._llm.ainvoke = AsyncMock(return_value=mock_response)
+    mock_llm.ainvoke.return_value = mock_response
 
     finding = {"vulnerability_class": "cmdi", "severity": "critical", "affected_surface": "/run", "description": "Command injection", "evidence": []}
     context = {"target_url": "https://myapp.com", "target_type": "web", "app_type": "saas"}
 
     await engine.generate(finding, context)
 
-    call_args = engine._llm.ainvoke.call_args[0][0]
+    call_args = mock_llm.ainvoke.call_args[0][0]
     human_message = call_args[1]
     assert "myapp.com" in human_message.content
     assert "cmdi" in human_message.content
 
 
 @pytest.mark.asyncio
-async def test_poc_engine_raises_on_invalid_json():
+async def test_poc_engine_raises_on_invalid_json(mock_llm):
     engine = PoCEngine()
     mock_response = MagicMock()
     mock_response.content = "this is not json"
-    engine._llm.ainvoke = AsyncMock(return_value=mock_response)
+    mock_llm.ainvoke.return_value = mock_response
 
     finding = {"vulnerability_class": "sqli", "severity": "high", "affected_surface": "/api", "description": "SQLi", "evidence": []}
     context = {"target_url": "https://target.com", "target_type": "web", "app_type": "api"}
