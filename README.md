@@ -80,7 +80,8 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
   └── Neo4j    attack-pattern knowledge graph
 
   External
-  ├── Anthropic API   Claude — all LLM reasoning
+  ├── LLM Providers   Anthropic · OpenAI · AWS Bedrock · Azure OpenAI
+  │                   (per-org keys; factory resolves at call time)
   ├── Docker          sandboxed exploit execution
   └── OSV / NVD APIs  CVE research
 ```
@@ -88,7 +89,8 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 **Components at a glance:**
 
 - **Auth Layer** — JWT + API key dual authentication, 4-tier RBAC (Viewer / Analyst / Admin / Super-Admin), org-scoped data isolation on every route
-- **Strategic Brain** — semantic app modeler, codebase modeler, campaign planner, evasion strategist, memory engine (LangChain + Claude)
+- **Multi-Provider LLM** — per-org provider selection (Anthropic, OpenAI, AWS Bedrock, Azure OpenAI); Fernet-encrypted key storage; per-task model overrides; smart/balanced/cheap presets; exponential-backoff retry; usage and cost tracking
+- **Strategic Brain** — semantic app modeler, codebase modeler, campaign planner, evasion strategist, memory engine (LangChain, all providers)
 - **Exploit Engine** — on-demand LLM-generated exploit walkthroughs, Mermaid attack path diagrams, impact analysis, and difficulty scoring per finding
 - **PoC Engine** — on-demand runnable exploit script generation (Python or bash, auto-selected by vuln class), Mermaid sequence diagrams showing the attack flow, cached per finding
 - **Tactical Swarm** — autonomous agents (recon, probe, evasion, code analyzer, dependency scanner, fuzzer, deep exploit) coordinated by an auction-based scheduler
@@ -145,7 +147,7 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 - Docker + Docker Compose
 - Node.js 18+
 - Python 3.10+
-- An Anthropic API key (for LLM-powered analysis)
+- An LLM provider API key — Anthropic, OpenAI, AWS Bedrock (IAM role supported), or Azure OpenAI. You can configure keys per-org after first login via `forge org llm key set <provider>` or environment variables.
 
 ---
 
@@ -164,7 +166,7 @@ Starts PostgreSQL, Redis, Qdrant, and Neo4j.
 Create `backend/.env`:
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-...
+# ── Database & infrastructure ───────────────────────────────────────
 DATABASE_URL=postgresql+asyncpg://forge:forge@localhost:5432/forge
 NEO4J_URL=bolt://localhost:17687
 NEO4J_USER=neo4j
@@ -172,6 +174,20 @@ NEO4J_PASSWORD=forge_password
 QDRANT_URL=http://localhost:6333
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=change-me-in-production
+
+# ── Credential encryption (required to store per-org keys) ──────────
+FORGE_SECRETS_KEY=<generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
+
+# ── Deployment-level LLM fallback (optional) ────────────────────────
+# These are used when no per-org key is configured for a provider.
+# Orgs can override these at any time via `forge org llm key set`.
+ANTHROPIC_API_KEY=sk-ant-...        # Anthropic (Claude)
+OPENAI_API_KEY=sk-...               # OpenAI (GPT)
+AWS_ACCESS_KEY_ID=...               # AWS Bedrock (or use IAM role — no key needed)
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
+AZURE_OPENAI_API_KEY=...            # Azure OpenAI
+AZURE_OPENAI_ENDPOINT=https://...openai.azure.com
 ```
 
 Create `frontend/.env`:
@@ -216,6 +232,123 @@ npm run dev -- --port 5174
 ```
 
 Frontend runs at `http://localhost:5174`.
+
+---
+
+## LLM Provider Configuration
+
+Each org can bring its own LLM provider and API key. FORGE supports **Anthropic** (Claude), **OpenAI** (GPT), **AWS Bedrock**, and **Azure OpenAI** — all org-scoped with Fernet-encrypted key storage and per-task model overrides.
+
+### Supported providers
+
+| Provider | Key type | Notes |
+|----------|----------|-------|
+| `anthropic` | `api_key` | Claude Sonnet / Haiku / Opus |
+| `openai` | `api_key` | GPT-4 Turbo / GPT-4o-mini |
+| `bedrock` | IAM role (recommended) or static key | Set `--iam-role` for role-based auth |
+| `azure` | `api_key` + `endpoint` | Azure OpenAI deployment URL required |
+
+### Configuring credentials
+
+Use `forge org llm key set <provider>` (admin+) — the key is prompted with hidden input and stored encrypted in the database:
+
+```bash
+# Store an Anthropic key
+forge org llm key set anthropic
+# → API key for anthropic: ****
+# → ✓ Credentials for anthropic saved.
+
+# Use an IAM role for Bedrock (no key needed)
+forge org llm key set bedrock --iam-role --region us-east-1
+
+# Azure OpenAI (key + endpoint)
+forge org llm key set azure --endpoint https://myorg.openai.azure.com
+# → API key for azure: ****
+# → ✓ Credentials for azure saved.
+
+# Validate credentials with a 1-token probe
+forge org llm key test anthropic
+# → ✓ anthropic credentials are valid.
+
+# Revoke credentials
+forge org llm key revoke openai --yes
+```
+
+### Viewing the current configuration
+
+```bash
+forge org llm show
+```
+
+```
+╭─ AI Provider Configuration ──────────────────────────────╮
+│ Active credentials                                        │
+│   ✓ anthropic   configured · last tested 2026-05-18      │
+│   ✓ bedrock     IAM role · us-east-1                     │
+│   ✗ openai      not configured                           │
+│   ✗ azure       not configured                           │
+│                                                           │
+│ Preset: balanced                                          │
+╰───────────────────────────────────────────────────────────╯
+ Task                  Provider    Model                Source
+ agent_brain           anthropic   claude-sonnet-4-6    default
+ campaign_planning     anthropic   claude-sonnet-4-6    default
+ findings_judge        anthropic   claude-haiku-4-5     default
+ ...
+```
+
+### Model presets
+
+Apply a preset to all 14 task types at once:
+
+```bash
+forge org llm preset smart      # Best models for all tasks
+forge org llm preset balanced   # Forge defaults (mix of capable + cheap)
+forge org llm preset cheap      # Lowest-cost models for all tasks
+```
+
+### Per-task overrides
+
+Override the provider and model for a specific task:
+
+```bash
+forge org llm set findings_judge --provider openai --model gpt-4-turbo
+forge org llm set agent_brain --provider bedrock --model anthropic.claude-sonnet-4 --max-tokens 4096
+```
+
+Task types: `codebase_modeling`, `campaign_planning`, `code_analyzer`, `semantic_modeler`, `findings_judge`, `execution_judge`, `exploit_engine`, `exploit_script`, `poc_engine`, `evasion_strategist`, `logic_modeler`, `agent_brain`, `challenger`, `severity_assessor`
+
+### Usage and cost tracking
+
+```bash
+forge org llm usage
+forge org llm usage --since 2026-05-01T00:00:00
+```
+
+```
+ Task               Provider    Model                 Calls  Input tokens  Output tokens  Cost (USD)
+ findings_judge     anthropic   claude-haiku-4-5        142       284,000         71,000     $0.0426
+ campaign_planning  anthropic   claude-sonnet-4-6        24        96,000         24,000     $0.3600
+ ...
+
+Total: $0.4026
+```
+
+### REST API
+
+| Method | Path | Role | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/v1/org/llm/providers` | any | List supported providers and required fields |
+| `GET` | `/api/v1/org/llm/credentials` | any | List configured providers (keys never returned) |
+| `PUT` | `/api/v1/org/llm/credentials/{provider}` | admin | Store or update credentials |
+| `POST` | `/api/v1/org/llm/credentials/{provider}/test` | admin | Validate credentials with a 1-token probe |
+| `DELETE` | `/api/v1/org/llm/credentials/{provider}` | admin | Revoke stored credentials |
+| `GET` | `/api/v1/org/llm/task-config` | any | Get task → model mapping (with preset detection) |
+| `PUT` | `/api/v1/org/llm/task-config` | admin | Apply preset or custom task config |
+| `GET` | `/api/v1/org/llm/usage` | any | Aggregated token usage and cost |
+| `GET` | `/api/v1/org/llm/audit` | admin | Credential change audit log |
+
+Credential storage: API keys are Fernet-symmetric-encrypted before writing to the database. The plaintext key is never stored or returned — only a `configured: true/false` flag is exposed. Encryption requires `FORGE_SECRETS_KEY` to be set in `.env`.
 
 ---
 
@@ -643,6 +776,33 @@ forge report <engagement-id> --pdf
 
 When exploit walkthroughs or PoC scripts have been generated, the report includes them automatically under each finding.
 
+#### `forge org llm` — LLM provider configuration (admin+)
+
+Configure per-org LLM providers, model presets, and credentials. Requires `admin` or higher.
+
+```bash
+# Show current credentials and task→model map
+forge org llm show
+
+# Apply a model preset to all tasks
+forge org llm preset smart | balanced | cheap
+
+# Override provider and model for a specific task type
+forge org llm set findings_judge --provider openai --model gpt-4-turbo
+forge org llm set agent_brain --provider bedrock --model anthropic.claude-sonnet-4 --max-tokens 4096
+
+# Credential management
+forge org llm key set anthropic                          # prompts for key (hidden input)
+forge org llm key set bedrock --iam-role --region us-east-1
+forge org llm key set azure --endpoint https://myorg.openai.azure.com
+forge org llm key test anthropic                         # 1-token probe to validate
+forge org llm key revoke openai --yes
+
+# Token usage and cost
+forge org llm usage
+forge org llm usage --since 2026-05-01T00:00:00
+```
+
 #### `forge ci scan <target>` — CI/CD security gate
 
 Run a FORGE scan from any CI pipeline. Exits 0 if clean, exits 1 if findings breach the threshold. Posts a GitHub commit status check and comment when `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, and `GITHUB_SHA` are set (populated automatically in GitHub Actions).
@@ -710,6 +870,11 @@ forge delete <engagement-id> --yes
 # 0. Register (first time) or login (subsequent machines)
 forge register --email you@example.com --password changeme --org-name "My Org"
 # or: forge login --email you@example.com --password changeme
+
+# 0b. (First time) Configure your org's LLM provider
+forge org llm key set anthropic      # or openai / bedrock / azure
+forge org llm key test anthropic     # verify it works
+forge org llm preset balanced        # use default model mix
 
 # 1. Start a pentest and stream events live
 forge run /Users/you/Desktop/myproject
@@ -879,6 +1044,10 @@ Analyzes a compiled binary file (ELF, PE, Mach-O). Same agents as local codebase
 
 All endpoints (except `/health` and `/auth/register`/`/auth/login`) require `Authorization: Bearer <token>`.
 
+### LLM configuration
+
+See the [LLM Provider Configuration](#llm-provider-configuration) section above for the full table and examples.
+
 ### Auth & users
 
 | Method | Path | Role required | Description |
@@ -936,7 +1105,7 @@ cd backend
 pytest -v
 ```
 
-170 tests covering auth flows, RBAC enforcement, API key CRUD, org/super-admin routes, org isolation (cross-org 404 enforcement), models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, multi-target pipeline, orphan-engagement sweep, and worker-health endpoint.
+242 tests covering auth flows, RBAC enforcement, API key CRUD, org/super-admin routes, org isolation (cross-org 404 enforcement), models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, multi-target pipeline, orphan-engagement sweep, worker-health endpoint, LLM factory (multi-provider resolution, retry, usage tracking), per-org LLM API endpoints (credentials, task-config presets, audit log), and `forge org llm` CLI commands.
 
 ---
 
@@ -951,11 +1120,14 @@ FORGE/
 │   │   │   ├── api_keys.py     # API key CRUD
 │   │   │   ├── deps.py         # get_current_user, require_analyst/admin/super_admin
 │   │   │   ├── org_admin.py    # list/update/delete org users (admin+)
+│   │   │   ├── org_llm.py      # /api/v1/org/llm/* — provider creds, task config, usage, audit
 │   │   │   ├── super_admin.py  # cross-org management (super_admin only)
 │   │   │   └── engagements, findings, gates, knowledge, system, start
 │   │   ├── brain/        # SemanticModeler, CodebaseModeler, CampaignPlanner, ExploitEngine, PoCEngine, MemoryEngine
+│   │   │   └── llm_factory.py  # multi-provider get_llm(), RetryLLM, TrackedLLM, DEFAULT_TASK_SPECS
 │   │   ├── knowledge/    # Vector store (Qdrant) + graph store (Neo4j)
-│   │   ├── models/       # SQLAlchemy ORM models (user, api_key, engagement, finding, task, agent, knowledge)
+│   │   ├── models/       # SQLAlchemy ORM models (user, api_key, engagement, finding, task, agent,
+│   │   │                 #   knowledge, org_llm, llm_usage) — portable sqlalchemy.Uuid throughout
 │   │   ├── swarm/        # Agents, scheduler, health monitor, task board
 │   │   │   └── agents/   # recon, probe, evasion, code_analyzer, dependency_scanner, fuzzer, deep_exploit
 │   │   ├── validator/    # Challenger, context filter, severity scorer
@@ -975,6 +1147,7 @@ FORGE/
 ├── cli/                  # forge CLI
 │   └── forge_cli/
 │       ├── commands/     # auth.py (register/login/whoami/logout/api-keys), users.py (list/promote/remove)
+│       │                 # org_llm.py (show/preset/set/key set|test|revoke/usage)
 │       ├── api.py        # ForgeClient — all HTTP calls to the backend
 │       ├── display.py    # Rich tables, panels, event formatters
 │       ├── main.py       # Click group + command registration
