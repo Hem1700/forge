@@ -15,8 +15,11 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timedelta
 
 from arq.connections import RedisSettings
+from arq.jobs import JobStatus
+from sqlalchemy import select, update
 
 from app.api.start import (
     _judge_findings_async,
@@ -25,8 +28,63 @@ from app.api.start import (
     _run_web_pipeline,
 )
 from app.config import settings
+from app.database import AsyncSessionLocal
+from app.models.engagement import Engagement, EngagementStatus
+from app.queue import job_status
+from app.ws import progress as ws_progress
 
 logger = logging.getLogger(__name__)
+
+
+async def _recover_orphaned_engagements(ctx: dict) -> None:
+    """On worker startup, find running engagements whose Arq job is gone and
+    mark them failed so users aren't left with engagements stuck in 'running'
+    forever after a worker restart/crash."""
+    cutoff = datetime.utcnow() - timedelta(hours=1)
+    failed: list[tuple[str, str]] = []
+
+    try:
+        async with AsyncSessionLocal() as db:
+            running = (
+                await db.execute(
+                    select(Engagement).where(Engagement.status == EngagementStatus.running)
+                )
+            ).scalars().all()
+
+            for e in running:
+                should_fail = False
+                reason = ""
+                if e.job_id:
+                    try:
+                        status = await job_status(e.job_id)
+                    except Exception:
+                        logger.exception("worker startup: job_status lookup failed for %s", e.id)
+                        continue
+                    if status == JobStatus.not_found:
+                        should_fail = True
+                        reason = "worker restarted; job not found in queue"
+                elif e.started_at and e.started_at < cutoff:
+                    should_fail = True
+                    reason = "stale running engagement recovered on worker startup"
+
+                if should_fail:
+                    e.status = EngagementStatus.aborted
+                    failed.append((str(e.id), reason))
+
+            await db.commit()
+    except Exception:
+        logger.exception("worker startup: orphan recovery sweep failed")
+        return
+
+    for eid, reason in failed:
+        try:
+            await ws_progress.broadcast(eid, "engagement_aborted", {
+                "engagement_id": eid,
+                "reason": reason,
+            })
+        except Exception:
+            logger.exception("worker startup: failed to broadcast abort for %s", eid)
+        logger.warning("worker startup: aborted orphaned engagement %s — %s", eid, reason)
 
 
 async def run_web_pipeline(ctx: dict, engagement_id: str) -> None:
@@ -58,6 +116,7 @@ HEALTH_CHECK_KEY = "arq:queue:health-check"
 
 class WorkerSettings:
     functions = [run_web_pipeline, run_codebase_pipeline, run_cve_pipeline, judge_findings]
+    on_startup = _recover_orphaned_engagements
     redis_settings = _redis_settings()
     # Pipelines can take many minutes (LLM calls, dep installs in Docker,
     # diff-execute) so push the job timeout out from the default 5 min.
