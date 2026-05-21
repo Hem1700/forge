@@ -5,16 +5,20 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from app.api.deps import require_analyst
 from app.brain.llm_factory import BudgetExceededError
+from app.brain.os_modeler import OSModeler, SSHAuth
+from app.brain.os_fingerprint import OSFingerprint
 from app.database import get_db, AsyncSessionLocal
 from app.models.engagement import Engagement, EngagementStatus
+from app.models.os_target import OSTarget
 from app.models.user import User
 from app.models.finding import Finding, Severity, ValidationStatus
 from app.models.task import Task, TaskStatus, Priority
@@ -578,4 +582,104 @@ async def start_engagement(
         "target_type": target_type,
         "job": job_name,
         "job_id": job.job_id if job is not None else None,
+    }
+
+
+async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = None) -> None:
+    """Collect SSH fingerprint and save to OSTarget.fingerprint."""
+    from datetime import datetime, timezone
+    async with AsyncSessionLocal() as db:
+        target = (await db.execute(
+            select(OSTarget).where(OSTarget.engagement_id == engagement_id)
+        )).scalar_one_or_none()
+        if target is None:
+            logger.warning("os_pipeline: no OSTarget for engagement %s", engagement_id)
+            return
+
+        key_mat = None
+        if target.encrypted_credential:
+            try:
+                from app.brain.llm_factory import _decrypt_key
+                key_mat = _decrypt_key(target.encrypted_credential)
+            except Exception:
+                logger.warning("os_pipeline: could not decrypt credential for %s", engagement_id)
+
+        auth = SSHAuth(
+            auth_type=target.auth_type,
+            key_path=key_mat if target.auth_type == "key" else None,
+            password=key_mat if target.auth_type == "password" else None,
+        )
+        await _broadcast(str(engagement_id), "os_modeling_started", {"host": target.host})
+        try:
+            modeler = OSModeler()
+            fp = await modeler.collect(target.host, target.port, target.username, auth)
+            target.fingerprint = fp.to_dict()
+            target.collected_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            await db.commit()
+            await _broadcast(str(engagement_id), "os_modeling_complete", {
+                "host": target.host,
+                "packages": len(fp.packages),
+                "open_ports": len(fp.open_ports),
+                "suid_count": len(fp.suid_binaries),
+                "errors": len(fp.collection_errors),
+            })
+        except Exception as e:
+            logger.exception("os_pipeline failed for %s", engagement_id)
+            await _broadcast(str(engagement_id), "os_modeling_failed", {"error": str(e)})
+
+
+class OSTargetRequest(BaseModel):
+    host: str
+    port: int = 22
+    username: str
+    auth_type: str  # key | password | agent
+    key_material: str | None = None  # key path or password (will be encrypted)
+    access_mode: str = "agentless"
+    collector_sudo: bool = False
+
+
+@router.post("/{engagement_id}/os-target", status_code=201)
+async def add_os_target(
+    engagement_id: uuid.UUID,
+    body: OSTargetRequest,
+    current_user: User = Depends(require_analyst),
+    db: AsyncSession = Depends(get_db),
+):
+    """Register an SSH target for OS scanning on this engagement."""
+    from app.brain.llm_factory import _encrypt_key, BudgetExceededError
+    eng = await db.get(Engagement, engagement_id)
+    if eng is None or eng.org_id != current_user.org_id:
+        raise HTTPException(status_code=404, detail="Engagement not found")
+    if body.auth_type not in ("key", "password", "agent"):
+        raise HTTPException(status_code=422, detail="auth_type must be key, password, or agent")
+    if body.access_mode not in ("agentless", "collector"):
+        raise HTTPException(status_code=422, detail="access_mode must be agentless or collector")
+
+    encrypted = None
+    if body.key_material:
+        try:
+            encrypted = _encrypt_key(body.key_material)
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    target = OSTarget(
+        engagement_id=engagement_id,
+        host=body.host,
+        port=body.port,
+        username=body.username,
+        auth_type=body.auth_type,
+        encrypted_credential=encrypted,
+        access_mode=body.access_mode,
+        collector_sudo=body.collector_sudo,
+    )
+    db.add(target)
+    await db.commit()
+    await db.refresh(target)
+    return {
+        "id": str(target.id),
+        "host": target.host,
+        "port": target.port,
+        "username": target.username,
+        "auth_type": target.auth_type,
+        "access_mode": target.access_mode,
     }

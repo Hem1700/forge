@@ -17,6 +17,7 @@ from app.models import (  # noqa: F401
     finding,
     knowledge,
     organization,
+    os_target,
     task,
     user,
 )
