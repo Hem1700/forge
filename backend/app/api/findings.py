@@ -18,6 +18,7 @@ from app.brain.poc_engine import PoCEngine
 from app.brain.exploit_script_engine import ExploitScriptEngine
 from app.brain.exploit_executor import ExploitExecutor
 from app.brain.execution_judge import ExecutionJudge
+from app.brain.llm_factory import BudgetExceededError
 from app.brain.researcher import Researcher
 
 router = APIRouter(prefix="/api/v1/findings", tags=["findings"])
@@ -135,7 +136,10 @@ async def generate_exploit(
     }
 
     engine = ExploitEngine(org_id=current_user.org_id)
-    exploit = await engine.generate(_serialize_finding(finding), context)
+    try:
+        exploit = await engine.generate(_serialize_finding(finding), context)
+    except BudgetExceededError as e:
+        raise HTTPException(status_code=402, detail=str(e))
 
     finding.exploit_detail = exploit
     await db.commit()
@@ -171,7 +175,10 @@ async def generate_poc(
     }
 
     engine = PoCEngine(org_id=current_user.org_id)
-    poc = await engine.generate(_serialize_finding(finding), context)
+    try:
+        poc = await engine.generate(_serialize_finding(finding), context)
+    except BudgetExceededError as e:
+        raise HTTPException(status_code=402, detail=str(e))
 
     finding.poc_detail = poc
     await db.commit()
@@ -191,7 +198,10 @@ async def research_finding(
     if finding.research and finding.research.get("advisories"):
         return finding.research
     researcher = Researcher()
-    research = await researcher.research(_serialize_finding(finding))
+    try:
+        research = await researcher.research(_serialize_finding(finding))
+    except BudgetExceededError as e:
+        raise HTTPException(status_code=402, detail=str(e))
     finding.research = research
     await db.commit()
     return research
@@ -231,7 +241,10 @@ async def generate_exploit_script(
             research = None
 
     engine = ExploitScriptEngine(org_id=current_user.org_id)
-    script_data = await engine.generate(_serialize_finding(finding), context, research=research)
+    try:
+        script_data = await engine.generate(_serialize_finding(finding), context, research=research)
+    except BudgetExceededError as e:
+        raise HTTPException(status_code=402, detail=str(e))
 
     finding.exploit_script = script_data
     await db.commit()
@@ -274,10 +287,15 @@ async def execute_exploit(
                 research = await Researcher().research(_serialize_finding(finding))
                 finding.research = research
                 await db.commit()
+            except BudgetExceededError as e:
+                raise HTTPException(status_code=402, detail=str(e))
             except Exception:
                 research = None
         engine = ExploitScriptEngine(org_id=current_user.org_id)
-        finding.exploit_script = await engine.generate(_serialize_finding(finding), context, research=research)
+        try:
+            finding.exploit_script = await engine.generate(_serialize_finding(finding), context, research=research)
+        except BudgetExceededError as e:
+            raise HTTPException(status_code=402, detail=str(e))
         await db.commit()
 
     script_data = finding.exploit_script
@@ -293,13 +311,16 @@ async def execute_exploit(
 
     # Judge the result
     judge = ExecutionJudge(org_id=current_user.org_id)
-    verdict_result = await judge.judge(
-        finding=_serialize_finding(finding),
-        script=script_data["script"],
-        stdout=execution_result["stdout"],
-        stderr=execution_result["stderr"],
-        exit_code=execution_result["exit_code"],
-    )
+    try:
+        verdict_result = await judge.judge(
+            finding=_serialize_finding(finding),
+            script=script_data["script"],
+            stdout=execution_result["stdout"],
+            stderr=execution_result["stderr"],
+            exit_code=execution_result["exit_code"],
+        )
+    except BudgetExceededError as e:
+        raise HTTPException(status_code=402, detail=str(e))
 
     # Persist
     full_execution: dict[str, Any] = {
@@ -344,7 +365,10 @@ async def execute_exploit_diff(
             "app_type": (engagement.semantic_model or {}).get("app_type", "unknown"),
         }
         engine = ExploitScriptEngine(org_id=current_user.org_id)
-        finding.exploit_script = await engine.generate(_serialize_finding(finding), context)
+        try:
+            finding.exploit_script = await engine.generate(_serialize_finding(finding), context)
+        except BudgetExceededError as e:
+            raise HTTPException(status_code=402, detail=str(e))
         await db.commit()
 
     script_data = finding.exploit_script
@@ -373,17 +397,20 @@ async def execute_exploit_diff(
     )
 
     judge = ExecutionJudge(org_id=current_user.org_id)
-    diff_verdict = await judge.judge_diff(
-        finding=_serialize_finding(finding),
-        script=script_data["script"],
-        vuln_stdout=vuln_run["stdout"],
-        vuln_stderr=vuln_run["stderr"],
-        vuln_exit=vuln_run["exit_code"],
-        patched_stdout=patched_run["stdout"],
-        patched_stderr=patched_run["stderr"],
-        patched_exit=patched_run["exit_code"],
-        patched_label=patched_label,
-    )
+    try:
+        diff_verdict = await judge.judge_diff(
+            finding=_serialize_finding(finding),
+            script=script_data["script"],
+            vuln_stdout=vuln_run["stdout"],
+            vuln_stderr=vuln_run["stderr"],
+            vuln_exit=vuln_run["exit_code"],
+            patched_stdout=patched_run["stdout"],
+            patched_stderr=patched_run["stderr"],
+            patched_exit=patched_run["exit_code"],
+            patched_label=patched_label,
+        )
+    except BudgetExceededError as e:
+        raise HTTPException(status_code=402, detail=str(e))
 
     diff_record = {
         "patched_label": patched_label,
