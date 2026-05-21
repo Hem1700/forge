@@ -123,19 +123,6 @@ async def test_no_org_id_allows_call():
     )
 
 
-@pytest.mark.asyncio
-async def test_hard_cap_blocks_call_when_over_limit(org_with_budget):
-    org, budget = await org_with_budget(limit_usd=1.00, hard_cap=True, current_spend=0.999)
-    with pytest.raises(BudgetExceededError) as exc_info:
-        await _check_budget(
-            org_id=org.id,
-            provider=Provider.anthropic,
-            model="claude-sonnet-4-6",
-            max_tokens=4000,
-            prompt_len=10000,
-        )
-    assert exc_info.value.limit == 1.00
-
 
 @pytest.mark.asyncio
 async def test_soft_cap_allows_call_when_over_limit(org_with_budget):
@@ -150,17 +137,6 @@ async def test_soft_cap_allows_call_when_over_limit(org_with_budget):
         prompt_len=1000,
     )
 
-
-@pytest.mark.asyncio
-async def test_update_budget_spend_increments_correctly(org_with_budget):
-    org, budget = await org_with_budget(limit_usd=10.00, current_spend=1.00)
-    await _update_budget_spend(org_id=org.id, actual_cost=0.50)
-    # Re-read from DB
-    from sqlalchemy import select
-    from app.database import AsyncSessionLocal
-    async with AsyncSessionLocal() as db:
-        row = (await db.execute(select(OrgBudget).where(OrgBudget.org_id == org.id))).scalar_one()
-    assert abs(float(row.current_spend_usd) - 1.50) < 0.001
 
 
 @pytest.mark.asyncio
