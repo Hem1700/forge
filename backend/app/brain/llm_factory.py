@@ -196,6 +196,17 @@ class BudgetExceededError(Exception):
         )
 
 
+class RateLimitQueuedError(Exception):
+    """Raised when org's provider rate limit is consistently exceeded after retries."""
+    def __init__(self, org_id, provider: str, retry_after_seconds: int):
+        self.org_id = org_id
+        self.provider = provider
+        self.retry_after_seconds = retry_after_seconds
+        super().__init__(
+            f"Rate limit for {provider} exceeded; retry after {retry_after_seconds}s"
+        )
+
+
 # ── Env-var fallback credentials ──────────────────────────────────────────────
 
 _ENV_CREDS: dict[Provider, ProviderCreds] = {
@@ -490,6 +501,131 @@ async def _update_budget_spend(
         logger.exception("Budget spend update failed for org %s", org_id)
 
 
+# ── Rate limiting (Redis sliding window) ──────────────────────────────────────
+
+_DEFAULT_RATE_LIMITS: dict[str, dict[str, int]] = {
+    "anthropic": {"tpm": 100_000, "rpm": 50},
+    "openai":    {"tpm": 90_000,  "rpm": 60},
+    "bedrock":   {"tpm": 80_000,  "rpm": 40},
+    "azure":     {"tpm": 80_000,  "rpm": 40},
+    # ollama: unlimited (0 = skip)
+}
+
+_RATE_LIMIT_LUA = """
+local key = KEYS[1]
+local window_ms = tonumber(ARGV[1])
+local now_ms = tonumber(ARGV[2])
+local max_count = tonumber(ARGV[3])
+local member = ARGV[4]
+redis.call('ZREMRANGEBYSCORE', key, '-inf', now_ms - window_ms)
+local count = redis.call('ZCARD', key)
+if max_count > 0 and count >= max_count then
+    return 0
+end
+redis.call('ZADD', key, now_ms, member)
+redis.call('EXPIRE', key, 60)
+return 1
+"""
+
+_redis_rl: object = None  # lazy singleton
+
+async def _get_rl_redis():
+    global _redis_rl
+    if _redis_rl is None:
+        from redis import asyncio as aioredis
+        _redis_rl = aioredis.from_url(settings.redis_url, decode_responses=True)
+    return _redis_rl
+
+
+async def _check_rate_limit(
+    org_id: uuid.UUID | None,
+    provider: Provider,
+    estimated_tokens: int,
+) -> None:
+    """Sliding-window rate limit check. Raises RateLimitQueuedError after 3 retries."""
+    if org_id is None:
+        return
+    defaults = _DEFAULT_RATE_LIMITS.get(provider.value)
+    if not defaults:
+        return  # unknown provider or unlimited
+
+    # Fetch any org-specific overrides
+    tpm_limit = defaults["tpm"]
+    rpm_limit = defaults["rpm"]
+    try:
+        from app.models.org_rate_limit import OrgRateLimitConfig
+        async with AsyncSessionLocal() as db:
+            row = (await db.execute(
+                select(OrgRateLimitConfig).where(
+                    OrgRateLimitConfig.org_id == org_id,
+                    OrgRateLimitConfig.provider == provider.value,
+                )
+            )).scalar_one_or_none()
+            if row:
+                if row.tpm_limit is not None:
+                    tpm_limit = row.tpm_limit
+                if row.rpm_limit is not None:
+                    rpm_limit = row.rpm_limit
+    except Exception:
+        logger.exception("Rate limit config lookup failed; using defaults")
+
+    import time as _time
+    redis = await _get_rl_redis()
+    org_str = str(org_id)
+    prov_str = provider.value
+    now_ms = int(_time.time() * 1000)
+    window_ms = 60_000  # 1-minute sliding window
+
+    for attempt in range(3):
+        rpm_key = f"ratelimit:{org_str}:{prov_str}:rpm"
+        tpm_key = f"ratelimit:{org_str}:{prov_str}:tpm"
+        member = f"{now_ms}-{uuid.uuid4()}"
+
+        rpm_ok = await redis.eval(_RATE_LIMIT_LUA, 1, rpm_key, window_ms, now_ms, rpm_limit, member)
+        tpm_ok = await redis.eval(_RATE_LIMIT_LUA, 1, tpm_key, window_ms, now_ms, tpm_limit, f"tok-{member}")
+
+        if rpm_ok and tpm_ok:
+            return  # allowed
+
+        wait = 2 ** attempt  # 1s, 2s, 4s
+        logger.warning(
+            "Rate limit hit for org %s provider %s (attempt %d/3); sleeping %ss",
+            org_id, provider.value, attempt + 1, wait,
+        )
+        await asyncio.sleep(wait)
+        now_ms = int(_time.time() * 1000)
+
+    raise RateLimitQueuedError(
+        org_id=org_id,
+        provider=provider.value,
+        retry_after_seconds=8,
+    )
+
+
+async def _record_rate_limit_usage(
+    org_id: uuid.UUID | None,
+    provider: Provider,
+    actual_input_tokens: int,
+    actual_output_tokens: int,
+) -> None:
+    """Update TPM window with actual token count after call completes."""
+    if org_id is None:
+        return
+    try:
+        import time as _time
+        redis = await _get_rl_redis()
+        org_str = str(org_id)
+        prov_str = provider.value
+        now_ms = int(_time.time() * 1000)
+        tpm_key = f"ratelimit:{org_str}:{prov_str}:tpm"
+        total_tokens = actual_input_tokens + actual_output_tokens
+        member = f"actual-{now_ms}-{uuid.uuid4()}"
+        await redis.zadd(tpm_key, {member: now_ms})
+        await redis.expire(tpm_key, 60)
+    except Exception:
+        logger.exception("Rate limit usage record failed for org %s", org_id)
+
+
 class TrackedLLM:
     def __init__(self, llm, *, task: TaskType, org_id, engagement_id, provider: Provider, model: str):
         self.llm = llm
@@ -510,6 +646,11 @@ class TrackedLLM:
             max_tokens=getattr(self.llm, "max_tokens", 4000) if hasattr(self.llm, "max_tokens") else 4000,
             prompt_len=prompt_len,
         )
+        await _check_rate_limit(
+            org_id=self.org_id,
+            provider=self.provider,
+            estimated_tokens=prompt_len // 4,
+        )
         t0 = time.monotonic()
         response = await self.llm.ainvoke(messages, **kw)
         usage = getattr(response, "usage_metadata", {}) or {}
@@ -526,6 +667,11 @@ class TrackedLLM:
             duration_ms=int((time.monotonic() - t0) * 1000),
         )
         await _update_budget_spend(self.org_id, cost)
+        await _record_rate_limit_usage(
+            self.org_id, self.provider,
+            usage.get("input_tokens", 0),
+            usage.get("output_tokens", 0),
+        )
         return response
 
 

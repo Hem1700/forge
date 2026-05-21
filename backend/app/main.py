@@ -13,6 +13,7 @@ from app.api.org_admin import router as org_admin_router
 from app.api.super_admin import router as super_admin_router
 from app.api.start import router as start_router
 from app.api.org_llm import router as org_llm_router
+from app.api.rate_limits import router as rate_limits_router
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models.engagement import Engagement, EngagementStatus
@@ -157,6 +158,7 @@ app.include_router(start_router)
 app.include_router(org_admin_router)
 app.include_router(super_admin_router)
 app.include_router(org_llm_router)
+app.include_router(rate_limits_router)
 
 
 @app.websocket("/ws/{engagement_id}")
