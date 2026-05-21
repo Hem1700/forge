@@ -154,6 +154,105 @@ def llm_set(task_type: str, provider: str, model: str,
     )
 
 
+# ── forge org llm tiers ───────────────────────────────────────────────────────
+
+# Mirror of backend/app/brain/llm_factory.py TASK_TIER_MAP and TIER_MODEL_MAP.
+# Duplicated here so the CLI does not import the `app` backend package.
+# Keep in sync when editing tier assignments in llm_factory.py.
+_CLI_TASK_TIER_MAP: dict[str, str] = {
+    "codebase_modeling":  "STANDARD",
+    "campaign_planning":  "STANDARD",
+    "code_analyzer":      "STANDARD",
+    "semantic_modeler":   "LIGHT",
+    "findings_judge":     "STANDARD",
+    "execution_judge":    "HEAVY",
+    "exploit_engine":     "HEAVY",
+    "exploit_script":     "HEAVY",
+    "poc_engine":         "HEAVY",
+    "evasion_strategist": "HEAVY",
+    "logic_modeler":      "LIGHT",
+    "agent_brain":        "STANDARD",
+    "challenger":         "STANDARD",
+    "severity_assessor":  "LIGHT",
+}
+
+_CLI_TIER_MODEL_MAP: dict[str, dict[str, str]] = {
+    "anthropic": {
+        "LIGHT":    "claude-haiku-4-5-20251001",
+        "STANDARD": "claude-sonnet-4-6",
+        "HEAVY":    "claude-opus-4-7",
+    },
+    "openai": {
+        "LIGHT":    "gpt-4o-mini",
+        "STANDARD": "gpt-4o",
+        "HEAVY":    "o1",
+    },
+    "bedrock": {
+        "LIGHT":    "anthropic.claude-haiku-4",
+        "STANDARD": "anthropic.claude-sonnet-4",
+        "HEAVY":    "anthropic.claude-opus-4",
+    },
+    "azure": {
+        "LIGHT":    "gpt-4o-mini",
+        "STANDARD": "gpt-4-turbo",
+        "HEAVY":    "gpt-4o",
+    },
+}
+
+_TIER_STYLES: dict[str, str] = {
+    "LIGHT":    "green",
+    "STANDARD": "yellow",
+    "HEAVY":    "red",
+}
+
+
+@org_llm_group.command("tiers")
+def llm_tiers() -> None:
+    """Show task → tier mapping and tier → model assignments per provider.
+
+    \b
+    Tiers route tasks to appropriately-priced models:
+      LIGHT     — small/cheap models for low-complexity work
+      STANDARD  — balanced models for typical analysis
+      HEAVY     — top-tier models for exploitation and complex reasoning
+
+    When an org has a credential configured for a provider but no explicit
+    task-config override, requests automatically use the tier-mapped model.
+    """
+    table = Table(
+        show_header=True,
+        header_style="bold orange1",
+        box=None,
+        padding=(0, 1),
+        title="[bold]Task Tier Routing[/bold]",
+        title_style="bold",
+    )
+    table.add_column("Task Type", style="cyan", no_wrap=True)
+    table.add_column("Tier", no_wrap=True)
+    table.add_column("Anthropic")
+    table.add_column("OpenAI")
+    table.add_column("Bedrock")
+    table.add_column("Azure")
+
+    for task_name in sorted(_CLI_TASK_TIER_MAP):
+        tier = _CLI_TASK_TIER_MAP[task_name]
+        style = _TIER_STYLES.get(tier, "white")
+        table.add_row(
+            task_name,
+            f"[{style}]{tier}[/{style}]",
+            _CLI_TIER_MODEL_MAP["anthropic"][tier],
+            _CLI_TIER_MODEL_MAP["openai"][tier],
+            _CLI_TIER_MODEL_MAP["bedrock"][tier],
+            _CLI_TIER_MODEL_MAP["azure"][tier],
+        )
+
+    console.print(table)
+    console.print(
+        "\n[dim]Tip: override per-task with[/dim] "
+        "[cyan]forge org llm set <task> --provider <p> --model <m>[/cyan]"
+    )
+
+
 # ── forge org llm key ─────────────────────────────────────────────────────────
 
 @org_llm_group.group("key")
