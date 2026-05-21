@@ -397,6 +397,9 @@ async def _log_usage(
     output_tokens: int,
     cost_usd: float,
     duration_ms: int,
+    compression_applied: bool = False,
+    original_tokens: int | None = None,
+    compression_savings_pct: float | None = None,
 ) -> None:
     if org_id is None:
         return
@@ -413,6 +416,9 @@ async def _log_usage(
                 output_tokens=output_tokens,
                 cost_usd=cost_usd,
                 duration_ms=duration_ms,
+                compression_applied=compression_applied,
+                original_tokens=original_tokens,
+                compression_savings_pct=compression_savings_pct,
             )
             db.add(event)
             await db.commit()
@@ -639,6 +645,11 @@ class TrackedLLM:
         prompt_len = sum(
             len(str(getattr(m, "content", m))) for m in (messages if isinstance(messages, list) else [messages])
         )
+        # Context compression
+        from app.brain import context_manager as _ctx_mgr
+        messages, _ctx_stats = await _ctx_mgr.prepare(
+            messages, model=self.model, provider=self.provider.value
+        )
         await _check_budget(
             org_id=self.org_id,
             provider=self.provider,
@@ -665,6 +676,9 @@ class TrackedLLM:
             output_tokens=usage.get("output_tokens", 0),
             cost_usd=cost,
             duration_ms=int((time.monotonic() - t0) * 1000),
+            compression_applied=_ctx_stats.compression_applied,
+            original_tokens=_ctx_stats.original_tokens,
+            compression_savings_pct=_ctx_stats.compression_savings_pct,
         )
         await _update_budget_spend(self.org_id, cost)
         await _record_rate_limit_usage(
