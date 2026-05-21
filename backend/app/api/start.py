@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
+from sqlalchemy import update
+
 from app.api.deps import require_analyst
 from app.database import get_db, AsyncSessionLocal
 from app.models.engagement import Engagement, EngagementStatus
@@ -494,23 +496,49 @@ async def _finalize(engagement_id: uuid.UUID, db: AsyncSession, eid: str, succes
     await _broadcast(eid, "campaign_complete", {"status": "done" if success else "error", "engagement_id": eid})
 
 
+_NON_STARTABLE = (
+    EngagementStatus.running,
+    EngagementStatus.complete,
+    EngagementStatus.aborted,
+)
+
+
 @router.post("/{engagement_id}/start", status_code=202)
 async def start_engagement(
     engagement_id: uuid.UUID,
     _: User = Depends(require_analyst),
     db: AsyncSession = Depends(get_db),
 ):
-    engagement = await db.get(Engagement, engagement_id)
-    if not engagement:
-        raise HTTPException(status_code=404, detail="Engagement not found")
-    if engagement.status == EngagementStatus.running:
-        raise HTTPException(status_code=409, detail="Engagement already running")
+    # Atomic status transition: succeeds only when status is NOT already
+    # running/complete/aborted.  Two concurrent requests racing here will
+    # both hit this UPDATE; exactly one will update 1 row, the other 0 rows.
+    result = await db.execute(
+        update(Engagement)
+        .where(
+            Engagement.id == engagement_id,
+            Engagement.status.not_in(_NON_STARTABLE),
+        )
+        .values(
+            status=EngagementStatus.running,
+            started_at=datetime.utcnow().replace(tzinfo=None),
+        )
+        .returning(Engagement.target_type, Engagement.org_id)
+    )
+    row = result.one_or_none()
 
-    engagement.status = EngagementStatus.running
-    engagement.started_at = datetime.utcnow().replace(tzinfo=None)
+    if row is None:
+        # 0 rows updated — either engagement missing or already in a non-startable state
+        existing = await db.get(Engagement, engagement_id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Engagement not found")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Engagement cannot be started (status: {existing.status.value})",
+        )
+
     await db.commit()
 
-    target_type = engagement.target_type
+    target_type, org_id = row
     if target_type == "cve":
         job_name = "run_cve_pipeline"
     elif target_type in ("local_codebase", "binary"):
@@ -519,10 +547,13 @@ async def start_engagement(
         job_name = "run_web_pipeline"
 
     job = await enqueue(job_name, str(engagement_id))
-    # Persist job_id so the lifespan sweep can detect a crashed worker
-    # by looking the job up in Redis on next API startup.
+    # Persist job_id so the lifespan sweep can detect a crashed worker.
     if job is not None:
-        engagement.job_id = job.job_id
+        await db.execute(
+            update(Engagement)
+            .where(Engagement.id == engagement_id)
+            .values(job_id=job.job_id)
+        )
         await db.commit()
 
     return {

@@ -136,6 +136,24 @@ def test_fuzzer_agent_defaults():
 
 
 @pytest.mark.asyncio
+async def test_start_endpoint_double_start_returns_409(http_client):
+    """Second POST /start on an already-running engagement must return 409 (idempotency guard)."""
+    create_resp = await http_client.post(
+        "/api/v1/engagements/",
+        json={"target_url": "https://double-start.example.com"},
+    )
+    assert create_resp.status_code == 201
+    engagement_id = create_resp.json()["id"]
+
+    with patch("app.api.start.enqueue", new=AsyncMock(return_value=None)):
+        first = await http_client.post(f"/api/v1/engagements/{engagement_id}/start")
+        second = await http_client.post(f"/api/v1/engagements/{engagement_id}/start")
+
+    assert first.status_code == 202
+    assert second.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_start_endpoint_not_found(http_client):
     """POST /start on a missing engagement id returns 404."""
     missing_id = uuid.uuid4()
