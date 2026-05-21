@@ -184,6 +184,21 @@ async def test_retry_llm_does_not_retry_non_rate_limit():
 
 # ── Tracking ─────────────────────────────────────────────────────────────────
 
+def _patch_tracked_llm_internals(monkeypatch):
+    """Patch all connection-making functions in TrackedLLM.ainvoke.
+
+    Without this, tests that directly call TrackedLLM.ainvoke with a real
+    org_id will hit _check_rate_limit → Redis and _check_budget → DB,
+    creating connections bound to the test's event loop. Those connections
+    are cached in module-level globals and then poison subsequent test files
+    that run in a different event loop ('Future attached to a different loop').
+    """
+    monkeypatch.setattr("app.brain.llm_factory._check_budget", AsyncMock())
+    monkeypatch.setattr("app.brain.llm_factory._check_rate_limit", AsyncMock())
+    monkeypatch.setattr("app.brain.llm_factory._update_budget_spend", AsyncMock())
+    monkeypatch.setattr("app.brain.llm_factory._record_rate_limit_usage", AsyncMock())
+
+
 @pytest.mark.asyncio
 async def test_tracked_llm_logs_usage(monkeypatch):
     logged = []
@@ -192,6 +207,7 @@ async def test_tracked_llm_logs_usage(monkeypatch):
         logged.append(kwargs)
 
     monkeypatch.setattr("app.brain.llm_factory._log_usage", fake_log_usage)
+    _patch_tracked_llm_internals(monkeypatch)
 
     inner = AsyncMock()
     response = MagicMock()
@@ -223,6 +239,7 @@ async def test_tracked_llm_handles_missing_usage_metadata(monkeypatch):
         logged.append(kwargs)
 
     monkeypatch.setattr("app.brain.llm_factory._log_usage", fake_log_usage)
+    _patch_tracked_llm_internals(monkeypatch)
 
     inner = AsyncMock()
     response = MagicMock(spec=["content"])  # no usage_metadata attribute
