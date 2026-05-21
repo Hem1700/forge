@@ -22,4 +22,7 @@ class LLMUsageEvent(Base):
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     cost_usd: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False, default=0)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    compression_applied: Mapped[bool] = mapped_column(nullable=False, default=False)
+    original_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    compression_savings_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
