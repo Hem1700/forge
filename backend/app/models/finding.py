@@ -32,7 +32,7 @@ class Finding(Base):
     __tablename__ = "findings"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    engagement_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("engagements.id"), nullable=False)
+    engagement_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False)
     task_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("tasks.id"), nullable=False)
     agent_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("agents.id"), nullable=False)
     title: Mapped[str] = mapped_column(String, nullable=False)

@@ -16,7 +16,7 @@ class KnowledgeGraphEntry(Base):
     __tablename__ = "knowledge_entries"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    engagement_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("engagements.id"), nullable=False)
+    engagement_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False)
     tech_stack: Mapped[list] = mapped_column(JSON, default=list)
     app_type: Mapped[str] = mapped_column(String, default="")
     attack_class: Mapped[str] = mapped_column(String, nullable=False)

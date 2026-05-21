@@ -12,7 +12,7 @@ class EngagementEvent(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     engagement_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("engagements.id"), index=True, nullable=False
+        Uuid, ForeignKey("engagements.id", ondelete="CASCADE"), index=True, nullable=False
     )
     type: Mapped[str] = mapped_column(String, nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, default=dict)

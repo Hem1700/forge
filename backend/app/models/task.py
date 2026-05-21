@@ -38,7 +38,7 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    engagement_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("engagements.id"), nullable=False)
+    engagement_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("engagements.id", ondelete="CASCADE"), nullable=False)
     hypothesis_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(String, default="")

@@ -1,9 +1,21 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
 from enum import Enum as PyEnum
+from typing import TYPE_CHECKING
+
 from sqlalchemy import ForeignKey, String, DateTime, JSON, Enum as SAEnum, Uuid
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.finding import Finding
+    from app.models.task import Task
+    from app.models.agent import Agent
+    from app.models.knowledge import KnowledgeGraphEntry
+    from app.models.engagement_event import EngagementEvent
 
 
 class EngagementStatus(str, PyEnum):
@@ -43,4 +55,21 @@ class Engagement(Base):
     job_id: Mapped[str | None] = mapped_column(String, nullable=True)
     org_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("organizations.id"), nullable=True, index=True
+    )
+
+    # Cascade: deleting an engagement removes all child rows automatically.
+    findings: Mapped[list[Finding]] = relationship(
+        "Finding", back_populates=None, cascade="all, delete-orphan", passive_deletes=True
+    )
+    tasks: Mapped[list[Task]] = relationship(
+        "Task", back_populates=None, cascade="all, delete-orphan", passive_deletes=True
+    )
+    agents: Mapped[list[Agent]] = relationship(
+        "Agent", back_populates=None, cascade="all, delete-orphan", passive_deletes=True
+    )
+    knowledge_entries: Mapped[list[KnowledgeGraphEntry]] = relationship(
+        "KnowledgeGraphEntry", back_populates=None, cascade="all, delete-orphan", passive_deletes=True
+    )
+    events: Mapped[list[EngagementEvent]] = relationship(
+        "EngagementEvent", back_populates=None, cascade="all, delete-orphan", passive_deletes=True
     )
