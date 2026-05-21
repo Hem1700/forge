@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 from sqlalchemy import update
 
 from app.api.deps import require_analyst
+from app.brain.llm_factory import BudgetExceededError
 from app.database import get_db, AsyncSessionLocal
 from app.models.engagement import Engagement, EngagementStatus
 from app.models.user import User
@@ -219,6 +220,11 @@ async def _run_web_pipeline(engagement_id: uuid.UUID) -> None:
                 if batch_ids:
                     await enqueue("judge_findings", eid, [str(fid) for fid in batch_ids], str(engagement.org_id))
 
+        except BudgetExceededError as e:
+            await db.rollback()
+            await _broadcast(eid, "campaign_complete", {"status": "budget_exceeded", "error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
         except Exception as e:
             await db.rollback()
             await _broadcast(eid, "campaign_complete", {"status": "error", "error": str(e)})
@@ -298,6 +304,11 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
                 if batch_ids:
                     await enqueue("judge_findings", eid, [str(fid) for fid in batch_ids], str(engagement.org_id))
 
+        except BudgetExceededError as e:
+            await db.rollback()
+            await _broadcast(eid, "campaign_complete", {"status": "budget_exceeded", "error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
         except Exception as e:
             await db.rollback()
             await _broadcast(eid, "campaign_complete", {"status": "error", "error": str(e)})
@@ -471,6 +482,11 @@ async def _run_cve_pipeline(engagement_id: uuid.UUID) -> None:
                 "confidence": verdict.get("confidence"),
             })
 
+        except BudgetExceededError as e:
+            await db.rollback()
+            await _broadcast(eid, "campaign_complete", {"status": "budget_exceeded", "error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
         except Exception as e:
             await db.rollback()
             await _broadcast(eid, "campaign_complete", {"status": "error", "error": str(e)})

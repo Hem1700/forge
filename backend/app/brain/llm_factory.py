@@ -137,6 +137,19 @@ def _decrypt_key(ciphertext: bytes) -> str:
     return _fernet.decrypt(ciphertext).decode()
 
 
+class BudgetExceededError(Exception):
+    """Raised when org's monthly LLM budget hard cap is reached."""
+    def __init__(self, org_id, limit: float, current: float, estimated: float):
+        self.org_id = org_id
+        self.limit = limit
+        self.current = current
+        self.estimated = estimated
+        super().__init__(
+            f"Monthly LLM budget exceeded: ${current:.4f} spent + ${estimated:.4f} estimated "
+            f"exceeds ${limit:.4f} limit"
+        )
+
+
 # ── Env-var fallback credentials ──────────────────────────────────────────────
 
 _ENV_CREDS: dict[Provider, ProviderCreds] = {
@@ -334,6 +347,87 @@ async def _log_usage(
         logger.exception("Failed to log LLM usage event")
 
 
+async def _check_budget(
+    org_id: uuid.UUID | None,
+    provider: Provider,
+    model: str,
+    max_tokens: int,
+    prompt_len: int,
+) -> None:
+    """Pre-call budget check. Raises BudgetExceededError if hard_cap would be exceeded."""
+    if org_id is None:
+        return
+    pair = _PRICING.get((provider, model))
+    if not pair:
+        return
+    inp_price, out_price = pair
+    estimated_input = prompt_len / 4
+    estimated_cost = (estimated_input * inp_price + max_tokens * out_price) / 1_000_000
+    from app.models.org_llm import OrgBudget
+    try:
+        async with AsyncSessionLocal() as db:
+            row = (await db.execute(
+                select(OrgBudget).where(OrgBudget.org_id == org_id)
+            )).scalar_one_or_none()
+            if row is None:
+                return
+            if row.hard_cap and (row.current_spend_usd + estimated_cost) >= row.monthly_limit_usd:
+                raise BudgetExceededError(
+                    org_id=org_id,
+                    limit=float(row.monthly_limit_usd),
+                    current=float(row.current_spend_usd),
+                    estimated=estimated_cost,
+                )
+    except BudgetExceededError:
+        raise
+    except Exception:
+        logger.exception("Budget pre-check failed for org %s; allowing call", org_id)
+
+
+async def _update_budget_spend(
+    org_id: uuid.UUID | None,
+    actual_cost: float,
+) -> None:
+    """Post-call: atomically add actual_cost to current_spend_usd, emit alert if threshold crossed."""
+    if org_id is None or actual_cost == 0:
+        return
+    from app.models.org_llm import OrgBudget
+    from sqlalchemy import text, update as sa_update
+    try:
+        async with AsyncSessionLocal() as db:
+            async with db.begin():
+                lock_id = int(uuid.UUID(str(org_id)).int % (2**62))
+                await db.execute(text(f"SELECT pg_advisory_xact_lock({lock_id})"))
+                await db.execute(
+                    sa_update(OrgBudget)
+                    .where(OrgBudget.org_id == org_id)
+                    .values(current_spend_usd=OrgBudget.current_spend_usd + actual_cost)
+                )
+                row = (await db.execute(
+                    select(OrgBudget).where(OrgBudget.org_id == org_id)
+                )).scalar_one_or_none()
+                if row and row.monthly_limit_usd > 0:
+                    pct = (row.current_spend_usd / row.monthly_limit_usd) * 100
+                    if pct >= row.alert_threshold_pct:
+                        try:
+                            from app.ws import progress as ws_progress
+                            await ws_progress.broadcast(
+                                "system",
+                                "budget_alert",
+                                {
+                                    "org_id": str(org_id),
+                                    "current_spend_usd": float(row.current_spend_usd),
+                                    "monthly_limit_usd": float(row.monthly_limit_usd),
+                                    "pct_used": round(pct, 1),
+                                    "hard_cap": row.hard_cap,
+                                },
+                            )
+                        except Exception:
+                            logger.warning("budget_alert broadcast failed for org %s", org_id)
+    except Exception:
+        logger.exception("Budget spend update failed for org %s", org_id)
+
+
 class TrackedLLM:
     def __init__(self, llm, *, task: TaskType, org_id, engagement_id, provider: Provider, model: str):
         self.llm = llm
@@ -344,9 +438,20 @@ class TrackedLLM:
         self.model = model
 
     async def ainvoke(self, messages, **kw):
+        prompt_len = sum(
+            len(str(getattr(m, "content", m))) for m in (messages if isinstance(messages, list) else [messages])
+        )
+        await _check_budget(
+            org_id=self.org_id,
+            provider=self.provider,
+            model=self.model,
+            max_tokens=getattr(self.llm, "max_tokens", 4000) if hasattr(self.llm, "max_tokens") else 4000,
+            prompt_len=prompt_len,
+        )
         t0 = time.monotonic()
         response = await self.llm.ainvoke(messages, **kw)
         usage = getattr(response, "usage_metadata", {}) or {}
+        cost = _price(self.provider, self.model, usage)
         await _log_usage(
             org_id=self.org_id,
             engagement_id=self.engagement_id,
@@ -355,9 +460,10 @@ class TrackedLLM:
             model=self.model,
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
-            cost_usd=_price(self.provider, self.model, usage),
+            cost_usd=cost,
             duration_ms=int((time.monotonic() - t0) * 1000),
         )
+        await _update_budget_spend(self.org_id, cost)
         return response
 
 

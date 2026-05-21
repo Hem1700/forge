@@ -18,6 +18,7 @@ import uuid
 from datetime import datetime, timedelta
 
 from arq.connections import RedisSettings
+from arq.cron import cron
 from arq.jobs import JobStatus
 from sqlalchemy import select, update
 
@@ -87,6 +88,26 @@ async def _recover_orphaned_engagements(ctx: dict) -> None:
         logger.warning("worker startup: aborted orphaned engagement %s — %s", eid, reason)
 
 
+async def reset_monthly_budgets(ctx: dict) -> None:
+    """Daily cron: reset current_spend_usd for orgs whose reset_day matches today."""
+    from sqlalchemy import text
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                text(
+                    "UPDATE org_budgets SET current_spend_usd = 0, updated_at = NOW() "
+                    "WHERE reset_day = EXTRACT(DAY FROM NOW())::int "
+                    "RETURNING org_id"
+                )
+            )
+            reset_orgs = result.fetchall()
+            await db.commit()
+        if reset_orgs:
+            logger.info("Monthly budget reset for %d orgs", len(reset_orgs))
+    except Exception:
+        logger.exception("Monthly budget reset cron failed")
+
+
 async def run_web_pipeline(ctx: dict, engagement_id: str) -> None:
     await _run_web_pipeline(uuid.UUID(engagement_id))
 
@@ -128,3 +149,4 @@ class WorkerSettings:
     # missed beat shows up within a single check window.
     health_check_key = HEALTH_CHECK_KEY
     health_check_interval = 30
+    cron_jobs = [cron(reset_monthly_budgets, hour=0, minute=5)]

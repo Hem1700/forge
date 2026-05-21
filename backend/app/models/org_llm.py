@@ -48,3 +48,16 @@ class OrgLLMAuditLog(Base):
     action: Mapped[str] = mapped_column(String(30), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class OrgBudget(Base):
+    __tablename__ = "org_budgets"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, unique=True, index=True)
+    monthly_limit_usd: Mapped[float] = mapped_column(Float, nullable=False)
+    current_spend_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    alert_threshold_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=80)
+    hard_cap: Mapped[bool] = mapped_column(nullable=False, default=True)
+    reset_day: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -471,3 +471,102 @@ async def get_audit_log(
         }
         for row in rows
     ]
+
+
+# ── Budget management ─────────────────────────────────────────────────────────
+
+class BudgetSetRequest(BaseModel):
+    monthly_limit_usd: float
+    reset_day: int = 1
+    alert_threshold_pct: int = 80
+    hard_cap: bool = True
+
+
+@router.get("/budget")
+async def get_budget(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.org_llm import OrgBudget
+    if current_user.org_id is None:
+        raise HTTPException(status_code=400, detail="User has no organization")
+    row = (await db.execute(
+        select(OrgBudget).where(OrgBudget.org_id == current_user.org_id)
+    )).scalar_one_or_none()
+    if row is None:
+        return {"configured": False, "unlimited": True}
+    pct_used = (row.current_spend_usd / row.monthly_limit_usd * 100) if row.monthly_limit_usd else 0
+    return {
+        "configured": True,
+        "monthly_limit_usd": float(row.monthly_limit_usd),
+        "current_spend_usd": float(row.current_spend_usd),
+        "pct_used": round(pct_used, 2),
+        "alert_threshold_pct": row.alert_threshold_pct,
+        "hard_cap": row.hard_cap,
+        "reset_day": row.reset_day,
+    }
+
+
+@router.put("/budget")
+async def set_budget(
+    body: BudgetSetRequest,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.org_llm import OrgBudget
+    if current_user.org_id is None:
+        raise HTTPException(status_code=400, detail="User has no organization")
+    if not (1 <= body.reset_day <= 28):
+        raise HTTPException(status_code=422, detail="reset_day must be 1–28")
+    row = (await db.execute(
+        select(OrgBudget).where(OrgBudget.org_id == current_user.org_id)
+    )).scalar_one_or_none()
+    if row is None:
+        row = OrgBudget(
+            org_id=current_user.org_id,
+            monthly_limit_usd=body.monthly_limit_usd,
+            alert_threshold_pct=body.alert_threshold_pct,
+            hard_cap=body.hard_cap,
+            reset_day=body.reset_day,
+        )
+        db.add(row)
+    else:
+        row.monthly_limit_usd = body.monthly_limit_usd
+        row.alert_threshold_pct = body.alert_threshold_pct
+        row.hard_cap = body.hard_cap
+        row.reset_day = body.reset_day
+    await db.commit()
+    await db.refresh(row)
+    return {"ok": True, "monthly_limit_usd": float(row.monthly_limit_usd)}
+
+
+@router.delete("/budget")
+async def delete_budget(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.org_llm import OrgBudget
+    from sqlalchemy import delete as sa_delete
+    if current_user.org_id is None:
+        raise HTTPException(status_code=400, detail="User has no organization")
+    await db.execute(sa_delete(OrgBudget).where(OrgBudget.org_id == current_user.org_id))
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post("/budget/reset")
+async def reset_budget(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.org_llm import OrgBudget
+    if current_user.org_id is None:
+        raise HTTPException(status_code=400, detail="User has no organization")
+    row = (await db.execute(
+        select(OrgBudget).where(OrgBudget.org_id == current_user.org_id)
+    )).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="No budget configured")
+    row.current_spend_usd = 0.0
+    await db.commit()
+    return {"ok": True, "reset": True}
