@@ -141,7 +141,12 @@ async def test_probe_agent_execute_returns_result(mock_llm):
         "priority": "high",
         "description": "Check if user ID 1 returns data for unauthenticated request",
     }
-    result = await agent.run(task)
+    # Mock ws_progress.broadcast to prevent real Redis/DB connections being
+    # created and cached in this test's event loop — without this, the module-
+    # level _redis and AsyncSessionLocal pool get bound to this loop and poison
+    # subsequent test files that run under a different event loop.
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent.run(task)
     assert "findings" in result
     assert isinstance(result["findings"], list)
 
