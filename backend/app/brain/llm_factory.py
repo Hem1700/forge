@@ -44,6 +44,12 @@ class Provider(str, Enum):
     azure     = "azure"
 
 
+class TaskTier(str, Enum):
+    LIGHT    = "light"
+    STANDARD = "standard"
+    HEAVY    = "heavy"
+
+
 class LLMSpec(BaseModel):
     provider: Provider
     model: str
@@ -91,6 +97,46 @@ _CHEAP_MODELS: dict[Provider, str] = {
     Provider.openai:    "gpt-4o-mini",
     Provider.bedrock:   "anthropic.claude-haiku-4",
     Provider.azure:     "gpt-4o-mini",
+}
+
+TASK_TIER_MAP: dict[TaskType, TaskTier] = {
+    TaskType.codebase_modeling:  TaskTier.STANDARD,
+    TaskType.campaign_planning:  TaskTier.STANDARD,
+    TaskType.code_analyzer:      TaskTier.STANDARD,
+    TaskType.semantic_modeler:   TaskTier.LIGHT,
+    TaskType.findings_judge:     TaskTier.STANDARD,
+    TaskType.execution_judge:    TaskTier.HEAVY,
+    TaskType.exploit_engine:     TaskTier.HEAVY,
+    TaskType.exploit_script:     TaskTier.HEAVY,
+    TaskType.poc_engine:         TaskTier.HEAVY,
+    TaskType.evasion_strategist: TaskTier.HEAVY,
+    TaskType.logic_modeler:      TaskTier.LIGHT,
+    TaskType.agent_brain:        TaskTier.STANDARD,
+    TaskType.challenger:         TaskTier.STANDARD,
+    TaskType.severity_assessor:  TaskTier.LIGHT,
+}
+
+TIER_MODEL_MAP: dict[Provider, dict[TaskTier, str]] = {
+    Provider.anthropic: {
+        TaskTier.LIGHT:    "claude-haiku-4-5-20251001",
+        TaskTier.STANDARD: "claude-sonnet-4-6",
+        TaskTier.HEAVY:    "claude-opus-4-7",
+    },
+    Provider.openai: {
+        TaskTier.LIGHT:    "gpt-4o-mini",
+        TaskTier.STANDARD: "gpt-4o",
+        TaskTier.HEAVY:    "o1",
+    },
+    Provider.bedrock: {
+        TaskTier.LIGHT:    "anthropic.claude-haiku-4",
+        TaskTier.STANDARD: "anthropic.claude-sonnet-4",
+        TaskTier.HEAVY:    "anthropic.claude-opus-4",
+    },
+    Provider.azure: {
+        TaskTier.LIGHT:    "gpt-4o-mini",
+        TaskTier.STANDARD: "gpt-4-turbo",
+        TaskTier.HEAVY:    "gpt-4o",
+    },
 }
 
 
@@ -228,7 +274,7 @@ _BUILDERS: dict[Provider, object] = {
 
 async def _resolve_spec(task: TaskType, org_id: uuid.UUID | None) -> LLMSpec:
     if org_id:
-        from app.models.org_llm import OrgLLMTaskConfig
+        from app.models.org_llm import OrgLLMTaskConfig, OrgLLMCredential
         async with AsyncSessionLocal() as db:
             row = (await db.execute(
                 select(OrgLLMTaskConfig).where(
@@ -242,6 +288,22 @@ async def _resolve_spec(task: TaskType, org_id: uuid.UUID | None) -> LLMSpec:
                     model=row.model,
                     max_tokens=row.max_tokens or DEFAULT_TASK_SPECS[task].max_tokens,
                     temperature=row.temperature or 0.0,
+                )
+            # No explicit override — resolve via tier routing using org's configured provider
+            cred_row = (await db.execute(
+                select(OrgLLMCredential)
+                .where(OrgLLMCredential.org_id == org_id)
+                .order_by(OrgLLMCredential.created_at)
+                .limit(1)
+            )).scalar_one_or_none()
+            if cred_row:
+                provider = Provider(cred_row.provider)
+                tier = TASK_TIER_MAP[task]
+                model = TIER_MODEL_MAP[provider][tier]
+                return LLMSpec(
+                    provider=provider,
+                    model=model,
+                    max_tokens=DEFAULT_TASK_SPECS[task].max_tokens,
                 )
     return DEFAULT_TASK_SPECS[task]
 
