@@ -39,3 +39,20 @@ def test_new_task_types_exist():
     assert TASK_TIER_MAP[TaskType.package_vuln_analysis] == TaskTier.STANDARD
     assert TASK_TIER_MAP[TaskType.config_audit] == TaskTier.STANDARD
     assert TASK_TIER_MAP[TaskType.network_exposure] == TaskTier.STANDARD
+
+
+def test_gtfobins_loads_and_has_entries():
+    import json
+    from pathlib import Path
+    path = Path(__file__).parent.parent / "data" / "gtfobins.json"
+    assert path.exists(), f"gtfobins.json not found at {path}"
+    data = json.loads(path.read_text())
+    assert isinstance(data, dict)
+    assert len(data) >= 20, "Should have at least 20 binary entries"
+    # Check schema
+    for binary, techniques in list(data.items())[:3]:
+        assert isinstance(binary, str)
+        assert isinstance(techniques, dict)
+        for tech in techniques.values():
+            assert "commands" in tech
+            assert isinstance(tech["commands"], list)

