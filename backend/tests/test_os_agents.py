@@ -109,3 +109,53 @@ async def test_privesc_no_findings_signal():
         result = await agent._execute({"fingerprint": fp.to_dict()})
     assert result["findings"] == []
     assert agent.signal_history[-1] < 0.5
+
+
+# ── ServiceAuditAgent ──────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_service_audit_ssh_permit_root_login():
+    from app.swarm.agents.service_audit_agent import ServiceAuditAgent
+    agent = _agent(ServiceAuditAgent, "service_audit")
+    fp = _fp(ssh_config={"PermitRootLogin": "yes", "PasswordAuthentication": "no"})
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "ssh_permit_root_login"]
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_service_audit_ssh_password_auth():
+    from app.swarm.agents.service_audit_agent import ServiceAuditAgent
+    agent = _agent(ServiceAuditAgent, "service_audit")
+    fp = _fp(ssh_config={"PasswordAuthentication": "yes"})
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "ssh_password_auth"]
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "medium"
+
+
+@pytest.mark.asyncio
+async def test_service_audit_telnet_port():
+    from app.swarm.agents.service_audit_agent import ServiceAuditAgent
+    agent = _agent(ServiceAuditAgent, "service_audit")
+    fp = _fp(open_ports=[{"proto": "tcp", "local": "0.0.0.0:23", "process": "telnetd"}])
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "unencrypted_protocol"]
+    assert len(findings) >= 1
+    assert findings[0]["severity"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_service_audit_exposed_redis():
+    from app.swarm.agents.service_audit_agent import ServiceAuditAgent
+    agent = _agent(ServiceAuditAgent, "service_audit")
+    fp = _fp(open_ports=[{"proto": "tcp", "local": "0.0.0.0:6379", "process": "redis-server"}])
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "exposed_management_interface"]
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "high"
