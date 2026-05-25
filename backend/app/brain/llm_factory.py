@@ -35,6 +35,12 @@ class TaskType(str, Enum):
     agent_brain         = "agent_brain"
     challenger          = "challenger"
     severity_assessor   = "severity_assessor"
+    # OS scanning agents
+    privesc_analysis      = "privesc_analysis"
+    service_audit         = "service_audit"
+    package_vuln_analysis = "package_vuln_analysis"
+    config_audit          = "config_audit"
+    network_exposure      = "network_exposure"
 
 
 class Provider(str, Enum):
@@ -83,6 +89,11 @@ DEFAULT_TASK_SPECS: dict[TaskType, LLMSpec] = {
     TaskType.execution_judge:    LLMSpec(provider=Provider.anthropic, model="claude-haiku-4-5", max_tokens=2000),
     TaskType.severity_assessor:  LLMSpec(provider=Provider.anthropic, model="claude-haiku-4-5", max_tokens=500),
     TaskType.challenger:         LLMSpec(provider=Provider.anthropic, model="claude-haiku-4-5", max_tokens=500),
+    TaskType.privesc_analysis:      LLMSpec(provider=Provider.anthropic, model="claude-sonnet-4-6", max_tokens=4000),
+    TaskType.service_audit:         LLMSpec(provider=Provider.anthropic, model="claude-sonnet-4-6", max_tokens=3000),
+    TaskType.package_vuln_analysis: LLMSpec(provider=Provider.anthropic, model="claude-sonnet-4-6", max_tokens=4000),
+    TaskType.config_audit:          LLMSpec(provider=Provider.anthropic, model="claude-sonnet-4-6", max_tokens=3000),
+    TaskType.network_exposure:      LLMSpec(provider=Provider.anthropic, model="claude-sonnet-4-6", max_tokens=3000),
 }
 
 # Smart/cheap model pairs per provider (for preset application)
@@ -114,6 +125,11 @@ TASK_TIER_MAP: dict[TaskType, TaskTier] = {
     TaskType.agent_brain:        TaskTier.STANDARD,
     TaskType.challenger:         TaskTier.STANDARD,
     TaskType.severity_assessor:  TaskTier.LIGHT,
+    TaskType.privesc_analysis:      TaskTier.HEAVY,
+    TaskType.service_audit:         TaskTier.STANDARD,
+    TaskType.package_vuln_analysis: TaskTier.STANDARD,
+    TaskType.config_audit:          TaskTier.STANDARD,
+    TaskType.network_exposure:      TaskTier.STANDARD,
 }
 
 TIER_MODEL_MAP: dict[Provider, dict[TaskTier, str]] = {
