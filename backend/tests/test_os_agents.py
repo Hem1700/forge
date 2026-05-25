@@ -56,3 +56,56 @@ def test_gtfobins_loads_and_has_entries():
         for tech in techniques.values():
             assert "commands" in tech
             assert isinstance(tech["commands"], list)
+
+
+# ── PrivescAgent ───────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_privesc_suid_gtfobins_hit():
+    from app.swarm.agents.privesc_agent import PrivescAgent
+    agent = _agent(PrivescAgent, "privesc")
+    fp = _fp(suid_binaries=["/usr/bin/vim.basic", "/usr/bin/find"])
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    assert result["agent_type"] == "privesc"
+    suid_findings = [f for f in result["findings"] if f.get("vulnerability") == "suid_gtfobins"]
+    assert len(suid_findings) >= 1
+    assert suid_findings[0]["severity"] == "high"
+    assert "chain_potential" in suid_findings[0]
+
+
+@pytest.mark.asyncio
+async def test_privesc_writable_cron_hit():
+    from app.swarm.agents.privesc_agent import PrivescAgent
+    agent = _agent(PrivescAgent, "privesc")
+    fp = _fp(
+        writable_paths=["/etc/cron.d", "/tmp"],
+        cron_jobs=[{"schedule": "* * * * * root /etc/cron.d/backup.sh"}],
+    )
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "writable_cron_path"]
+    assert len(findings) >= 1
+    assert findings[0]["severity"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_privesc_docker_group_hit():
+    from app.swarm.agents.privesc_agent import PrivescAgent
+    agent = _agent(PrivescAgent, "privesc")
+    fp = _fp(groups=[{"name": "docker", "gid": "999", "members": ["ubuntu", "deploy"]}])
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "docker_group_privesc"]
+    assert len(findings) == 1
+
+
+@pytest.mark.asyncio
+async def test_privesc_no_findings_signal():
+    from app.swarm.agents.privesc_agent import PrivescAgent
+    agent = _agent(PrivescAgent, "privesc")
+    fp = _fp()  # empty fingerprint
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    assert result["findings"] == []
+    assert agent.signal_history[-1] < 0.5
