@@ -325,3 +325,84 @@ def test_worker_has_os_pipeline_and_trivy_refresh():
     assert "run_os_pipeline" in fn_names
     cron_fn_names = [c.coroutine.__name__ for c in WorkerSettings.cron_jobs]
     assert "refresh_trivy_db" in cron_fn_names
+
+
+# ── Pipeline integration ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_run_os_pipeline_runs_all_agents(mock_llm):
+    """Verify _run_os_pipeline calls all 5 OS agents and persists findings."""
+    import json
+    from unittest.mock import MagicMock, patch as _patch
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    from app.database import Base
+    from app.models.organization import Organization
+    from app.models.engagement import Engagement, EngagementStatus
+    from app.models.os_target import OSTarget
+    from app.api.start import _run_os_pipeline
+
+    TEST_DB = "postgresql+asyncpg://forge:forge@localhost:5432/forge_test"
+    engine = create_async_engine(TEST_DB)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    sf = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with sf() as db:
+        org = Organization(name=f"pipeline-test-{uuid.uuid4()}")
+        db.add(org)
+        await db.commit()
+        await db.refresh(org)
+        eng = Engagement(
+            org_id=org.id,
+            target_url="ssh://10.0.0.1",
+            target_type="os_ssh",
+            status=EngagementStatus.pending,
+        )
+        db.add(eng)
+        await db.commit()
+        await db.refresh(eng)
+        target = OSTarget(
+            engagement_id=eng.id,
+            host="10.0.0.1",
+            port=22,
+            username="ubuntu",
+            auth_type="agent",
+            access_mode="agentless",
+        )
+        db.add(target)
+        await db.commit()
+        await db.refresh(target)
+
+    mock_fp = OSFingerprint(
+        host="10.0.0.1", port=22, collected_at="2026-01-01T00:00:00Z",
+        suid_binaries=["/usr/bin/find"],
+        ssh_config={"PermitRootLogin": "yes"},
+        packages=[{"name": "bash", "version": "5.1", "arch": "amd64"}],
+        sysctl_params={"kernel.randomize_va_space": "0"},
+        open_ports=[{"proto": "tcp", "local": "0.0.0.0:6379", "process": "redis-server", "user": "root"}],
+        processes=[{"pid": "1", "ppid": "0", "user": "root", "cmd": "redis-server"}],
+    )
+
+    llm_resp = MagicMock()
+    llm_resp.content = "[]"
+    mock_llm.ainvoke.return_value = llm_resp
+
+    with _patch("app.brain.os_modeler.OSModeler.collect", new_callable=AsyncMock, return_value=mock_fp), \
+         _patch("app.ws.progress.broadcast", new_callable=AsyncMock), \
+         _patch("app.swarm.agents.package_vuln_agent.PackageVulnAgent._run_trivy",
+                new_callable=AsyncMock, return_value=None), \
+         _patch("app.api.start.AsyncSessionLocal", sf):
+        await _run_os_pipeline(eng.id, org_id=org.id)
+
+    from app.models.finding import Finding
+    from sqlalchemy import select as sa_select
+    async with sf() as db:
+        findings = (await db.execute(
+            sa_select(Finding).where(Finding.engagement_id == eng.id)
+        )).scalars().all()
+
+    assert len(findings) >= 2, f"Expected ≥2 findings from OS pipeline, got {len(findings)}"
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()

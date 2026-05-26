@@ -586,8 +586,15 @@ async def start_engagement(
 
 
 async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = None) -> None:
-    """Collect SSH fingerprint and save to OSTarget.fingerprint."""
-    from datetime import datetime, timezone
+    """SSH fingerprint collection + 5 parallel OS security agents + finding persistence."""
+    from app.swarm.agents.privesc_agent import PrivescAgent
+    from app.swarm.agents.service_audit_agent import ServiceAuditAgent
+    from app.swarm.agents.package_vuln_agent import PackageVulnAgent
+    from app.swarm.agents.config_audit_agent import ConfigAuditAgent
+    from app.swarm.agents.network_exposure_agent import NetworkExposureAgent
+
+    eid = str(engagement_id)
+
     async with AsyncSessionLocal() as db:
         target = (await db.execute(
             select(OSTarget).where(OSTarget.engagement_id == engagement_id)
@@ -609,14 +616,15 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
             key_path=key_mat if target.auth_type == "key" else None,
             password=key_mat if target.auth_type == "password" else None,
         )
-        await _broadcast(str(engagement_id), "os_modeling_started", {"host": target.host})
+
+        await _broadcast(eid, "os_modeling_started", {"host": target.host})
         try:
             modeler = OSModeler()
             fp = await modeler.collect(target.host, target.port, target.username, auth)
             target.fingerprint = fp.to_dict()
             target.collected_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
-            await _broadcast(str(engagement_id), "os_modeling_complete", {
+            await _broadcast(eid, "os_modeling_complete", {
                 "host": target.host,
                 "packages": len(fp.packages),
                 "open_ports": len(fp.open_ports),
@@ -624,8 +632,75 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
                 "errors": len(fp.collection_errors),
             })
         except Exception as e:
-            logger.exception("os_pipeline failed for %s", engagement_id)
-            await _broadcast(str(engagement_id), "os_modeling_failed", {"error": str(e)})
+            logger.exception("os_pipeline: fingerprint collection failed for %s", engagement_id)
+            await _broadcast(eid, "os_modeling_failed", {"error": str(e)})
+            return
+
+        # Create placeholder task + agent rows for FK references
+        task_id, agent_id = await _ensure_placeholder_task_agent(db, engagement_id)
+        await db.commit()
+
+        fp_dict = fp.to_dict()
+        agent_task = {
+            "fingerprint": fp_dict,
+            "org_id": str(org_id) if org_id else None,
+        }
+
+        def _make_agent(cls, atype):
+            return cls(
+                agent_id=str(uuid.uuid4()),
+                engagement_id=eid,
+                agent_type=atype,
+                tools=[],
+            )
+
+        agents = [
+            _make_agent(PrivescAgent, "privesc"),
+            _make_agent(ServiceAuditAgent, "service_audit"),
+            _make_agent(PackageVulnAgent, "package_vuln"),
+            _make_agent(ConfigAuditAgent, "config_audit"),
+            _make_agent(NetworkExposureAgent, "network_exposure"),
+        ]
+
+        await _broadcast(eid, "os_agents_started", {"agents": [a.agent_type for a in agents]})
+
+        results = await asyncio.gather(
+            *[agent._execute(agent_task) for agent in agents],
+            return_exceptions=True,
+        )
+
+        all_finding_ids: list[uuid.UUID] = []
+        for agent, result in zip(agents, results):
+            if isinstance(result, Exception):
+                logger.exception("os_pipeline: agent %s failed", agent.agent_type)
+                await _broadcast(eid, "os_agent_failed", {
+                    "agent_type": agent.agent_type,
+                    "error": str(result),
+                })
+                continue
+
+            batch_ids: list[uuid.UUID] = []
+            for f in result.get("findings", []):
+                fid = await _save_finding(db, engagement_id, task_id, agent_id, f)
+                batch_ids.append(fid)
+                await _broadcast(eid, "finding_discovered", {"finding": f, "agent": agent.agent_type})
+
+            await db.commit()
+            all_finding_ids.extend(batch_ids)
+
+            await _broadcast(eid, "os_agent_complete", {
+                "agent_type": agent.agent_type,
+                "findings": len(batch_ids),
+            })
+
+        if all_finding_ids:
+            await enqueue("judge_findings", eid, [str(fid) for fid in all_finding_ids],
+                          str(org_id) if org_id else None)
+
+        await _broadcast(eid, "os_pipeline_complete", {
+            "total_findings": len(all_finding_ids),
+            "host": target.host,
+        })
 
 
 class OSTargetRequest(BaseModel):
