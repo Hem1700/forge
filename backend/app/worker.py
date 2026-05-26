@@ -26,6 +26,7 @@ from app.api.start import (
     _judge_findings_async,
     _run_codebase_pipeline,
     _run_cve_pipeline,
+    _run_os_pipeline,
     _run_web_pipeline,
 )
 from app.config import settings
@@ -88,6 +89,28 @@ async def _recover_orphaned_engagements(ctx: dict) -> None:
         logger.warning("worker startup: aborted orphaned engagement %s — %s", eid, reason)
 
 
+async def refresh_trivy_db(ctx: dict) -> None:
+    """Daily cron: refresh local Trivy vulnerability database."""
+    import asyncio
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "trivy", "image", "--download-db-only", "--quiet",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+        if proc.returncode == 0:
+            logger.info("Trivy DB refreshed successfully")
+        else:
+            logger.warning("Trivy DB refresh failed: %s", stderr.decode()[:200])
+    except FileNotFoundError:
+        logger.warning("refresh_trivy_db: trivy binary not found in PATH")
+    except asyncio.TimeoutError:
+        logger.warning("refresh_trivy_db: trivy download timed out after 300s")
+    except Exception:
+        logger.exception("refresh_trivy_db: unexpected error")
+
+
 async def reset_monthly_budgets(ctx: dict) -> None:
     """Daily cron: reset current_spend_usd for orgs whose reset_day matches today."""
     from sqlalchemy import text
@@ -128,6 +151,13 @@ async def judge_findings(ctx: dict, engagement_id: str, finding_ids: list[str], 
     )
 
 
+async def run_os_pipeline(ctx: dict, engagement_id: str, org_id: str | None = None) -> None:
+    await _run_os_pipeline(
+        uuid.UUID(engagement_id),
+        org_id=uuid.UUID(org_id) if org_id else None,
+    )
+
+
 def _redis_settings() -> RedisSettings:
     return RedisSettings.from_dsn(settings.redis_url)
 
@@ -136,7 +166,7 @@ HEALTH_CHECK_KEY = "arq:queue:health-check"
 
 
 class WorkerSettings:
-    functions = [run_web_pipeline, run_codebase_pipeline, run_cve_pipeline, judge_findings]
+    functions = [run_web_pipeline, run_codebase_pipeline, run_cve_pipeline, judge_findings, run_os_pipeline]
     on_startup = _recover_orphaned_engagements
     redis_settings = _redis_settings()
     # Pipelines can take many minutes (LLM calls, dep installs in Docker,
@@ -149,4 +179,7 @@ class WorkerSettings:
     # missed beat shows up within a single check window.
     health_check_key = HEALTH_CHECK_KEY
     health_check_interval = 30
-    cron_jobs = [cron(reset_monthly_budgets, hour=0, minute=5)]
+    cron_jobs = [
+        cron(reset_monthly_budgets, hour=0, minute=5),
+        cron(refresh_trivy_db, hour=3, minute=0),
+    ]

@@ -315,3 +315,13 @@ async def test_network_exposure_no_findings():
         result = await agent._execute({"fingerprint": fp.to_dict()})
     assert result["findings"] == []
     assert agent.signal_history[-1] < 0.5
+
+
+# ── Worker job registration ────────────────────────────────────────────────────
+
+def test_worker_has_os_pipeline_and_trivy_refresh():
+    from app.worker import WorkerSettings, refresh_trivy_db, run_os_pipeline
+    fn_names = [f.__name__ for f in WorkerSettings.functions]
+    assert "run_os_pipeline" in fn_names
+    cron_fn_names = [c.coroutine.__name__ for c in WorkerSettings.cron_jobs]
+    assert "refresh_trivy_db" in cron_fn_names
