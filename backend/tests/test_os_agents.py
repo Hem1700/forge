@@ -159,3 +159,159 @@ async def test_service_audit_exposed_redis():
     findings = [f for f in result["findings"] if f.get("vulnerability") == "exposed_management_interface"]
     assert len(findings) == 1
     assert findings[0]["severity"] == "high"
+
+
+# ── PackageVulnAgent ───────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_package_vuln_agent_returns_findings_from_trivy(mock_llm):
+    import json
+    from unittest.mock import MagicMock
+    from app.swarm.agents.package_vuln_agent import PackageVulnAgent
+
+    trivy_output = {
+        "Results": [{
+            "Vulnerabilities": [{
+                "PkgName": "openssl",
+                "InstalledVersion": "1.1.1f",
+                "FixedVersion": "1.1.1n",
+                "VulnerabilityID": "CVE-2022-0778",
+                "Severity": "HIGH",
+                "CVSS": {"nvd": {"V3Score": 7.5}},
+                "Description": "Infinite loop in BN_mod_sqrt()",
+            }]
+        }]
+    }
+
+    mock_resp = MagicMock()
+    mock_resp.content = json.dumps([{
+        "vuln_id": "CVE-2022-0778",
+        "exploitability_in_context": 0.7,
+        "reasoning": "OpenSSL is exposed via nginx",
+    }])
+    mock_llm.ainvoke.return_value = mock_resp
+
+    agent = _agent(PackageVulnAgent, "package_vuln")
+    fp = _fp(packages=[{"name": "openssl", "version": "1.1.1f", "arch": "amd64"}])
+
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock), \
+         patch("app.swarm.agents.package_vuln_agent.PackageVulnAgent._run_trivy",
+               new_callable=AsyncMock, return_value=trivy_output):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+
+    assert result["agent_type"] == "package_vuln"
+    assert len(result["findings"]) >= 1
+    assert result["findings"][0]["vulnerability"] == "known_cve"
+    assert "CVE-2022-0778" in result["findings"][0]["evidence"]
+
+
+@pytest.mark.asyncio
+async def test_package_vuln_agent_trivy_unavailable():
+    from app.swarm.agents.package_vuln_agent import PackageVulnAgent
+    agent = _agent(PackageVulnAgent, "package_vuln")
+    fp = _fp(packages=[{"name": "bash", "version": "5.1", "arch": "amd64"}])
+
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock), \
+         patch("app.swarm.agents.package_vuln_agent.PackageVulnAgent._run_trivy",
+               new_callable=AsyncMock, return_value=None):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+
+    # Should return empty findings gracefully, not raise
+    assert result["agent_type"] == "package_vuln"
+    assert isinstance(result["findings"], list)
+
+
+# ── ConfigAuditAgent ───────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_config_audit_aslr_disabled():
+    from app.swarm.agents.config_audit_agent import ConfigAuditAgent
+    agent = _agent(ConfigAuditAgent, "config_audit")
+    fp = _fp(sysctl_params={"kernel.randomize_va_space": "0"})
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "aslr_disabled"]
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_config_audit_tmp_noexec():
+    from app.swarm.agents.config_audit_agent import ConfigAuditAgent
+    agent = _agent(ConfigAuditAgent, "config_audit")
+    fp = _fp(mounts=[{"device": "tmpfs", "mountpoint": "/tmp", "fstype": "tmpfs", "options": "rw,nosuid"}])
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "tmp_noexec_missing"]
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "medium"
+
+
+@pytest.mark.asyncio
+async def test_config_audit_pam_no_lockout():
+    from app.swarm.agents.config_audit_agent import ConfigAuditAgent
+    agent = _agent(ConfigAuditAgent, "config_audit")
+    fp = _fp(ssh_config={})
+    task = {"fingerprint": {**fp.to_dict(), "pam_config": {"common-auth": "auth required pam_unix.so"}}}
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute(task)
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "pam_no_lockout"]
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_config_audit_ip_forward():
+    from app.swarm.agents.config_audit_agent import ConfigAuditAgent
+    agent = _agent(ConfigAuditAgent, "config_audit")
+    fp = _fp(sysctl_params={"net.ipv4.ip_forward": "1", "kernel.randomize_va_space": "2"})
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "ip_forwarding_enabled"]
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "medium"
+
+
+# ── NetworkExposureAgent ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_network_exposure_root_service():
+    from app.swarm.agents.network_exposure_agent import NetworkExposureAgent
+    agent = _agent(NetworkExposureAgent, "network_exposure")
+    fp = _fp(
+        open_ports=[{"proto": "tcp", "local": "0.0.0.0:80", "process": "nginx", "user": "root"}],
+        processes=[{"pid": "123", "ppid": "1", "user": "root", "cmd": "nginx: master"}],
+    )
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "root_service_exposed"]
+    assert len(findings) >= 1
+    assert findings[0]["severity"] in ("high", "critical")
+
+
+@pytest.mark.asyncio
+async def test_network_exposure_critical_unauthenticated():
+    from app.swarm.agents.network_exposure_agent import NetworkExposureAgent
+    agent = _agent(NetworkExposureAgent, "network_exposure")
+    fp = _fp(
+        open_ports=[{"proto": "tcp", "local": "0.0.0.0:6379", "process": "redis-server", "user": "root"}],
+        processes=[{"pid": "456", "ppid": "1", "user": "root", "cmd": "redis-server *:6379"}],
+    )
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    findings = [f for f in result["findings"] if f.get("vulnerability") == "unauthenticated_root_service"]
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "critical"
+
+
+@pytest.mark.asyncio
+async def test_network_exposure_no_findings():
+    from app.swarm.agents.network_exposure_agent import NetworkExposureAgent
+    agent = _agent(NetworkExposureAgent, "network_exposure")
+    fp = _fp(
+        open_ports=[{"proto": "tcp", "local": "127.0.0.1:5432", "process": "postgres", "user": "postgres"}],
+    )
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"fingerprint": fp.to_dict()})
+    assert result["findings"] == []
+    assert agent.signal_history[-1] < 0.5

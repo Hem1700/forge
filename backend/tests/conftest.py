@@ -100,6 +100,9 @@ def mock_llm(monkeypatch):
         "app.brain.semantic_modeler",
         "app.swarm.agents.code_analyzer",
         "app.swarm.agents.logic_modeler",
+        "app.swarm.agents.package_vuln_agent",
+        "app.swarm.agents.privesc_agent",
+        "app.swarm.agents.network_exposure_agent",
         "app.validator.severity",
         "app.validator.challenger",
     ]
