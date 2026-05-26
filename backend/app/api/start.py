@@ -693,6 +693,37 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
                 "findings": len(batch_ids),
             })
 
+        # Collect all raw findings for chain discovery
+        all_raw_findings: list[dict] = []
+        for result in results:
+            if isinstance(result, Exception) or not isinstance(result, dict):
+                continue
+            all_raw_findings.extend(result.get("findings", []))
+
+        # Run ChainDiscoveryAgent
+        if all_raw_findings:
+            from app.swarm.agents.chain_discovery_agent import ChainDiscoveryAgent
+            chain_agent = _make_agent(ChainDiscoveryAgent, "chain_discovery")
+            await _broadcast(eid, "os_agent_started", {"agent_type": "chain_discovery"})
+            try:
+                chain_result = await chain_agent._execute({
+                    "findings": all_raw_findings,
+                    "org_id": str(org_id) if org_id else None,
+                })
+                chain_batch_ids: list[uuid.UUID] = []
+                for f in chain_result.get("findings", []):
+                    fid = await _save_finding(db, engagement_id, task_id, agent_id, f)
+                    chain_batch_ids.append(fid)
+                    await _broadcast(eid, "finding_discovered", {"finding": f, "agent": "chain_discovery"})
+                await db.commit()
+                all_finding_ids.extend(chain_batch_ids)
+                await _broadcast(eid, "os_agent_complete", {
+                    "agent_type": "chain_discovery",
+                    "findings": len(chain_batch_ids),
+                })
+            except Exception:
+                logger.exception("os_pipeline: ChainDiscoveryAgent failed")
+
         if all_finding_ids:
             await enqueue("judge_findings", eid, [str(fid) for fid in all_finding_ids],
                           str(org_id) if org_id else None)

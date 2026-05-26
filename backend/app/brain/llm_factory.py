@@ -41,6 +41,7 @@ class TaskType(str, Enum):
     package_vuln_analysis = "package_vuln_analysis"
     config_audit          = "config_audit"
     network_exposure      = "network_exposure"
+    chain_discovery       = "chain_discovery"
 
 
 class Provider(str, Enum):
@@ -94,6 +95,7 @@ DEFAULT_TASK_SPECS: dict[TaskType, LLMSpec] = {
     TaskType.package_vuln_analysis: LLMSpec(provider=Provider.anthropic, model="claude-sonnet-4-6", max_tokens=4000),
     TaskType.config_audit:          LLMSpec(provider=Provider.anthropic, model="claude-sonnet-4-6", max_tokens=3000),
     TaskType.network_exposure:      LLMSpec(provider=Provider.anthropic, model="claude-sonnet-4-6", max_tokens=3000),
+    TaskType.chain_discovery:       LLMSpec(provider=Provider.anthropic, model="claude-sonnet-4-6", max_tokens=8000),
 }
 
 # Smart/cheap model pairs per provider (for preset application)
@@ -130,6 +132,7 @@ TASK_TIER_MAP: dict[TaskType, TaskTier] = {
     TaskType.package_vuln_analysis: TaskTier.STANDARD,
     TaskType.config_audit:          TaskTier.STANDARD,
     TaskType.network_exposure:      TaskTier.STANDARD,
+    TaskType.chain_discovery:       TaskTier.HEAVY,
 }
 
 TIER_MODEL_MAP: dict[Provider, dict[TaskTier, str]] = {

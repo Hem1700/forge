@@ -406,3 +406,148 @@ async def test_run_os_pipeline_runs_all_agents(mock_llm):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
+
+
+# ── ChainDiscoveryAgent ────────────────────────────────────────────────────────
+
+def test_chain_discovery_task_type():
+    from app.brain.llm_factory import TaskType, DEFAULT_TASK_SPECS, TASK_TIER_MAP, TaskTier
+    assert TaskType.chain_discovery.value == "chain_discovery"
+    assert TaskType.chain_discovery in DEFAULT_TASK_SPECS
+    assert TaskType.chain_discovery in TASK_TIER_MAP
+    assert TASK_TIER_MAP[TaskType.chain_discovery] == TaskTier.HEAVY
+
+
+@pytest.mark.asyncio
+async def test_chain_discovery_empty_input():
+    from app.swarm.agents.chain_discovery_agent import ChainDiscoveryAgent
+    agent = _agent(ChainDiscoveryAgent, "chain_discovery")
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
+        result = await agent._execute({"findings": []})
+    assert result["agent_type"] == "chain_discovery"
+    assert result["findings"] == []
+    assert result["chains_discovered"] == 0
+    assert agent.signal_history[-1] < 0.5
+
+
+@pytest.mark.asyncio
+async def test_chain_discovery_detects_chain(mock_llm):
+    import json
+    from unittest.mock import MagicMock
+    from app.swarm.agents.chain_discovery_agent import ChainDiscoveryAgent
+
+    # 3 findings needed — DFS requires ≥2 hops (3 nodes in path)
+    findings = [
+        {
+            "vulnerability": "writable_cron_path",
+            "severity": "high",
+            "description": "Writable cron path found",
+            "evidence": "/etc/cron.d",
+            "recommendation": "Fix permissions",
+            "chain_potential": True,
+            "confidence_score": 0.90,
+        },
+        {
+            "vulnerability": "suid_gtfobins",
+            "severity": "high",
+            "description": "SUID binary found",
+            "evidence": "/usr/bin/find",
+            "recommendation": "Remove SUID bit",
+            "chain_potential": True,
+            "confidence_score": 0.95,
+        },
+        {
+            "vulnerability": "docker_group_privesc",
+            "severity": "high",
+            "description": "User in docker group",
+            "evidence": "docker group members: ubuntu",
+            "recommendation": "Remove from docker group",
+            "chain_potential": True,
+            "confidence_score": 0.85,
+        },
+    ]
+    mock_resp = MagicMock()
+    mock_resp.content = json.dumps([{
+        "chain_name": "Writable Cron to SUID to Docker Escalation",
+        "severity": "critical",
+        "steps": [
+            {"step": 1, "action": "Modify cron script", "finding_id": "fid-1"},
+            {"step": 2, "action": "Execute SUID binary", "finding_id": "fid-2"},
+            {"step": 3, "action": "Docker container escape", "finding_id": "fid-3"},
+        ],
+        "time_to_exploit": "5 minutes",
+        "description": "Attacker modifies writable cron job to execute SUID binary then escapes via docker.",
+    }])
+    mock_llm.ainvoke.return_value = mock_resp
+
+    agent = _agent(ChainDiscoveryAgent, "chain_discovery")
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock), \
+         patch("app.swarm.agents.chain_discovery_agent._persist_and_query_neo4j",
+               side_effect=Exception("Neo4j unavailable")):
+        result = await agent._execute({"findings": findings})
+
+    assert len(result["findings"]) == 1
+    chain = result["findings"][0]
+    assert chain["vulnerability"] == "attack_chain"
+    assert chain["severity"] == "critical"
+    assert chain["finding_type"] == "chain"
+    assert chain["vulnerability_class"] == "attack_chain"
+    assert agent.signal_history[-1] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_chain_discovery_neo4j_unavailable_falls_back(mock_llm):
+    """When Neo4j raises, agent still discovers chains via in-memory DFS."""
+    import json
+    from unittest.mock import MagicMock
+    from app.swarm.agents.chain_discovery_agent import ChainDiscoveryAgent
+
+    findings = [
+        {
+            "vulnerability": "writable_cron_path", "severity": "high",
+            "description": "Writable cron", "evidence": "/etc/cron.d",
+            "recommendation": "Fix", "chain_potential": True, "confidence_score": 0.9,
+        },
+        {
+            "vulnerability": "suid_gtfobins", "severity": "high",
+            "description": "SUID find", "evidence": "/usr/bin/find",
+            "recommendation": "Fix", "chain_potential": True, "confidence_score": 0.95,
+        },
+    ]
+    mock_resp = MagicMock()
+    mock_resp.content = json.dumps([{
+        "chain_name": "Fallback Chain",
+        "severity": "high",
+        "steps": [{"step": 1, "action": "exploit", "finding_id": "x"}],
+        "time_to_exploit": "10 minutes",
+        "description": "fallback",
+    }])
+    mock_llm.ainvoke.return_value = mock_resp
+
+    agent = _agent(ChainDiscoveryAgent, "chain_discovery")
+
+    with patch("app.ws.progress.broadcast", new_callable=AsyncMock), \
+         patch("app.swarm.agents.chain_discovery_agent._persist_and_query_neo4j",
+               side_effect=ConnectionError("Neo4j down")):
+        # Should not raise — returns result even without Neo4j
+        result = await agent._execute({"findings": findings})
+
+    assert isinstance(result["findings"], list)
+    assert isinstance(result["chains_discovered"], int)
+
+
+def test_chain_discovery_build_edges():
+    from app.swarm.agents.chain_discovery_agent import _build_edges
+    findings = [
+        {"id": "a1", "vulnerability": "writable_cron_path", "severity": "high", "chain_potential": True},
+        {"id": "b1", "vulnerability": "suid_gtfobins", "severity": "high", "chain_potential": True},
+        {"id": "c1", "vulnerability": "docker_group_privesc", "severity": "high", "chain_potential": True},
+    ]
+    edges = _build_edges(findings)
+    edge_set = set(edges)
+    # writable_cron_path ENABLES suid_gtfobins
+    assert ("a1", "b1") in edge_set
+    # writable_cron_path ENABLES docker_group_privesc
+    assert ("a1", "c1") in edge_set
+    # At least 2 edges
+    assert len(edges) >= 2
