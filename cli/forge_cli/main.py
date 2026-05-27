@@ -120,7 +120,7 @@ def configure(ctx, url, key):
 @cli.command()
 @click.argument("target")
 @click.option("--type", "target_type", default=None,
-              type=click.Choice(["web", "local_codebase", "binary"]),
+              type=click.Choice(["web", "local_codebase", "binary", "os"]),
               help="Target type (auto-detected if omitted)")
 @click.option("--scope", multiple=True, help="In-scope paths (web targets)")
 @click.option("--out-of-scope", multiple=True, help="Out-of-scope paths (web targets)")
@@ -771,6 +771,86 @@ def stats(ctx):
         title="[bold]FORGE Stats[/bold]",
         border_style="orange1",
     ))
+
+
+# ── forge os-target ───────────────────────────────────────────────────────────
+
+@cli.command("os-target")
+@click.argument("host")
+@click.option("--port", default=22, show_default=True, help="SSH port")
+@click.option("--username", "-u", required=True, help="SSH username")
+@click.option("--auth-type", "auth_type", default="key",
+              type=click.Choice(["key", "password", "agent"]),
+              show_default=True, help="Authentication method")
+@click.option("--key-material", "key_material", default=None,
+              help="Private key path (auth-type=key) or password (auth-type=password)")
+@click.option("--no-stream", is_flag=True, help="Don't stream live events, just start and exit")
+@click.pass_context
+def os_target(ctx, host, port, username, auth_type, key_material, no_stream):
+    """Start an OS security scan against an SSH target.
+
+    Creates an OS engagement, registers the SSH target, and starts the pipeline.
+
+    \b
+    Examples:
+      forge os-target 192.168.1.10 -u root --auth-type key --key-material ~/.ssh/id_rsa
+      forge os-target 10.0.0.5 -u ubuntu --auth-type password --key-material s3cr3t
+      forge os-target 10.0.0.5 -u ec2-user --auth-type agent
+    """
+    client = get_client(ctx)
+
+    try:
+        client.health()
+    except ConnectionError as e:
+        err(str(e))
+
+    console.print(Panel(
+        f"[bold orange1]Host:[/bold orange1]      [cyan]{host}:{port}[/cyan]\n"
+        f"[bold orange1]Username:[/bold orange1]  {username}\n"
+        f"[bold orange1]Auth:[/bold orange1]      {auth_type}",
+        title="[bold]FORGE[/bold] — OS Security Scan",
+        border_style="orange1",
+    ))
+
+    # Create engagement
+    try:
+        eng = client.create_engagement(
+            target_url=host,
+            target_type="os",
+        )
+    except APIError as e:
+        err(str(e))
+
+    eid = eng["id"]
+    console.print(f"[dim]Engagement ID:[/dim] [bold]{eid}[/bold]")
+
+    # Register SSH target (also enqueues run_os_pipeline and sets status=running)
+    try:
+        client.add_os_target(
+            eid,
+            host=host,
+            port=port,
+            username=username,
+            auth_type=auth_type,
+            key_material=key_material,
+        )
+    except APIError as e:
+        err(str(e))
+
+    console.print("[green]✓[/green] SSH target registered — pipeline started\n")
+
+    if no_stream:
+        console.print(f"[dim]Monitor:[/dim]  forge status {eid}")
+        console.print(f"[dim]Findings:[/dim] forge findings {eid}")
+        return
+
+    console.print("[bold]Live event stream[/bold] [dim](Ctrl+C to detach)[/dim]\n")
+    from forge_cli.stream import stream_events
+    cfg = _load_config()
+    stream_events(eid, ctx.obj["api_url"], api_key=cfg.get("api_key"))
+
+    console.print()
+    _print_findings_summary(client, eid)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────

@@ -109,6 +109,18 @@ class ForgeClient:
     def start_engagement(self, eid: str) -> dict:
         return self._request("POST", f"/api/v1/engagements/{eid}/start")
 
+    def add_os_target(self, eid: str, host: str, port: int, username: str,
+                      auth_type: str, key_material: str | None = None,
+                      access_mode: str = "agentless", collector_sudo: bool = False) -> dict:
+        body: dict = {
+            "host": host, "port": port, "username": username,
+            "auth_type": auth_type, "access_mode": access_mode,
+            "collector_sudo": collector_sudo,
+        }
+        if key_material:
+            body["key_material"] = key_material
+        return self._request("POST", f"/api/v1/engagements/{eid}/os-target", body)
+
     def update_status(self, eid: str, status: str) -> dict:
         return self._request("PATCH", f"/api/v1/engagements/{eid}/status", {"status": status})
 

@@ -563,10 +563,15 @@ async def start_engagement(
         job_name = "run_cve_pipeline"
     elif target_type in ("local_codebase", "binary"):
         job_name = "run_codebase_pipeline"
+    elif target_type == "os":
+        job_name = "run_os_pipeline"
     else:
         job_name = "run_web_pipeline"
 
-    job = await enqueue(job_name, str(engagement_id))
+    if target_type == "os":
+        job = await enqueue(job_name, str(engagement_id), str(org_id) if org_id else None)
+    else:
+        job = await enqueue(job_name, str(engagement_id))
     # Persist job_id so the lifespan sweep can detect a crashed worker.
     if job is not None:
         await db.execute(
@@ -779,8 +784,23 @@ async def add_os_target(
         collector_sudo=body.collector_sudo,
     )
     db.add(target)
+    await db.execute(
+        update(Engagement)
+        .where(Engagement.id == engagement_id)
+        .values(status=EngagementStatus.running, started_at=datetime.utcnow().replace(tzinfo=None))
+    )
     await db.commit()
     await db.refresh(target)
+
+    job = await enqueue("run_os_pipeline", str(engagement_id), str(eng.org_id) if eng.org_id else None)
+    if job is not None:
+        await db.execute(
+            update(Engagement)
+            .where(Engagement.id == engagement_id)
+            .values(job_id=job.job_id)
+        )
+        await db.commit()
+
     return {
         "id": str(target.id),
         "host": target.host,

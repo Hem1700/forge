@@ -188,11 +188,10 @@ async def test_collect_runs_commands_in_parallel():
 @pytest.mark.asyncio
 async def test_add_os_target_creates_row(org_http_client):
     from cryptography.fernet import Fernet
-    import app.brain.llm_factory as _llm
+    from unittest.mock import AsyncMock, patch as _patch
+    import app.brain.llm_factory as _m
     client, sf, org = org_http_client
     # Need FORGE_SECRETS_KEY for encryption
-    from unittest.mock import patch as _patch
-    import app.brain.llm_factory as _m
     orig = _m._fernet
     _m._fernet = Fernet(Fernet.generate_key())
     try:
@@ -208,14 +207,15 @@ async def test_add_os_target_creates_row(org_http_client):
             await db.commit()
             await db.refresh(eng)
 
-        resp = await client.post(f"/api/v1/engagements/{eng.id}/os-target", json={
-            "host": "10.0.0.1",
-            "port": 22,
-            "username": "root",
-            "auth_type": "key",
-            "key_material": "/home/user/.ssh/id_rsa",
-            "access_mode": "agentless",
-        })
+        with _patch("app.api.start.enqueue", new=AsyncMock(return_value=None)):
+            resp = await client.post(f"/api/v1/engagements/{eng.id}/os-target", json={
+                "host": "10.0.0.1",
+                "port": 22,
+                "username": "root",
+                "auth_type": "key",
+                "key_material": "/home/user/.ssh/id_rsa",
+                "access_mode": "agentless",
+            })
         assert resp.status_code == 201
         data = resp.json()
         assert data["host"] == "10.0.0.1"
