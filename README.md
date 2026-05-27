@@ -54,25 +54,42 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
                                     │    → SecretScanner          │
                                     │    → ConfigAuditor          │
                                     │                             │
+                                    │  run_os_pipeline            │
+                                    │    OSModeler (SSH collect)  │
+                                    │    → PrivEscAgent           │
+                                    │    → ServiceAuditAgent      │ (parallel)
+                                    │    → PackageVulnAgent       │
+                                    │    → ConfigAuditAgent       │
+                                    │    → NetworkExposureAgent   │
+                                    │    → ChainDiscoveryAgent    │
+                                    │                             │
                                     │  judge_findings             │
                                     │    FindingsJudge            │
                                     │    (LLM verdict + dedup)    │
+                                    │                             │
+                                    │  Cron: reset_monthly_budgets│
+                                    │        refresh_trivy_db     │
+                                    │        refresh_nvd_cache    │
                                     └─────────────────────────────┘
 
   Strategic Brain (app/brain/)
   ├── SemanticModeler      crawl + model web app surfaces
   ├── CodebaseModeler      parse source, map logic + deps
+  ├── OSModeler            SSH fingerprint collection (agentless)
   ├── CampaignPlanner      LLM attack hypothesis generation
   ├── ExploitEngine        walkthrough + Mermaid attack path
   ├── PoCEngine            runnable PoC script + sequence diagram
   ├── ExploitScriptEngine  weaponized exploit script
   ├── ExploitExecutor      Docker sandboxed execution
   ├── ExecutionJudge       LLM verdict (confirmed / failed / inconclusive)
+  ├── ContextManager       token counting + message compression
   └── Researcher           OSV/NVD CVE advisory fetch
 
   Tactical Swarm (app/swarm/)
-  Agents: Recon · Probe · CodeAnalyzer · DependencyScanner
-          Fuzzer · SecretScanner · ConfigAuditor · DeepExploit · Evasion
+  Web/Codebase: Recon · Probe · CodeAnalyzer · DependencyScanner
+                Fuzzer · SecretScanner · ConfigAuditor · DeepExploit · Evasion
+  OS Scanning:  PrivEscAgent · ServiceAuditAgent · PackageVulnAgent
+                ConfigAuditAgent · NetworkExposureAgent · ChainDiscoveryAgent
   Scheduler (auction-based bid) → TaskBoard → HealthMonitor
 
   Knowledge Engine
@@ -89,7 +106,7 @@ A multi-agent autonomous pentesting platform. FORGE supports web applications, l
 **Components at a glance:**
 
 - **Auth Layer** — JWT + API key dual authentication, 4-tier RBAC (Viewer / Analyst / Admin / Super-Admin), org-scoped data isolation on every route
-- **Multi-Provider LLM** — per-org provider selection (Anthropic, OpenAI, AWS Bedrock, Azure OpenAI); Fernet-encrypted key storage; per-task model overrides; smart/balanced/cheap presets; exponential-backoff retry; usage and cost tracking
+- **Multi-Provider LLM** — per-org provider selection (Anthropic, OpenAI, AWS Bedrock, Azure OpenAI); Fernet-encrypted key storage; per-task model overrides; smart/balanced/cheap presets; exponential-backoff retry; usage and cost tracking. `TrackedLLM` wraps every call with five production-hardening layers: (1) **budget enforcement** — per-org monthly spend cap with hard-block or warn mode, HTTP 402 on breach; (2) **rate limiting** — per-provider sliding-window TPM/RPM limits in Redis via atomic Lua scripts, HTTP 429 with `Retry-After` on exhaustion; (3) **tier-based model routing** — 20 task types mapped to LIGHT/STANDARD/HEAVY tiers, auto-selecting Haiku/Sonnet/Opus (or provider equivalent) without manual configuration; (4) **context compression** — automatic message-window management with LLM-assisted summarisation when context exceeds 70% of model limit; (5) **prompt caching** — client-side Redis response cache (SHA256-keyed, per-task TTLs) plus Anthropic native `cache_control` for server-side KV reuse
 - **Strategic Brain** — semantic app modeler, codebase modeler, campaign planner, evasion strategist, memory engine (LangChain, all providers)
 - **Exploit Engine** — on-demand LLM-generated exploit walkthroughs, Mermaid attack path diagrams, impact analysis, and difficulty scoring per finding
 - **PoC Engine** — on-demand runnable exploit script generation (Python or bash, auto-selected by vuln class), Mermaid sequence diagrams showing the attack flow, cached per finding
@@ -299,12 +316,30 @@ forge org llm show
 
 ### Model presets
 
-Apply a preset to all 14 task types at once:
+Apply a preset to all 20 task types at once:
 
 ```bash
 forge org llm preset smart      # Best models for all tasks
 forge org llm preset balanced   # Forge defaults (mix of capable + cheap)
 forge org llm preset cheap      # Lowest-cost models for all tasks
+```
+
+### Tier-based model routing
+
+Without any explicit configuration, FORGE maps every task type to a LIGHT / STANDARD / HEAVY tier and auto-selects the appropriate model for the configured provider:
+
+| Tier | Anthropic | OpenAI | Purpose |
+|------|-----------|--------|---------|
+| LIGHT | claude-haiku-4-5 | gpt-4o-mini | Summarisation, classification, recon |
+| STANDARD | claude-sonnet-4-6 | gpt-4o | Analysis, planning, audit |
+| HEAVY | claude-opus-4-7 | o1 | Exploit generation, chain discovery, execution judging |
+
+OS scanning task types: `privesc_analysis` and `chain_discovery` use HEAVY; the remaining four use STANDARD.
+
+View the effective routing table for your org:
+
+```bash
+forge org llm tiers
 ```
 
 ### Per-task overrides
@@ -316,7 +351,7 @@ forge org llm set findings_judge --provider openai --model gpt-4-turbo
 forge org llm set agent_brain --provider bedrock --model anthropic.claude-sonnet-4 --max-tokens 4096
 ```
 
-Task types: `codebase_modeling`, `campaign_planning`, `code_analyzer`, `semantic_modeler`, `findings_judge`, `execution_judge`, `exploit_engine`, `exploit_script`, `poc_engine`, `evasion_strategist`, `logic_modeler`, `agent_brain`, `challenger`, `severity_assessor`
+Task types: `codebase_modeling`, `campaign_planning`, `code_analyzer`, `semantic_modeler`, `findings_judge`, `execution_judge`, `exploit_engine`, `exploit_script`, `poc_engine`, `evasion_strategist`, `logic_modeler`, `agent_brain`, `challenger`, `severity_assessor`, `privesc_analysis`, `service_audit`, `package_vuln_analysis`, `config_audit`, `network_exposure`, `chain_discovery`
 
 ### Usage and cost tracking
 
@@ -467,6 +502,9 @@ forge run https://your-target.com
 
 # Local codebase
 forge run /path/to/project
+
+# Linux host over SSH
+forge os-target 10.0.0.1 -u ubuntu --auth-type key --key-material ~/.ssh/id_rsa
 ```
 
 Or open `http://localhost:5174` → **+ NEW** → fill in target → **▶ CREATE** → **▶ LAUNCH**.
@@ -507,7 +545,7 @@ Running `forge` with no arguments drops you into a persistent REPL — auto-comp
   Framework for Offensive Reasoning, Generation & Exploitation  v1.0
 
     + ──= 12 engagement(s)  ·  87 finding(s) =──
-    + ──= web  ·  local_codebase  ·  binary  targets =──
+    + ──= web  ·  local_codebase  ·  binary  ·  os  targets =──
     + ──= backend: online  http://localhost:8080 =──
 
   Type help for commands  ·  help <cmd> for details  ·  exit to quit
@@ -653,7 +691,7 @@ Writes to `~/.forge/config.json`. Use this to point an existing installation at 
 
 #### `forge run <target>` — start a pentest
 
-Target type is auto-detected. Pass a URL for web apps, or a filesystem path for local codebases.
+Target type is auto-detected. Pass a URL for web apps, a filesystem path for local codebases, or use `--type os` to create an OS engagement (SSH target registered separately via `forge os-target`).
 
 ```bash
 # Web application
@@ -784,6 +822,9 @@ Configure per-org LLM providers, model presets, and credentials. Requires `admin
 # Show current credentials and task→model map
 forge org llm show
 
+# Show per-task tier assignments and the model each tier resolves to
+forge org llm tiers
+
 # Apply a model preset to all tasks
 forge org llm preset smart | balanced | cheap
 
@@ -801,6 +842,9 @@ forge org llm key revoke openai --yes
 # Token usage and cost
 forge org llm usage
 forge org llm usage --since 2026-05-01T00:00:00
+
+# Prompt response cache stats
+forge org llm cache stats
 ```
 
 #### `forge ci scan <target>` — CI/CD security gate
@@ -848,6 +892,36 @@ forge gate approve <engagement-id> --notes "Reviewed recon output, safe to proce
 forge gate reject <engagement-id>
 forge gate reject <engagement-id> --notes "Out of scope targets detected"
 ```
+
+#### `forge os-target <host>` — start an OS security scan
+
+Creates an OS engagement, registers the SSH target, starts the pipeline, and streams live events. This is the recommended entry point for OS scanning — it handles engagement creation and SSH target registration in a single command.
+
+```bash
+# Key-based auth (recommended)
+forge os-target 192.168.1.10 -u ubuntu --auth-type key --key-material ~/.ssh/id_rsa
+
+# Password auth
+forge os-target 10.0.0.5 -u ubuntu --auth-type password --key-material s3cr3t
+
+# SSH agent forwarding
+forge os-target 10.0.0.5 -u ec2-user --auth-type agent
+
+# Start and exit without streaming
+forge os-target 10.0.0.1 -u root --auth-type key --key-material ~/.ssh/id_rsa --no-stream
+```
+
+Options:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port` | `22` | SSH port |
+| `--username` / `-u` | required | SSH login user |
+| `--auth-type` | `key` | `key`, `password`, or `agent` |
+| `--key-material` | — | Path to private key (key auth) or password (password auth) |
+| `--no-stream` | off | Don't stream events — just start and exit |
+
+The pipeline runs `OSModeler` (SSH fingerprint collection) followed by five OS agents in parallel, then `ChainDiscoveryAgent` to synthesise multi-step attack chains.
 
 #### `forge stats` — platform statistics
 
@@ -898,6 +972,20 @@ forge poc <finding-id>
 
 # 7. Export full report (includes exploit walkthroughs + PoC scripts if generated)
 forge report <id> --output report.md
+```
+
+#### OS scanning workflow
+
+```bash
+# Scan a Linux host over SSH (key-based)
+forge os-target 10.0.0.1 -u ubuntu --auth-type key --key-material ~/.ssh/id_rsa
+
+# After the pipeline finishes, review findings
+forge findings <id>
+forge findings <id> --severity critical   # attack chains are typically CRITICAL
+
+# Export the report
+forge report <id> --output os-report.md
 ```
 
 ### CI/CD Integration
@@ -983,7 +1071,7 @@ curl http://localhost:8080/api/v1/system/stats \
 
 ## Target Types
 
-FORGE supports three target types:
+FORGE supports four target types:
 
 ### Web Application
 
@@ -1038,6 +1126,33 @@ Analyzes a compiled binary file (ELF, PE, Mach-O). Same agents as local codebase
 }
 ```
 
+### OS / Linux Host (`os`)
+
+Fingerprints a live Linux host over SSH and runs six purpose-built agents in parallel. No agent is deployed to the target by default — all collection is read-only via standard SSH commands.
+
+**Pipeline:**
+
+1. **OSModeler** — connects via `asyncssh`, runs 18 read-only commands in parallel (kernel, packages, processes, open ports, SUID binaries, sudo rules, cron jobs, sysctl, users/groups, SSH config, PAM, mounts, login history), returns a structured `OSFingerprint` in under 30 seconds
+2. **PrivEscAgent** — checks SUID binaries against a built-in GTFOBins database, LLM-analyses sudo rules for NOPASSWD/wildcard exploits, cross-references writable paths against root-owned cron jobs, checks docker group membership and NFS `no_root_squash`
+3. **ServiceAuditAgent** — audits SSH hardening settings (PermitRootLogin, PasswordAuthentication, weak ciphers/MACs/KEX), detects services running as root, flags cleartext protocols (telnet, FTP, rsh) and exposed unauthenticated management interfaces (Redis, Postgres, Elasticsearch, etc.)
+4. **PackageVulnAgent** — runs Trivy against the installed package list (Trivy DB refreshed daily via Arq cron), enriches high-CVSS CVEs with LLM exploitability-in-context scoring
+5. **ConfigAuditAgent** — checks sysctl parameters (ASLR, ptrace scope, SYN cookies, IP forwarding), PAM lockout policy, `/tmp` mount flags, and NFS exports
+6. **NetworkExposureAgent** — builds an external exposure matrix, detects IPv6-only bindings that may bypass IPv4 firewall rules, and cross-correlates root-owned + internet-facing + unauthenticated services into CRITICAL findings
+7. **ChainDiscoveryAgent** — correlates findings from all five agents into multi-step attack chains using Neo4j graph traversal (with in-memory DFS fallback). Surfaces paths that appear low-risk in isolation but combine into a root escalation — e.g., writable `/etc/cron.d/` + SUID `vim` + weak sudo rule.
+
+Use `forge os-target` (dedicated command) or `forge run --type os` (creates the engagement only; SSH target must be registered separately via the API).
+
+```bash
+# Dedicated command — recommended
+forge os-target 10.0.0.1 -u ubuntu --auth-type key --key-material ~/.ssh/id_rsa
+
+# Password auth
+forge os-target 10.0.0.1 -u ubuntu --auth-type password --key-material s3cr3t
+
+# SSH agent forwarding
+forge os-target 10.0.0.1 -u ec2-user --auth-type agent
+```
+
 ---
 
 ## API Reference
@@ -1080,6 +1195,7 @@ See the [LLM Provider Configuration](#llm-provider-configuration) section above 
 | `GET` | `/api/v1/engagements/{id}/findings` | viewer | List findings |
 | `GET` | `/api/v1/engagements/{id}/events` | viewer | Replay swarm events (latest 500) |
 | `POST` | `/api/v1/engagements/{id}/report/pdf` | analyst | Generate PDF report |
+| `POST` | `/api/v1/engagements/{id}/os-target` | analyst | Register SSH target + start OS pipeline |
 | `POST` | `/api/v1/gates/{id}/decide` | analyst | Approve or reject human gate |
 | `GET` | `/api/v1/findings/{id}` | viewer | Get full finding detail (includes `exploit_detail`, `poc_detail`, `exploit_script`, `exploit_execution` if generated) |
 | `PATCH` | `/api/v1/findings/{id}/triage` | analyst | Triage decision |
@@ -1105,7 +1221,7 @@ cd backend
 pytest -v
 ```
 
-242 tests covering auth flows, RBAC enforcement, API key CRUD, org/super-admin routes, org isolation (cross-org 404 enforcement), models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents, validator, multi-target pipeline, orphan-engagement sweep, worker-health endpoint, LLM factory (multi-provider resolution, retry, usage tracking), per-org LLM API endpoints (credentials, task-config presets, audit log), and `forge org llm` CLI commands.
+290 tests covering auth flows, RBAC enforcement, API key CRUD, org/super-admin routes, org isolation (cross-org 404 enforcement), models, APIs, brain components (ExploitEngine, PoCEngine), swarm agents (web, codebase, and OS), validator, multi-target pipeline, orphan-engagement sweep, worker-health endpoint, LLM factory (multi-provider resolution, retry, usage tracking, budget enforcement, rate limiting, tier routing, context compression), per-org LLM API endpoints (credentials, task-config presets, audit log), and `forge org llm` CLI commands.
 
 ---
 
@@ -1123,13 +1239,18 @@ FORGE/
 │   │   │   ├── org_llm.py      # /api/v1/org/llm/* — provider creds, task config, usage, audit
 │   │   │   ├── super_admin.py  # cross-org management (super_admin only)
 │   │   │   └── engagements, findings, gates, knowledge, system, start
-│   │   ├── brain/        # SemanticModeler, CodebaseModeler, CampaignPlanner, ExploitEngine, PoCEngine, MemoryEngine
-│   │   │   └── llm_factory.py  # multi-provider get_llm(), RetryLLM, TrackedLLM, DEFAULT_TASK_SPECS
+│   │   ├── brain/        # SemanticModeler, CodebaseModeler, OSModeler, CampaignPlanner, ExploitEngine, PoCEngine, MemoryEngine
+│   │   │   ├── llm_factory.py      # multi-provider get_llm(), RetryLLM, TrackedLLM (budget · rate limit · tier routing)
+│   │   │   ├── context_manager.py  # token counting + message compression
+│   │   │   ├── os_modeler.py       # asyncssh fingerprint collection
+│   │   │   └── os_fingerprint.py   # OSFingerprint dataclass
 │   │   ├── knowledge/    # Vector store (Qdrant) + graph store (Neo4j)
 │   │   ├── models/       # SQLAlchemy ORM models (user, api_key, engagement, finding, task, agent,
 │   │   │                 #   knowledge, org_llm, llm_usage) — portable sqlalchemy.Uuid throughout
 │   │   ├── swarm/        # Agents, scheduler, health monitor, task board
-│   │   │   └── agents/   # recon, probe, evasion, code_analyzer, dependency_scanner, fuzzer, deep_exploit
+│   │   │   └── agents/   # Web/codebase: recon, probe, evasion, code_analyzer, dependency_scanner, fuzzer, deep_exploit
+│   │   │                 # OS scanning: privesc_agent, service_audit_agent, package_vuln_agent,
+│   │   │                 #              config_audit_agent, network_exposure_agent, chain_discovery_agent
 │   │   ├── validator/    # Challenger, context filter, severity scorer
 │   │   ├── ws/           # WebSocket stream manager + Redis pub/sub bridge
 │   │   ├── queue.py      # ArqRedis pool + enqueue/job_status helpers
