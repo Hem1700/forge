@@ -180,6 +180,84 @@ function renderEvent(e: SwarmEvent): Rendered {
         ),
       }
     }
+    case 'os_modeling_started': {
+      const host = (p.host ?? '') as string
+      return {
+        tag: 'OS', tagColor: 'var(--accent)',
+        msg: <><span style={K}>fingerprinting</span> <span style={V}>{host}</span></>,
+      }
+    }
+    case 'os_modeling_complete': {
+      const host = (p.host ?? '') as string
+      const pkgs = p.packages as number | undefined
+      const ports = p.open_ports as number | undefined
+      return {
+        tag: 'OS', tagColor: 'var(--complete)',
+        msg: (
+          <>
+            <span style={K}>{host}</span> fingerprinted
+            {pkgs != null && <> · <span style={V}>{pkgs} pkg</span></>}
+            {ports != null && <> · <span style={V}>{ports} port</span></>}
+          </>
+        ),
+      }
+    }
+    case 'os_modeling_failed': {
+      const err = (p.error ?? '') as string
+      return {
+        tag: 'OS', tagColor: 'var(--crit)',
+        msg: <><span style={{ color: 'var(--crit)' }}>fingerprint failed</span>{err && <> · {err}</>}</>,
+      }
+    }
+    case 'os_agents_started': {
+      const agentsArr = (p.agents ?? []) as string[]
+      return {
+        tag: 'OS', tagColor: 'var(--accent)',
+        msg: <><span style={K}>agents launched</span> <span style={V}>{agentsArr.join(', ')}</span></>,
+      }
+    }
+    case 'os_agent_started': {
+      const agentType = (p.agent_type ?? '') as string
+      return {
+        tag: 'OS', tagColor: 'var(--accent)',
+        msg: <><span style={K}>{agentType}</span> <span style={V}>started</span></>,
+      }
+    }
+    case 'os_agent_complete': {
+      const agentType = (p.agent_type ?? '') as string
+      const count = p.findings as number | undefined
+      return {
+        tag: 'OS', tagColor: 'var(--complete)',
+        msg: (
+          <>
+            <span style={K}>{agentType}</span> done
+            {count != null && <> · <span style={V}>{count} finding{count !== 1 ? 's' : ''}</span></>}
+          </>
+        ),
+      }
+    }
+    case 'os_agent_failed': {
+      const agentType = (p.agent_type ?? '') as string
+      const err = (p.error ?? '') as string
+      return {
+        tag: 'OS', tagColor: 'var(--crit)',
+        msg: <><span style={K}>{agentType}</span> <span style={{ color: 'var(--crit)' }}>failed</span>{err && <> · {err}</>}</>,
+      }
+    }
+    case 'os_pipeline_complete': {
+      const total = p.total_findings as number | undefined
+      const host = (p.host ?? '') as string
+      return {
+        tag: 'OS', tagColor: 'var(--complete)',
+        msg: (
+          <>
+            <span style={K}>pipeline complete</span>
+            {host && <> · <span style={V}>{host}</span></>}
+            {total != null && <> · <span style={V}>{total} total finding{total !== 1 ? 's' : ''}</span></>}
+          </>
+        ),
+      }
+    }
     case 'ping':
     default:
       return {

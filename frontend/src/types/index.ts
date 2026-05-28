@@ -1,7 +1,7 @@
 export type EngagementStatus = 'pending' | 'running' | 'paused_at_gate' | 'complete' | 'aborted'
 export type GateStatus = 'gate_1' | 'gate_2' | 'gate_3' | 'complete'
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info'
-export type TargetType = 'web' | 'local_codebase' | 'binary' | 'cve'
+export type TargetType = 'web' | 'local_codebase' | 'binary' | 'cve' | 'os'
 export type TriageStatus = 'unreviewed' | 'accepted' | 'false_positive' | 'fixed'
 
 export interface Engagement {
@@ -33,6 +33,9 @@ export interface Finding {
   triage_updated_at?: string | null
   triage_judgment?: TriageJudgment | null
   created_at: string
+  finding_type?: 'chain' | null
+  chain_steps?: string[] | null
+  component_finding_ids?: string[] | null
 }
 
 export interface AgentInfo {
@@ -52,7 +55,7 @@ export interface TriageJudgment {
 
 export interface SwarmEvent {
   id?: number | null
-  type: 'agent_started' | 'agent_completed' | 'finding_discovered' | 'finding_judged' | 'agent_thought' | 'gate_triggered' | 'campaign_complete' | 'progress' | 'ping' | 'stream_error'
+  type: 'agent_started' | 'agent_completed' | 'finding_discovered' | 'finding_judged' | 'agent_thought' | 'gate_triggered' | 'campaign_complete' | 'progress' | 'ping' | 'stream_error' | 'os_modeling_started' | 'os_modeling_complete' | 'os_modeling_failed' | 'os_agents_started' | 'os_agent_started' | 'os_agent_complete' | 'os_agent_failed' | 'os_pipeline_complete'
   payload: Record<string, unknown>
   timestamp: string
 }

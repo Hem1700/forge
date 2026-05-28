@@ -18,6 +18,7 @@ const TYPE: Record<TargetType, string> = {
   local_codebase: 'code',
   binary: 'binary',
   cve: 'cve',
+  os: 'os',
 }
 
 const COLS = '110px 1fr 70px 90px 65px 90px 30px'
@@ -33,6 +34,11 @@ export function EngagementDashboard() {
   const [targetUrl, setTargetUrl] = useState('')
   const [targetPath, setTargetPath] = useState('')
   const [cveId, setCveId] = useState('')
+  const [osHost, setOsHost] = useState('')
+  const [osPort, setOsPort] = useState(22)
+  const [osUsername, setOsUsername] = useState('')
+  const [osAuthType, setOsAuthType] = useState<'key' | 'password'>('key')
+  const [osKeyMaterial, setOsKeyMaterial] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [starting, setStarting] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -48,10 +54,29 @@ export function EngagementDashboard() {
         payload = { target_url: cveId.trim().toUpperCase(), target_type: 'cve' }
       } else if (targetType === 'web') {
         payload = { target_url: targetUrl.trim(), target_type: 'web' }
+      } else if (targetType === 'os') {
+        payload = { target_url: osHost.trim(), target_type: 'os' }
       } else {
         payload = { target_url: targetPath.trim() || 'local', target_type: targetType, target_path: targetPath.trim() }
       }
-      await engagementsApi.create(payload)
+      const eng = await engagementsApi.create(payload)
+      if (targetType === 'os') {
+        await engagementsApi.createOsTarget(String(eng.id), {
+          host: osHost.trim(),
+          port: osPort,
+          username: osUsername.trim(),
+          auth_type: osAuthType,
+          key_material: osKeyMaterial.trim() || undefined,
+        })
+        setOsHost('')
+        setOsPort(22)
+        setOsUsername('')
+        setOsAuthType('key')
+        setOsKeyMaterial('')
+        setShowForm(false)
+        navigate(`/engagement/${eng.id}`)
+        return
+      }
       const list = await engagementsApi.list()
       setEngagements(list)
       setTargetUrl('')
@@ -120,7 +145,7 @@ export function EngagementDashboard() {
           <div style={{ marginBottom: '8px' }}>
             <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>TARGET_TYPE</div>
             <div style={{ display: 'flex', gap: '4px' }}>
-              {(['web', 'local_codebase', 'binary', 'cve'] as TargetType[]).map((t) => (
+              {(['web', 'local_codebase', 'binary', 'cve', 'os'] as TargetType[]).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -165,6 +190,88 @@ export function EngagementDashboard() {
                 FORGE will research the advisory, generate an exploit, and run a vuln-vs-patched diff test.
               </div>
             </div>
+          ) : targetType === 'os' ? (
+            <div style={{ marginBottom: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '8px', marginBottom: '8px' }}>
+                <div>
+                  <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>HOST</div>
+                  <input
+                    type="text"
+                    required
+                    value={osHost}
+                    onChange={(e) => setOsHost(e.target.value)}
+                    placeholder="192.168.1.1 or hostname"
+                    style={{ width: '100%', padding: '5px 8px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>PORT</div>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={65535}
+                    value={osPort}
+                    onChange={(e) => setOsPort(Number(e.target.value))}
+                    style={{ width: '100%', padding: '5px 8px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>USERNAME</div>
+                <input
+                  type="text"
+                  required
+                  value={osUsername}
+                  onChange={(e) => setOsUsername(e.target.value)}
+                  placeholder="root"
+                  style={{ width: '100%', padding: '5px 8px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>AUTH_TYPE</div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {(['key', 'password'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setOsAuthType(t)}
+                      style={{
+                        flex: 1, padding: '4px 0', fontSize: 'var(--fs-xs)', letterSpacing: '1px',
+                        background: osAuthType === t ? 'var(--accent-bg)' : 'transparent',
+                        border: `1px solid ${osAuthType === t ? 'var(--accent)' : 'var(--border)'}`,
+                        color: osAuthType === t ? 'var(--accent)' : 'var(--text-secondary)',
+                      }}
+                    >
+                      {t === 'key' ? 'SSH KEY' : 'PASSWORD'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {osAuthType === 'key' ? (
+                <div>
+                  <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>SSH_PRIVATE_KEY</div>
+                  <textarea
+                    value={osKeyMaterial}
+                    onChange={(e) => setOsKeyMaterial(e.target.value)}
+                    placeholder={'-----BEGIN OPENSSH PRIVATE KEY-----\n...'}
+                    rows={5}
+                    style={{ width: '100%', padding: '5px 8px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-sm)', outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'monospace' }}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>PASSWORD</div>
+                  <input
+                    type="password"
+                    value={osKeyMaterial}
+                    onChange={(e) => setOsKeyMaterial(e.target.value)}
+                    placeholder="SSH password"
+                    style={{ width: '100%', padding: '5px 8px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 'var(--fs-md)', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              )}
+            </div>
           ) : (
             <div style={{ marginBottom: '8px' }}>
               <div style={{ color: 'var(--text-label)', fontSize: 'var(--fs-xs)', letterSpacing: '1px', marginBottom: '4px' }}>
@@ -188,7 +295,7 @@ export function EngagementDashboard() {
             disabled={submitting}
             style={{ width: '100%', padding: '6px 0', background: 'var(--accent-bg)', border: '1px solid var(--accent-dim)', color: 'var(--accent)', fontSize: 'var(--fs-sm)', letterSpacing: '1px', opacity: submitting ? 0.5 : 1 }}
           >
-            {submitting ? 'CREATING...' : '▶ CREATE ENGAGEMENT'}
+            {submitting ? 'CREATING...' : targetType === 'os' ? '▶ START OS SCAN' : '▶ CREATE ENGAGEMENT'}
           </button>
         </form>
       )}

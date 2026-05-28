@@ -16,6 +16,17 @@ export const engagementsApi = {
     apiFetch<FindingDetail[]>(`/api/v1/engagements/${id}/findings`),
   events: (id: string) =>
     apiFetch<SwarmEvent[]>(`/api/v1/engagements/${id}/events`),
+  createOsTarget: (id: string, data: {
+    host: string
+    port: number
+    username: string
+    auth_type: 'key' | 'password' | 'agent'
+    key_material?: string
+  }) =>
+    apiFetch<{ id: string; host: string; port: number }>(`/api/v1/engagements/${id}/os-target`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   downloadPdfReport: (id: string) =>
     fetch(`${BASE_URL}/api/v1/engagements/${id}/report/pdf`, { method: 'POST' })
       .then(res => {

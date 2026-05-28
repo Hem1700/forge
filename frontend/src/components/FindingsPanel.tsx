@@ -131,37 +131,58 @@ export function FindingsPanel() {
               const vulnClass = f.vulnerability_class ?? f.attack_class ?? f.title
               const location = f.affected_surface ?? f.endpoint ?? ''
               const triage = (f.triage_status ?? 'unreviewed') as TriageStatus
+              const isChain = f.finding_type === 'chain'
               return (
-                <div key={f.id} style={{ display: 'grid', gridTemplateColumns: COLS, gap: '8px', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid var(--border-deep)' }}>
-                  <span style={{ color: SEV_COLOR[f.severity], fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>[{f.severity.toUpperCase().slice(0, 4)}]</span>
-                  <Link
-                    to={`/engagement/${f.engagement_id}/findings/${f.id}`}
-                    style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-sm)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
-                  >
-                    {vulnClass}
-                  </Link>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{location}</span>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>{(f.confidence_score * 100).toFixed(0)}%</span>
-                  <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ color: TRIAGE_COLOR[triage], fontSize: 'var(--fs-tiny)', letterSpacing: '1px' }}>{TRIAGE_LABEL[triage]}</span>
-                    {f.triage_judgment && (
-                      <span
-                        title={f.triage_judgment.reasoning}
-                        style={{
-                          color: f.triage_judgment.likely_false_positive ? 'var(--text-secondary)' : 'var(--complete)',
-                          fontSize: 'var(--fs-tiny)', letterSpacing: '1px',
-                        }}
-                      >
-                        {f.triage_judgment.likely_false_positive ? 'AI: FP?' : 'AI: OK'}
-                      </span>
-                    )}
-                  </span>
-                  <Link
-                    to={`/engagement/${f.engagement_id}/findings/${f.id}`}
-                    style={{ color: 'var(--accent-glow)', fontSize: 'var(--fs-xs)', textDecoration: 'none' }}
-                  >
-                    [view]
-                  </Link>
+                <div key={f.id}>
+                  <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: '8px', alignItems: 'center', padding: '5px 0', borderBottom: isChain && f.chain_steps && f.chain_steps.length > 0 ? 'none' : '1px solid var(--border-deep)', background: isChain ? 'var(--surface)' : undefined }}>
+                    <span style={{ color: SEV_COLOR[f.severity], fontSize: 'var(--fs-xs)', letterSpacing: '1px' }}>[{f.severity.toUpperCase().slice(0, 4)}]</span>
+                    <Link
+                      to={`/engagement/${f.engagement_id}/findings/${f.id}`}
+                      style={{ color: 'var(--text-primary)', fontSize: 'var(--fs-sm)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    >
+                      {isChain && (
+                        <span
+                          title={`Attack chain · ${(f.chain_steps ?? []).length} step${(f.chain_steps ?? []).length !== 1 ? 's' : ''}`}
+                          style={{ flexShrink: 0, fontSize: 'var(--fs-tiny)', letterSpacing: '1px', color: 'var(--crit)', border: '1px solid var(--crit)', padding: '0 4px', lineHeight: '14px' }}
+                        >
+                          CHAIN
+                        </span>
+                      )}
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vulnClass}</span>
+                    </Link>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{location}</span>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>{(f.confidence_score * 100).toFixed(0)}%</span>
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ color: TRIAGE_COLOR[triage], fontSize: 'var(--fs-tiny)', letterSpacing: '1px' }}>{TRIAGE_LABEL[triage]}</span>
+                      {f.triage_judgment && (
+                        <span
+                          title={f.triage_judgment.reasoning}
+                          style={{
+                            color: f.triage_judgment.likely_false_positive ? 'var(--text-secondary)' : 'var(--complete)',
+                            fontSize: 'var(--fs-tiny)', letterSpacing: '1px',
+                          }}
+                        >
+                          {f.triage_judgment.likely_false_positive ? 'AI: FP?' : 'AI: OK'}
+                        </span>
+                      )}
+                    </span>
+                    <Link
+                      to={`/engagement/${f.engagement_id}/findings/${f.id}`}
+                      style={{ color: 'var(--accent-glow)', fontSize: 'var(--fs-xs)', textDecoration: 'none' }}
+                    >
+                      [view]
+                    </Link>
+                  </div>
+                  {isChain && f.chain_steps && f.chain_steps.length > 0 && (
+                    <div style={{ padding: '4px 0 6px 8px', borderBottom: '1px solid var(--border-deep)', display: 'flex', flexDirection: 'column', gap: '2px', background: 'var(--surface)' }}>
+                      {f.chain_steps.map((step, i) => (
+                        <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'baseline' }}>
+                          <span style={{ color: 'var(--crit)', fontSize: 'var(--fs-tiny)', flexShrink: 0 }}>{i + 1}.</span>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--fs-xs)' }}>{step}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })}
