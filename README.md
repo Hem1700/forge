@@ -14,6 +14,30 @@ A multi-agent autonomous pentesting platform for web applications, local codebas
 
 ---
 
+## Agents
+
+**Web / Codebase**
+- `ExploitEngine` — generates LLM exploit walkthroughs and attack-path diagrams per finding
+- `FindingsJudge` — filters false positives before findings are persisted
+- `SeverityAssessor` — re-scores raw findings against CVSS and context
+- `Challenger` — adversarially stress-tests findings to raise confidence
+- `SemanticModeler` — builds a vector-indexed code surface from the target codebase
+- `AgentBrain` — strategic coordinator that routes tasks to tactical agents
+
+**OS Scanning**
+- `PrivEscAgent` — enumerates SUID/SGID binaries, sudo rules, and kernel exploits
+- `ServiceAuditAgent` — audits running services and exposed daemon configurations
+- `PackageVulnAgent` — matches installed packages against CVE/advisory databases
+- `ConfigAuditAgent` — checks world-writable paths, weak perms, and credential leaks
+- `NetworkExposureAgent` — maps open ports, firewall rules, and internal service exposure
+- `ChainDiscoveryAgent` — synthesises multi-step root escalation paths via Neo4j graph traversal
+
+`OSModeler` is the SSH collection backbone — agentlessly fingerprints the host before any agent runs.
+
+→ Full agent descriptions: [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+---
+
 ## Prerequisites
 
 - Docker + Docker Compose
