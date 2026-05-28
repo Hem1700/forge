@@ -1,12 +1,13 @@
 """Super-admin routes: platform-level user management.
 
-All endpoints require the `super_admin` role.  Unlike org-admin routes,
-these operate across ALL users (including inactive ones) and can promote
-users to any role including `super_admin`.
+All endpoints require the `super_admin` role AND `is_platform_admin=True`.
+Unlike org-admin routes, these operate across ALL users (including inactive
+ones) and can promote users to any role including `super_admin`.
 """
 import uuid
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
@@ -27,6 +28,8 @@ class UserResponse(BaseModel):
     email: str
     role: str
     is_active: bool
+    org_id: uuid.UUID | None = None
+    is_platform_admin: bool = False
 
 
 class UpdateRoleRequest(BaseModel):
@@ -37,15 +40,20 @@ class ProvisionRequest(BaseModel):
     email: str
     password: str
     role: UserRole = UserRole.viewer
+    org_id: uuid.UUID | None = None
 
 
 @router.get("/users", response_model=list[UserResponse])
 async def list_all_users(
-    _: User = Depends(require_super_admin),
+    org_id: Optional[uuid.UUID] = Query(None, description="Filter by org"),
+    current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> list[UserResponse]:
-    """Return ALL users, including inactive ones."""
-    result = await db.execute(select(User))
+    """Return ALL users across orgs, with optional org_id filter."""
+    stmt = select(User)
+    if org_id is not None:
+        stmt = stmt.where(User.org_id == org_id)
+    result = await db.execute(stmt)
     return [UserResponse.model_validate(u) for u in result.scalars().all()]
 
 
@@ -53,7 +61,7 @@ async def list_all_users(
 async def set_user_role(
     user_id: uuid.UUID,
     payload: UpdateRoleRequest,
-    _: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
     """Set the role of any user, including promoting to super_admin."""
@@ -70,7 +78,7 @@ async def set_user_role(
 @router.post("/provision", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def provision_user(
     payload: ProvisionRequest,
-    _: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
     """Create a new user with a specified role.
@@ -87,6 +95,7 @@ async def provision_user(
         email=payload.email,
         hashed_password=pwd_context.hash(payload.password),
         role=payload.role,
+        org_id=payload.org_id,
     )
     db.add(user)
     await db.commit()

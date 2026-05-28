@@ -10,7 +10,7 @@ export function NavBar({ right }: Props) {
   const { pathname } = useLocation()
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
-  const isSuperAdmin = user?.role === 'super_admin'
+  const isSuperAdmin = user?.is_platform_admin === true
 
   const navLink = (to: string, label: string) => {
     const active = pathname === to

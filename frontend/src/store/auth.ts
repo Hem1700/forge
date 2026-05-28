@@ -6,6 +6,7 @@ interface AuthUser {
   role: 'viewer' | 'analyst' | 'admin' | 'super_admin'
   is_active: boolean
   created_at: string
+  is_platform_admin: boolean
 }
 
 interface AuthState {

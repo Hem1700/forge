@@ -28,3 +28,4 @@ class User(Base):
         Uuid, ForeignKey("organizations.id"), nullable=True, index=True
     )
     position: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_platform_admin: Mapped[bool] = mapped_column(Boolean, default=False)

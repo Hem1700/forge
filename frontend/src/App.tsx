@@ -28,7 +28,7 @@ export default function App() {
         />
         <Route
           path="/admin"
-          element={<ProtectedRoute requireRole="super_admin"><AdminPanel /></ProtectedRoute>}
+          element={<ProtectedRoute requireRole="super_admin" requirePlatformAdmin><AdminPanel /></ProtectedRoute>}
         />
       </Routes>
     </BrowserRouter>

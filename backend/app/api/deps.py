@@ -72,6 +72,6 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
 
 
 async def require_super_admin(user: User = Depends(get_current_user)) -> User:
-    if user.role != UserRole.super_admin:
+    if user.role != UserRole.super_admin or not user.is_platform_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     return user

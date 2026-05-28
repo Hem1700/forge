@@ -9,6 +9,7 @@ export interface AuthUser {
   org_id: string | null
   org_name: string | null
   position: string | null
+  is_platform_admin: boolean
 }
 
 export interface ApiKey {

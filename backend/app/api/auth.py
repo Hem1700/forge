@@ -50,6 +50,7 @@ class UserResponse(BaseModel):
     org_id: uuid.UUID | None = None
     org_name: str | None = None
     position: str | None = None
+    is_platform_admin: bool = False
 
 
 def _make_token(user_id: uuid.UUID) -> str:
@@ -148,4 +149,5 @@ async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(
         org_id=user.org_id,
         org_name=org_name,
         position=user.position,
+        is_platform_admin=user.is_platform_admin,
     )
