@@ -129,7 +129,65 @@ forge poc <finding-id>
 forge report <engagement-id> --output report.md
 ```
 
-Running `forge` with no arguments opens an interactive shell with auto-completion and live backend stats.
+Running `forge` with no arguments opens an interactive Metasploit-style shell with auto-completion, history, and live backend stats:
+
+```
+  ███████╗ ██████╗ ██████╗  ██████╗ ███████╗
+  ██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝
+  █████╗  ██║   ██║██████╔╝██║  ███╗█████╗
+  ██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝
+  ██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗
+  ╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
+
+  Framework for Offensive Reasoning, Generation & Exploitation  v1.0
+
+    + ──= 12 engagement(s)  ·  87 finding(s) =──
+    + ──= web  ·  local_codebase  ·  binary  ·  os  targets =──
+    + ──= backend: online  http://localhost:8080 =──
+
+  Type help for commands  ·  help <cmd> for details  ·  exit to quit
+
+forge> run /path/to/raven
+╭──────────── FORGE — Starting Engagement ─────────────╮
+│ Target: 📁 /path/to/raven                            │
+│ Type:   local_codebase                               │
+╰──────────────────────────────────────────────────────╯
+Engagement ID: c238eb1a-00fb-413c-9716-e117876fa6e7
+✓ Pipeline started
+
+Live event stream (Ctrl+C to detach)
+✓ Stream connected
+
+ 22:26:10  ▶ AGENT   codebase_modeling  ·  /path/to/raven
+ 22:26:10  ● PROG    codebase_modeling.walk  ·  walking /path/to/raven
+ 22:26:45  ✦ CONCL   SQL injection confirmed in auth middleware  (95%)
+╭────────── 🔍 FINDING ──────────────────────────────╮
+│ [CRITICAL] SQL Injection                            │
+│   Location:    src/auth/middleware.py:42            │
+│   Confidence:  70%                                  │
+╰─────────────────────────────────────────────────────╯
+ 22:27:01  ⚖ JUDGE   real finding  (92%)  · Direct string interpolation
+ 22:27:30  ✓ DONE    codebase_modeling  (3 findings, 7 surfaces)
+╭────────── ✓ CAMPAIGN COMPLETE ─────────────────────╮
+│ ✓ Engagement finished                               │
+╰─────────────────────────────────────────────────────╯
+
+╭───────────── ▶ NEXT STEPS ─────────────────────────╮
+│  View findings                                      │
+│    forge findings c238eb1a-...                      │
+│    forge findings c238eb1a-... --severity critical  │
+│                                                     │
+│  Per-finding actions   (sample uses top finding)    │
+│    forge exploit <top-fid>                          │
+│    forge poc <top-fid>                              │
+│    forge exploit-script <top-fid>                   │
+│    forge execute <top-fid>                          │
+│                                                     │
+│  Reports                                            │
+│    forge report c238eb1a-... --output report.md     │
+│    forge report c238eb1a-... --pdf                  │
+╰─────────────────────────────────────────────────────╯
+```
 
 ### OS Scan (Linux host over SSH)
 
