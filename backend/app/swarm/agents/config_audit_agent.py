@@ -1,5 +1,5 @@
 # backend/app/swarm/agents/config_audit_agent.py
-"""ConfigAuditAgent (OS) — checks sysctl hardening, PAM config, mount options,
+"""OSConfigAuditAgent (OS) — checks sysctl hardening, PAM config, mount options,
 and kernel security parameters for a live Linux host.
 
 Distinct from config_auditor.py which audits Dockerfile/K8s/nginx files.
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ConfigAuditAgent(BaseAgent):
+class OSConfigAuditAgent(BaseAgent):
 
     async def _execute(self, task: dict) -> dict:
         fp_dict = task.get("fingerprint", {})
@@ -123,7 +123,7 @@ class ConfigAuditAgent(BaseAgent):
 
         await ws_progress.progress(
             self.engagement_id, "config_audit.done",
-            f"ConfigAuditAgent complete — {len(findings)} findings",
+            f"OSConfigAuditAgent complete — {len(findings)} findings",
         )
         self.signal_history.append(1.0 if findings else 0.4)
         return {

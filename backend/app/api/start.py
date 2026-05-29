@@ -610,7 +610,7 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
     from app.swarm.agents.privesc_agent import PrivescAgent
     from app.swarm.agents.service_audit_agent import ServiceAuditAgent
     from app.swarm.agents.package_vuln_agent import PackageVulnAgent
-    from app.swarm.agents.config_audit_agent import ConfigAuditAgent
+    from app.swarm.agents.config_audit_agent import OSConfigAuditAgent
     from app.swarm.agents.network_exposure_agent import NetworkExposureAgent
 
     eid = str(engagement_id)
@@ -680,7 +680,7 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
                 _make_agent(PrivescAgent, "privesc"),
                 _make_agent(ServiceAuditAgent, "service_audit"),
                 _make_agent(PackageVulnAgent, "package_vuln"),
-                _make_agent(ConfigAuditAgent, "config_audit"),
+                _make_agent(OSConfigAuditAgent, "config_audit"),
                 _make_agent(NetworkExposureAgent, "network_exposure"),
             ]
 
@@ -810,8 +810,11 @@ async def add_os_target(
     if body.key_material:
         try:
             encrypted = _encrypt_key(body.key_material)
-        except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        except RuntimeError:
+            raise HTTPException(
+                status_code=500,
+                detail="Server misconfiguration: FORGE_SECRETS_KEY is not set. Contact your administrator.",
+            )
 
     target = OSTarget(
         engagement_id=engagement_id,

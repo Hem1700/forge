@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime
 
@@ -18,6 +19,7 @@ from app.models.engagement_event import EngagementEvent
 from app.models.finding import Finding
 from app.models.knowledge import KnowledgeGraphEntry
 from app.models.task import Bid, Task
+from app.models.os_target import OSTarget
 from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/engagements", tags=["engagements"])
@@ -198,6 +200,20 @@ async def get_engagement_events(
     ]
 
 
+async def _render_pdf(engagement_id: uuid.UUID) -> bytes:
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch()
+        try:
+            page = await browser.new_page()
+            await page.goto(
+                f"{settings.frontend_url.rstrip('/')}/print/{engagement_id}",
+                wait_until="networkidle",
+            )
+            return await page.pdf(format="A4", print_background=True)
+        finally:
+            await browser.close()
+
+
 @router.post("/{engagement_id}/report/pdf")
 async def generate_pdf_report(
     engagement_id: uuid.UUID,
@@ -215,17 +231,10 @@ async def generate_pdf_report(
     if engagement is None:
         raise HTTPException(status_code=404, detail="Engagement not found")
 
-    async with async_playwright() as pw:
-        browser = await pw.chromium.launch()
-        try:
-            page = await browser.new_page()
-            await page.goto(
-                f"{settings.frontend_url.rstrip('/')}/print/{engagement_id}",
-                wait_until="networkidle",
-            )
-            pdf_bytes = await page.pdf(format="A4", print_background=True)
-        finally:
-            await browser.close()
+    try:
+        pdf_bytes = await asyncio.wait_for(_render_pdf(engagement_id), timeout=60.0)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="PDF generation timed out")
 
     return Response(
         content=pdf_bytes,
@@ -261,6 +270,7 @@ async def delete_engagement(
     await db.execute(delete(Agent).where(Agent.engagement_id == engagement_id))
     await db.execute(delete(KnowledgeGraphEntry).where(KnowledgeGraphEntry.engagement_id == engagement_id))
     await db.execute(delete(EngagementEvent).where(EngagementEvent.engagement_id == engagement_id))
+    await db.execute(delete(OSTarget).where(OSTarget.engagement_id == engagement_id))
     await db.delete(engagement)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -200,7 +200,7 @@ async def test_add_os_target_creates_row(org_http_client):
             eng = Engagement(
                 org_id=org.id,
                 target_url="ssh://10.0.0.1",
-                target_type="os_ssh",
+                target_type="os",
                 status=EngagementStatus.pending,
             )
             db.add(eng)
@@ -231,7 +231,7 @@ async def test_add_os_target_invalid_auth_type(org_http_client):
         eng = Engagement(
             org_id=org.id,
             target_url="ssh://10.0.0.2",
-            target_type="os_ssh",
+            target_type="os",
             status=EngagementStatus.pending,
         )
         db.add(eng)

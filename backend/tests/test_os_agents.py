@@ -221,12 +221,12 @@ async def test_package_vuln_agent_trivy_unavailable():
     assert isinstance(result["findings"], list)
 
 
-# ── ConfigAuditAgent ───────────────────────────────────────────────────────────
+# ── OSConfigAuditAgent ───────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_config_audit_aslr_disabled():
-    from app.swarm.agents.config_audit_agent import ConfigAuditAgent
-    agent = _agent(ConfigAuditAgent, "config_audit")
+    from app.swarm.agents.config_audit_agent import OSConfigAuditAgent
+    agent = _agent(OSConfigAuditAgent, "config_audit")
     fp = _fp(sysctl_params={"kernel.randomize_va_space": "0"})
     with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
         result = await agent._execute({"fingerprint": fp.to_dict()})
@@ -237,8 +237,8 @@ async def test_config_audit_aslr_disabled():
 
 @pytest.mark.asyncio
 async def test_config_audit_tmp_noexec():
-    from app.swarm.agents.config_audit_agent import ConfigAuditAgent
-    agent = _agent(ConfigAuditAgent, "config_audit")
+    from app.swarm.agents.config_audit_agent import OSConfigAuditAgent
+    agent = _agent(OSConfigAuditAgent, "config_audit")
     fp = _fp(mounts=[{"device": "tmpfs", "mountpoint": "/tmp", "fstype": "tmpfs", "options": "rw,nosuid"}])
     with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
         result = await agent._execute({"fingerprint": fp.to_dict()})
@@ -249,8 +249,8 @@ async def test_config_audit_tmp_noexec():
 
 @pytest.mark.asyncio
 async def test_config_audit_pam_no_lockout():
-    from app.swarm.agents.config_audit_agent import ConfigAuditAgent
-    agent = _agent(ConfigAuditAgent, "config_audit")
+    from app.swarm.agents.config_audit_agent import OSConfigAuditAgent
+    agent = _agent(OSConfigAuditAgent, "config_audit")
     fp = _fp(ssh_config={})
     task = {"fingerprint": {**fp.to_dict(), "pam_config": {"common-auth": "auth required pam_unix.so"}}}
     with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
@@ -262,8 +262,8 @@ async def test_config_audit_pam_no_lockout():
 
 @pytest.mark.asyncio
 async def test_config_audit_ip_forward():
-    from app.swarm.agents.config_audit_agent import ConfigAuditAgent
-    agent = _agent(ConfigAuditAgent, "config_audit")
+    from app.swarm.agents.config_audit_agent import OSConfigAuditAgent
+    agent = _agent(OSConfigAuditAgent, "config_audit")
     fp = _fp(sysctl_params={"net.ipv4.ip_forward": "1", "kernel.randomize_va_space": "2"})
     with patch("app.ws.progress.broadcast", new_callable=AsyncMock):
         result = await agent._execute({"fingerprint": fp.to_dict()})
@@ -355,7 +355,7 @@ async def test_run_os_pipeline_runs_all_agents(mock_llm):
         eng = Engagement(
             org_id=org.id,
             target_url="ssh://10.0.0.1",
-            target_type="os_ssh",
+            target_type="os",
             status=EngagementStatus.pending,
         )
         db.add(eng)

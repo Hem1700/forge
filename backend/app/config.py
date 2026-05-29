@@ -1,4 +1,7 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+_WEAK_JWT_SECRET = "change-me-in-production"
 
 
 class Settings(BaseSettings):
@@ -22,13 +25,24 @@ class Settings(BaseSettings):
     # Legacy / local
     use_local_llm: bool = False
     ollama_url: str = "http://localhost:11434"
-    jwt_secret: str = "change-me-in-production"
+    jwt_secret: str = _WEAK_JWT_SECRET
     jwt_algorithm: str = "HS256"
     confidence_threshold: float = 0.75
     thread_death_threshold: int = 5
     frontend_url: str = "http://localhost:5173"
+    environment: str = "production"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    @model_validator(mode="after")
+    def _reject_weak_jwt_secret(self) -> "Settings":
+        if self.jwt_secret == _WEAK_JWT_SECRET and self.environment != "development":
+            raise ValueError(
+                "JWT_SECRET is set to the insecure default. "
+                "Set a strong JWT_SECRET in your environment, "
+                "or set ENVIRONMENT=development to allow the default locally."
+            )
+        return self
 
 
 settings = Settings()
