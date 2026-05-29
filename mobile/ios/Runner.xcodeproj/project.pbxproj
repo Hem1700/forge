@@ -192,6 +192,7 @@
 			buildConfigurationList = 97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */;
 			buildPhases = (
 				BE3C8A1754DD6C4B29EEE734 /* [CP] Check Pods Manifest.lock */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* Strip Native Asset XAttrs */,
 				9740EEB61CF901F6004384FC /* Run Script */,
 				97C146EA1CF9000F007C117D /* Sources */,
 				97C146EB1CF9000F007C117D /* Frameworks */,
@@ -271,6 +272,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* Strip Native Asset XAttrs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Strip Native Asset XAttrs";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "find \"${BUILD_DIR}/native_assets\" -name \"*.framework\" -exec xattr -cr {} \\; 2>/dev/null || true\nfind \"${BUILD_DIR}/native_assets\" -name \"*.dylib\" -exec xattr -cr {} \\; 2>/dev/null || true\n";
+		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
