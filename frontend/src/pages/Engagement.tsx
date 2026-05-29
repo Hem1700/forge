@@ -31,6 +31,7 @@ const TYPE_LABEL: Record<TargetType, string> = {
   local_codebase: 'code',
   binary: 'binary',
   cve: 'cve',
+  os: 'OS / Linux Host',
 }
 
 const SEV_COLOR: Record<Severity, string> = {

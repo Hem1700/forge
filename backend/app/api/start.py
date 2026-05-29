@@ -794,6 +794,13 @@ async def add_os_target(
     eng = await db.get(Engagement, engagement_id)
     if eng is None or eng.org_id != current_user.org_id:
         raise HTTPException(status_code=404, detail="Engagement not found")
+    if eng.status != EngagementStatus.pending:
+        raise HTTPException(status_code=409, detail="Engagement is already running or complete")
+    existing_target = (await db.execute(
+        select(OSTarget).where(OSTarget.engagement_id == engagement_id)
+    )).scalar_one_or_none()
+    if existing_target is not None:
+        raise HTTPException(status_code=409, detail="OS target already registered for this engagement")
     if body.auth_type not in ("key", "password", "agent"):
         raise HTTPException(status_code=422, detail="auth_type must be key, password, or agent")
     if body.access_mode not in ("agentless", "collector"):

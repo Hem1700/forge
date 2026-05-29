@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import redis.asyncio as aioredis
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict
@@ -13,6 +14,36 @@ from app.config import settings
 from app.database import get_db
 from app.models.organization import Organization
 from app.models.user import User, UserRole
+
+_redis_client: aioredis.Redis | None = None
+
+
+async def _get_redis() -> aioredis.Redis:
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = await aioredis.from_url(settings.redis_url, decode_responses=True)
+    return _redis_client
+
+
+async def _check_rate_limit(request: Request, action: str) -> None:
+    ip = request.client.host if request.client else "unknown"
+    key = f"rl:{action}:{ip}"
+    try:
+        r = await _get_redis()
+        count = await r.incr(key)
+        if count == 1:
+            await r.expire(key, 60)
+        if count > 10:
+            ttl = await r.ttl(key)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many attempts. Try again later.",
+                headers={"Retry-After": str(max(ttl, 1))},
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 # passlib 1.7.4 is incompatible with bcrypt 5.x (detect_wrap_bug uses a 256-byte
@@ -63,7 +94,8 @@ def _make_token(user_id: uuid.UUID) -> str:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+async def register(request: Request, payload: RegisterRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+    await _check_rate_limit(request, "login")
     existing = (await db.execute(select(User).where(User.email == payload.email))).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -125,7 +157,8 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+    await _check_rate_limit(request, "login")
     user = (
         await db.execute(select(User).where(User.email == payload.email, User.is_active == True))  # noqa: E712
     ).scalar_one_or_none()

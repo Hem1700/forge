@@ -1,10 +1,12 @@
 import pytest
 import pytest_asyncio
+import redis.asyncio as aioredis
 from httpx import AsyncClient, ASGITransport
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from unittest.mock import AsyncMock
 
+from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 from app.models.user import User, UserRole
@@ -113,3 +115,18 @@ def mock_llm(monkeypatch):
         except AttributeError:
             pass  # Module not yet imported or doesn't reference get_llm
     return the_mock
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _clear_auth_rate_limit_keys():
+    """Flush per-IP rate-limit keys before each test so brute-force checks
+    don't interfere with tests that exercise login/register endpoints."""
+    try:
+        r = await aioredis.from_url(settings.redis_url, decode_responses=True)
+        keys = await r.keys("rl:*")
+        if keys:
+            await r.delete(*keys)
+        await r.aclose()
+    except Exception:
+        pass
+    yield

@@ -32,6 +32,10 @@ class UserResponse(BaseModel):
     role: str
     is_active: bool
     position: str | None = None
+    created_at: datetime | None = None
+    org_id: uuid.UUID | None = None
+    org_name: str | None = None
+    is_platform_admin: bool = False
 
 
 class UpdateRoleRequest(BaseModel):
@@ -54,13 +58,30 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
 ) -> list[UserResponse]:
     """Return all active users in the requesting user's organisation."""
+    org = (await db.execute(
+        select(Organization).where(Organization.id == requesting_user.org_id)
+    )).scalar_one_or_none()
+    org_name = org.name if org else None
     result = await db.execute(
         select(User).where(
             User.org_id == requesting_user.org_id,
             User.is_active == True,  # noqa: E712
         )
     )
-    return [UserResponse.model_validate(u) for u in result.scalars().all()]
+    return [
+        UserResponse(
+            id=u.id,
+            email=u.email,
+            role=u.role,
+            is_active=u.is_active,
+            position=u.position,
+            created_at=u.created_at,
+            org_id=u.org_id,
+            org_name=org_name,
+            is_platform_admin=u.is_platform_admin,
+        )
+        for u in result.scalars().all()
+    ]
 
 
 @router.patch("/users/{user_id}/role", response_model=UserResponse)
@@ -85,7 +106,20 @@ async def update_user_role(
     target.role = payload.role
     await db.commit()
     await db.refresh(target)
-    return UserResponse.model_validate(target)
+    org = (await db.execute(
+        select(Organization).where(Organization.id == target.org_id)
+    )).scalar_one_or_none()
+    return UserResponse(
+        id=target.id,
+        email=target.email,
+        role=target.role,
+        is_active=target.is_active,
+        position=target.position,
+        created_at=target.created_at,
+        org_id=target.org_id,
+        org_name=org.name if org else None,
+        is_platform_admin=target.is_platform_admin,
+    )
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
