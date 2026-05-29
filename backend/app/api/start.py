@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 from sqlalchemy import select, update
 
 from app.api.deps import require_analyst
-from app.brain.llm_factory import BudgetExceededError
+from app.brain.llm_factory import BudgetExceededError, RateLimitQueuedError
 from app.brain.os_modeler import OSModeler, SSHAuth
 from app.brain.os_fingerprint import OSFingerprint
 from app.database import get_db, AsyncSessionLocal
@@ -229,6 +229,11 @@ async def _run_web_pipeline(engagement_id: uuid.UUID) -> None:
             await _broadcast(eid, "campaign_complete", {"status": "budget_exceeded", "error": str(e)})
             await _finalize(engagement_id, db, eid, success=False)
             return
+        except RateLimitQueuedError as e:
+            await db.rollback()
+            await _broadcast(eid, "campaign_complete", {"status": "rate_limited", "error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
         except Exception as e:
             await db.rollback()
             await _broadcast(eid, "campaign_complete", {"status": "error", "error": str(e)})
@@ -311,6 +316,11 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
         except BudgetExceededError as e:
             await db.rollback()
             await _broadcast(eid, "campaign_complete", {"status": "budget_exceeded", "error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
+        except RateLimitQueuedError as e:
+            await db.rollback()
+            await _broadcast(eid, "campaign_complete", {"status": "rate_limited", "error": str(e)})
             await _finalize(engagement_id, db, eid, success=False)
             return
         except Exception as e:
@@ -491,6 +501,11 @@ async def _run_cve_pipeline(engagement_id: uuid.UUID) -> None:
             await _broadcast(eid, "campaign_complete", {"status": "budget_exceeded", "error": str(e)})
             await _finalize(engagement_id, db, eid, success=False)
             return
+        except RateLimitQueuedError as e:
+            await db.rollback()
+            await _broadcast(eid, "campaign_complete", {"status": "rate_limited", "error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
         except Exception as e:
             await db.rollback()
             await _broadcast(eid, "campaign_complete", {"status": "error", "error": str(e)})
@@ -639,104 +654,122 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
         except Exception as e:
             logger.exception("os_pipeline: fingerprint collection failed for %s", engagement_id)
             await _broadcast(eid, "os_modeling_failed", {"error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
             return
 
-        # Create placeholder task + agent rows for FK references
-        task_id, agent_id = await _ensure_placeholder_task_agent(db, engagement_id)
-        await db.commit()
+        try:
+            # Create placeholder task + agent rows for FK references
+            task_id, agent_id = await _ensure_placeholder_task_agent(db, engagement_id)
+            await db.commit()
 
-        fp_dict = fp.to_dict()
-        agent_task = {
-            "fingerprint": fp_dict,
-            "org_id": str(org_id) if org_id else None,
-        }
+            fp_dict = fp.to_dict()
+            agent_task = {
+                "fingerprint": fp_dict,
+                "org_id": str(org_id) if org_id else None,
+            }
 
-        def _make_agent(cls, atype):
-            return cls(
-                agent_id=str(uuid.uuid4()),
-                engagement_id=eid,
-                agent_type=atype,
-                tools=[],
+            def _make_agent(cls, atype):
+                return cls(
+                    agent_id=str(uuid.uuid4()),
+                    engagement_id=eid,
+                    agent_type=atype,
+                    tools=[],
+                )
+
+            agents = [
+                _make_agent(PrivescAgent, "privesc"),
+                _make_agent(ServiceAuditAgent, "service_audit"),
+                _make_agent(PackageVulnAgent, "package_vuln"),
+                _make_agent(ConfigAuditAgent, "config_audit"),
+                _make_agent(NetworkExposureAgent, "network_exposure"),
+            ]
+
+            await _broadcast(eid, "os_agents_started", {"agents": [a.agent_type for a in agents]})
+
+            results = await asyncio.gather(
+                *[agent._execute(agent_task) for agent in agents],
+                return_exceptions=True,
             )
 
-        agents = [
-            _make_agent(PrivescAgent, "privesc"),
-            _make_agent(ServiceAuditAgent, "service_audit"),
-            _make_agent(PackageVulnAgent, "package_vuln"),
-            _make_agent(ConfigAuditAgent, "config_audit"),
-            _make_agent(NetworkExposureAgent, "network_exposure"),
-        ]
+            all_finding_ids: list[uuid.UUID] = []
+            for agent, result in zip(agents, results):
+                if isinstance(result, Exception):
+                    logger.exception("os_pipeline: agent %s failed", agent.agent_type)
+                    await _broadcast(eid, "os_agent_failed", {
+                        "agent_type": agent.agent_type,
+                        "error": str(result),
+                    })
+                    continue
 
-        await _broadcast(eid, "os_agents_started", {"agents": [a.agent_type for a in agents]})
-
-        results = await asyncio.gather(
-            *[agent._execute(agent_task) for agent in agents],
-            return_exceptions=True,
-        )
-
-        all_finding_ids: list[uuid.UUID] = []
-        for agent, result in zip(agents, results):
-            if isinstance(result, Exception):
-                logger.exception("os_pipeline: agent %s failed", agent.agent_type)
-                await _broadcast(eid, "os_agent_failed", {
-                    "agent_type": agent.agent_type,
-                    "error": str(result),
-                })
-                continue
-
-            batch_ids: list[uuid.UUID] = []
-            for f in result.get("findings", []):
-                fid = await _save_finding(db, engagement_id, task_id, agent_id, f)
-                batch_ids.append(fid)
-                await _broadcast(eid, "finding_discovered", {"finding": f, "agent": agent.agent_type})
-
-            await db.commit()
-            all_finding_ids.extend(batch_ids)
-
-            await _broadcast(eid, "os_agent_complete", {
-                "agent_type": agent.agent_type,
-                "findings": len(batch_ids),
-            })
-
-        # Collect all raw findings for chain discovery
-        all_raw_findings: list[dict] = []
-        for result in results:
-            if isinstance(result, Exception) or not isinstance(result, dict):
-                continue
-            all_raw_findings.extend(result.get("findings", []))
-
-        # Run ChainDiscoveryAgent
-        if all_raw_findings:
-            from app.swarm.agents.chain_discovery_agent import ChainDiscoveryAgent
-            chain_agent = _make_agent(ChainDiscoveryAgent, "chain_discovery")
-            await _broadcast(eid, "os_agent_started", {"agent_type": "chain_discovery"})
-            try:
-                chain_result = await chain_agent._execute({
-                    "findings": all_raw_findings,
-                    "org_id": str(org_id) if org_id else None,
-                })
-                chain_batch_ids: list[uuid.UUID] = []
-                for f in chain_result.get("findings", []):
+                batch_ids: list[uuid.UUID] = []
+                for f in result.get("findings", []):
                     fid = await _save_finding(db, engagement_id, task_id, agent_id, f)
-                    chain_batch_ids.append(fid)
-                    await _broadcast(eid, "finding_discovered", {"finding": f, "agent": "chain_discovery"})
+                    batch_ids.append(fid)
+                    await _broadcast(eid, "finding_discovered", {"finding": f, "agent": agent.agent_type})
+
                 await db.commit()
-                all_finding_ids.extend(chain_batch_ids)
+                all_finding_ids.extend(batch_ids)
+
                 await _broadcast(eid, "os_agent_complete", {
-                    "agent_type": "chain_discovery",
-                    "findings": len(chain_batch_ids),
+                    "agent_type": agent.agent_type,
+                    "findings": len(batch_ids),
                 })
-            except Exception:
-                logger.exception("os_pipeline: ChainDiscoveryAgent failed")
 
-        if all_finding_ids:
-            await enqueue("judge_findings", eid, [str(fid) for fid in all_finding_ids],
-                          str(org_id) if org_id else None)
+            # Collect all raw findings for chain discovery
+            all_raw_findings: list[dict] = []
+            for result in results:
+                if isinstance(result, Exception) or not isinstance(result, dict):
+                    continue
+                all_raw_findings.extend(result.get("findings", []))
 
-        await _broadcast(eid, "os_pipeline_complete", {
-            "total_findings": len(all_finding_ids),
-            "host": target.host,
-        })
+            # Run ChainDiscoveryAgent
+            if all_raw_findings:
+                from app.swarm.agents.chain_discovery_agent import ChainDiscoveryAgent
+                chain_agent = _make_agent(ChainDiscoveryAgent, "chain_discovery")
+                await _broadcast(eid, "os_agent_started", {"agent_type": "chain_discovery"})
+                try:
+                    chain_result = await chain_agent._execute({
+                        "findings": all_raw_findings,
+                        "org_id": str(org_id) if org_id else None,
+                    })
+                    chain_batch_ids: list[uuid.UUID] = []
+                    for f in chain_result.get("findings", []):
+                        fid = await _save_finding(db, engagement_id, task_id, agent_id, f)
+                        chain_batch_ids.append(fid)
+                        await _broadcast(eid, "finding_discovered", {"finding": f, "agent": "chain_discovery"})
+                    await db.commit()
+                    all_finding_ids.extend(chain_batch_ids)
+                    await _broadcast(eid, "os_agent_complete", {
+                        "agent_type": "chain_discovery",
+                        "findings": len(chain_batch_ids),
+                    })
+                except Exception:
+                    logger.exception("os_pipeline: ChainDiscoveryAgent failed")
+
+            if all_finding_ids:
+                await enqueue("judge_findings", eid, [str(fid) for fid in all_finding_ids],
+                              str(org_id) if org_id else None)
+
+            await _broadcast(eid, "os_pipeline_complete", {
+                "total_findings": len(all_finding_ids),
+                "host": target.host,
+            })
+        except BudgetExceededError as e:
+            await db.rollback()
+            await _broadcast(eid, "os_pipeline_complete", {"status": "budget_exceeded", "error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
+        except RateLimitQueuedError as e:
+            await db.rollback()
+            await _broadcast(eid, "os_pipeline_complete", {"status": "rate_limited", "error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
+        except Exception as e:
+            await db.rollback()
+            await _broadcast(eid, "os_pipeline_complete", {"status": "error", "error": str(e)})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
+        await _finalize(engagement_id, db, eid, success=True)
 
 
 class OSTargetRequest(BaseModel):

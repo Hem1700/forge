@@ -77,7 +77,11 @@ export function useSwarmStream(engagementId: string | null) {
           if (event.type === 'gate_triggered' && event.payload.engagement) {
             upsertEngagement(event.payload.engagement as never)
           }
-          if (event.type === 'campaign_complete') {
+          if (
+            event.type === 'campaign_complete' ||
+            event.type === 'os_pipeline_complete' ||
+            event.type === 'os_modeling_failed'
+          ) {
             engagementsApi.get(engagementId).then(setActiveEngagement).catch(() => {})
             engagementsApi.findings(engagementId).then(setFindings).catch(() => {})
           }

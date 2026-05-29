@@ -96,6 +96,7 @@ async def provision_user(
         hashed_password=pwd_context.hash(payload.password),
         role=payload.role,
         org_id=payload.org_id,
+        is_platform_admin=payload.role == UserRole.super_admin,
     )
     db.add(user)
     await db.commit()
