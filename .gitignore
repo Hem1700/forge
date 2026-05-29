@@ -7,3 +7,14 @@ __pycache__/
 .claude/
 .superpowers/
 cli/dist/
+
+# Flutter
+mobile/build/
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/**/*.g.dart
