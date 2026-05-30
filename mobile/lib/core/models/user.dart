@@ -16,12 +16,12 @@ class User {
   final String? organization;
 
   factory User.fromJson(Map<String, dynamic> json) => User(
-        id: json['id'] as String,
+        id: json['id'].toString(),
         email: json['email'] as String,
         name: json['name'] as String? ?? json['email'] as String,
         role: json['role'] as String? ?? 'analyst',
         avatarUrl: json['avatar_url'] as String?,
-        organization: json['organization'] as String?,
+        organization: json['org_name'] as String? ?? json['organization'] as String?,
       );
 
   Map<String, dynamic> toJson() => {

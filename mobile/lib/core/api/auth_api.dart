@@ -25,10 +25,18 @@ class AuthApi {
   Future<AuthResponse> login(String email, String password) async {
     try {
       final res = await _client.post<Map<String, dynamic>>(
-        '/auth/login',
+        '/api/v1/auth/login',
         data: {'email': email, 'password': password},
       );
-      return _parseAuthResponse(res.data!);
+      final token = (res.data!['access_token'] as String?) ?? '';
+      await SecureStorage.instance.saveToken(token);
+      try {
+        final user = await me();
+        return AuthResponse(token: token, user: user);
+      } catch (_) {
+        await SecureStorage.instance.deleteToken();
+        rethrow;
+      }
     } on DioException catch (e) {
       throw _mapError(e);
     }
@@ -51,7 +59,7 @@ class AuthApi {
 
   Future<User> me() async {
     try {
-      final res = await _client.get<Map<String, dynamic>>('/auth/me');
+      final res = await _client.get<Map<String, dynamic>>('/api/v1/auth/me');
       return User.fromJson(res.data!);
     } on DioException catch (e) {
       throw _mapError(e);
@@ -69,17 +77,12 @@ class AuthApi {
     }
   }
 
-  AuthResponse _parseAuthResponse(Map<String, dynamic> data) {
-    final token = data['token'] as String? ?? data['access_token'] as String? ?? '';
-    final userJson = data['user'] as Map<String, dynamic>?;
-    if (userJson == null) throw const AuthException('Invalid server response');
-    return AuthResponse(token: token, user: User.fromJson(userJson));
-  }
-
   AuthException _mapError(DioException e) {
     final status = e.response?.statusCode;
-    final message = (e.response?.data as Map<String, dynamic>?)?['message'] as String?
-        ?? (e.response?.data as Map<String, dynamic>?)?['error'] as String?
+    final body = e.response?.data as Map<String, dynamic>?;
+    final message = body?['detail'] as String?
+        ?? body?['message'] as String?
+        ?? body?['error'] as String?
         ?? e.message
         ?? 'Connection failed';
     return AuthException(message, statusCode: status);
