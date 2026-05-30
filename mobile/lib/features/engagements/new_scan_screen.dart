@@ -241,6 +241,7 @@ class _NewScanScreenState extends State<NewScanScreen>
   Widget _buildWebTab() {
     final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,6 +310,7 @@ class _NewScanScreenState extends State<NewScanScreen>
   Widget _buildOsTab() {
     final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,6 +408,7 @@ class _NewScanScreenState extends State<NewScanScreen>
   Widget _buildCodebaseTab() {
     final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

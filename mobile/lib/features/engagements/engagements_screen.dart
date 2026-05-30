@@ -252,6 +252,7 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
 
   Widget _buildSkeleton() {
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       itemCount: 5,
       separatorBuilder: (_, _) => const SizedBox(height: 10),

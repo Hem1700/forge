@@ -65,6 +65,7 @@ class _OrgScreenState extends ConsumerState<OrgScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverAppBar(
               title: Text(

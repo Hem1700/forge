@@ -104,6 +104,7 @@ class _AllFindingsTabState extends State<AllFindingsTab> {
       backgroundColor: cs.surface,
       onRefresh: _load,
       child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           const SliverAppBar(
             title: Text('Findings'),
@@ -541,6 +542,7 @@ class _FindingsScreenState extends State<FindingsScreen> {
                           ],
                         )
                       : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 12),
                           itemCount: filtered.length,

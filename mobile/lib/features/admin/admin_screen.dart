@@ -64,6 +64,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             const SliverAppBar(
               title: Text('Platform Admin'),
