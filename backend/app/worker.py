@@ -26,6 +26,7 @@ from app.api.start import (
     _judge_findings_async,
     _run_codebase_pipeline,
     _run_cve_pipeline,
+    _run_github_pipeline,
     _run_os_pipeline,
     _run_web_pipeline,
 )
@@ -139,6 +140,10 @@ async def run_codebase_pipeline(ctx: dict, engagement_id: str) -> None:
     await _run_codebase_pipeline(uuid.UUID(engagement_id))
 
 
+async def run_github_pipeline(ctx: dict, engagement_id: str) -> None:
+    await _run_github_pipeline(uuid.UUID(engagement_id))
+
+
 async def run_cve_pipeline(ctx: dict, engagement_id: str) -> None:
     await _run_cve_pipeline(uuid.UUID(engagement_id))
 
@@ -166,7 +171,7 @@ HEALTH_CHECK_KEY = "arq:queue:health-check"
 
 
 class WorkerSettings:
-    functions = [run_web_pipeline, run_codebase_pipeline, run_cve_pipeline, judge_findings, run_os_pipeline]
+    functions = [run_web_pipeline, run_codebase_pipeline, run_cve_pipeline, judge_findings, run_os_pipeline, run_github_pipeline]
     on_startup = _recover_orphaned_engagements
     redis_settings = _redis_settings()
     # Pipelines can take many minutes (LLM calls, dep installs in Docker,

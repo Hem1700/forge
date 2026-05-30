@@ -122,7 +122,12 @@ class _NewScanScreenState extends State<NewScanScreen>
       if (_codeMode == _CodebaseMode.github) {
         final url = _ghUrlCtrl.text.trim();
         if (url.isEmpty) { _err('GitHub URL is required'); return; }
-        final eng = await _api.createEngagement(targetUrl: url, targetType: 'local_codebase');
+        final branch = _ghBranchCtrl.text.trim();
+        final eng = await _api.createEngagement(
+          targetUrl: url,
+          targetType: 'github',
+          targetPath: branch.isEmpty ? 'main' : branch,
+        );
         await _api.startEngagement(eng.id);
         if (mounted) context.pushReplacement('/engagement/${eng.id}');
       } else {

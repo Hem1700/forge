@@ -242,6 +242,71 @@ async def _run_web_pipeline(engagement_id: uuid.UUID) -> None:
         await _finalize(engagement_id, db, eid, success=True)
 
 
+async def _run_github_pipeline(engagement_id: uuid.UUID) -> None:
+    """Clone a GitHub repo to a temp dir, set target_path, then run the codebase pipeline."""
+    import shutil
+    import tempfile
+    eid = str(engagement_id)
+    tmp_dir: str | None = None
+    async with AsyncSessionLocal() as db:
+        engagement = await db.get(Engagement, engagement_id)
+        if engagement is None:
+            return
+
+        repo_url = (engagement.target_url or "").strip()
+        branch = (engagement.target_path or "main").strip() or "main"
+
+        if not repo_url:
+            await _broadcast(eid, "campaign_complete", {
+                "status": "error",
+                "error": "target_url (GitHub repo URL) is required for github engagements",
+            })
+            await _finalize(engagement_id, db, eid, success=False)
+            return
+
+        try:
+            tmp_dir = tempfile.mkdtemp(prefix="forge_github_")
+            await _broadcast(eid, "agent_started", {"phase": "clone", "repo": repo_url, "branch": branch})
+
+            proc = await asyncio.create_subprocess_exec(
+                "git", "clone", "--depth", "1", "--branch", branch, repo_url, tmp_dir,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await _broadcast(eid, "campaign_complete", {"status": "error", "error": "git clone timed out"})
+                await _finalize(engagement_id, db, eid, success=False)
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+                return
+
+            if proc.returncode != 0:
+                err = stderr.decode(errors="replace")[:500]
+                await _broadcast(eid, "campaign_complete", {"status": "error", "error": f"git clone failed: {err}"})
+                await _finalize(engagement_id, db, eid, success=False)
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+                return
+
+            engagement.target_path = tmp_dir
+            await db.commit()
+            await _broadcast(eid, "agent_completed", {"phase": "clone", "path": tmp_dir})
+
+        except Exception as e:
+            await _broadcast(eid, "campaign_complete", {"status": "error", "error": f"clone error: {e}"})
+            await _finalize(engagement_id, db, eid, success=False)
+            if tmp_dir:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            return
+
+    try:
+        await _run_codebase_pipeline(engagement_id)
+    finally:
+        if tmp_dir:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
     eid = str(engagement_id)
     async with AsyncSessionLocal() as db:
@@ -576,6 +641,8 @@ async def start_engagement(
     target_type, org_id = row
     if target_type == "cve":
         job_name = "run_cve_pipeline"
+    elif target_type == "github":
+        job_name = "run_github_pipeline"
     elif target_type in ("local_codebase", "binary"):
         job_name = "run_codebase_pipeline"
     elif target_type == "os":
