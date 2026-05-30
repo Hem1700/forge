@@ -384,6 +384,7 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
           const Divider(height: 1),
           Expanded(
             child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
                 if (_agents.isNotEmpty) ...[

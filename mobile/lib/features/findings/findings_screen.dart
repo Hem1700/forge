@@ -507,6 +507,7 @@ class _FindingsScreenState extends State<FindingsScreen> {
               onRefresh: _loadFindings,
               child: _findings == null
                   ? ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 12),
                       itemCount: 5,
