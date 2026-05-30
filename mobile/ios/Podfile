@@ -27,6 +27,16 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+# Remove macOS-duplicated "* 2.*" files from nanopb pod before Pods project is generated.
+# These files (pb_common 2.c, pb_decode 2.h, etc.) cause duplicate symbols at link time.
+pre_install do |installer|
+  nanopb_path = File.join(installer.sandbox.root, 'nanopb')
+  Dir.glob(File.join(nanopb_path, '* 2.*')).each do |f|
+    File.delete(f)
+    puts "Removed duplicate nanopb file: #{File.basename(f)}"
+  end
+end
+
 target 'Runner' do
   use_frameworks!
 
@@ -45,6 +55,16 @@ post_install do |installer|
       config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
       config.build_settings['CODE_SIGN_IDENTITY'] = ''
     end
+    # Fix Xcode 26 strict explicit-module errors in Firebase/nanopb pods
+    target.build_configurations.each do |config|
+      config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+    end
+  end
+  # Apply project-level override too (Xcode 26 inherits from project)
+  installer.pods_project.build_configurations.each do |config|
+    config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
+    config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
   end
 
   # Strip com.apple.provenance xattr that macOS 15 adds to copied files;
