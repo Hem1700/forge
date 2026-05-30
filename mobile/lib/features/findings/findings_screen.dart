@@ -761,85 +761,91 @@ class _FindingCardState extends State<_FindingCard> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(14),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(width: 3, color: bc),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(width: 3, color: bc),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(17, 14, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            _SeverityBadge(severity: f.severity),
-                            const SizedBox(width: 8),
-                            if (f.agentType != null)
-                              Text(
-                                f.agentType!,
-                                style: TextStyle(
-                                    color: cs.onSurfaceVariant, fontSize: 11),
-                              ),
-                            const Spacer(),
-                            Icon(
-                              widget.isExpanded
-                                  ? Icons.expand_less
-                                  : Icons.expand_more,
-                              size: 18,
-                              color: cs.onSurfaceVariant,
+                        _SeverityBadge(severity: f.severity),
+                        const SizedBox(width: 8),
+                        if (f.agentType != null)
+                          Flexible(
+                            child: Text(
+                              f.agentType!,
+                              style: TextStyle(
+                                  color: cs.onSurfaceVariant, fontSize: 11),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          f.vulnerabilityClass ?? f.title,
-                          style: TextStyle(
-                            color: cs.onSurface,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        AnimatedCrossFade(
-                          duration: const Duration(milliseconds: 250),
-                          crossFadeState: widget.isExpanded
-                              ? CrossFadeState.showSecond
-                              : CrossFadeState.showFirst,
-                          firstChild: f.isChain
-                              ? Text(
-                                  '${f.chainSteps?.length ?? 0} attack chain steps',
-                                  style: const TextStyle(
-                                      color: ForgeColors.accent, fontSize: 11),
-                                )
-                              : Text(
-                                  f.description ?? '',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                      color: cs.onSurfaceVariant,
-                                      fontSize: 11),
-                                ),
-                          secondChild: _ExpandedBody(
-                            finding: f,
-                            marking: _marking,
-                            onMarkFalsePositive: () async {
-                              setState(() => _marking = true);
-                              try {
-                                await widget.onFalsePositiveToggle(!f.isFalsePositive);
-                              } finally {
-                                if (mounted) setState(() => _marking = false);
-                              }
-                            },
-                          ),
+                        const Spacer(),
+                        Icon(
+                          widget.isExpanded
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: 18,
+                          color: cs.onSurfaceVariant,
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Text(
+                      f.vulnerabilityClass ?? f.title,
+                      style: TextStyle(
+                        color: cs.onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    AnimatedCrossFade(
+                      duration: const Duration(milliseconds: 250),
+                      crossFadeState: widget.isExpanded
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      firstChild: f.isChain
+                          ? Text(
+                              '${f.chainSteps?.length ?? 0} attack chain steps',
+                              style: const TextStyle(
+                                  color: ForgeColors.accent, fontSize: 11),
+                            )
+                          : Text(
+                              f.description ?? '',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  color: cs.onSurfaceVariant,
+                                  fontSize: 11),
+                            ),
+                      secondChild: _ExpandedBody(
+                        finding: f,
+                        marking: _marking,
+                        onMarkFalsePositive: () async {
+                          setState(() => _marking = true);
+                          try {
+                            await widget.onFalsePositiveToggle(!f.isFalsePositive);
+                          } finally {
+                            if (mounted) setState(() => _marking = false);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
