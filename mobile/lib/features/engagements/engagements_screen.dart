@@ -17,6 +17,7 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
   final _searchController = TextEditingController();
 
   List<Engagement> _all = [];
+  final Map<String, int> _findingCounts = {};
   bool _loading = true;
   String? _error;
   EngagementStatus? _filterStatus;
@@ -38,10 +39,26 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       final list = await _api.list();
-      if (mounted) setState(() { _all = list; _loading = false; });
+      if (!mounted) return;
+      setState(() { _all = list; _loading = false; });
+      _loadFindingCounts(list);
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
+  }
+
+  Future<void> _loadFindingCounts(List<Engagement> list) async {
+    final complete = list.where((e) => e.status == EngagementStatus.complete).toList();
+    final results = await Future.wait(
+      complete.map((e) => _api.findings(e.id).then((f) => (e.id, f.length))),
+      eagerError: false,
+    ).catchError((_) => <(String, int)>[]);
+    if (!mounted) return;
+    setState(() {
+      for (final (id, count) in results) {
+        _findingCounts[id] = count;
+      }
+    });
   }
 
   List<Engagement> get _filtered {
@@ -203,7 +220,8 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
         final e = items[index];
         return _EngagementListCard(
           engagement: e,
-          onTap: () => context.push('/engagement/${e.id}', extra: e.targetUrl),
+          findingsCount: _findingCounts[e.id],
+          onTap: () => context.push('/engagement/${e.id}'),
         );
       },
     );
@@ -243,9 +261,10 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
 // ---------------------------------------------------------------------------
 
 class _EngagementListCard extends StatelessWidget {
-  const _EngagementListCard({required this.engagement, required this.onTap});
+  const _EngagementListCard({required this.engagement, required this.onTap, this.findingsCount});
   final Engagement engagement;
   final VoidCallback onTap;
+  final int? findingsCount;
 
   @override
   Widget build(BuildContext context) {
@@ -299,6 +318,13 @@ class _EngagementListCard extends StatelessWidget {
                 _StatusBadge(status: engagement.status),
                 const SizedBox(width: 6),
                 _TypeBadge(type: engagement.targetType),
+                if (findingsCount != null && findingsCount! > 0) ...[
+                  const SizedBox(width: 6),
+                  _Badge(
+                    label: '$findingsCount findings',
+                    color: ForgeColors.warning,
+                  ),
+                ],
               ],
             ),
           ],

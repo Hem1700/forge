@@ -5,6 +5,8 @@ import 'core/theme/app_theme.dart';
 import 'core/storage/secure_storage.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/register_screen.dart';
+import 'features/engagements/engagement_detail_screen.dart';
+import 'features/engagements/new_scan_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 
@@ -118,11 +120,22 @@ GoRouter _buildRouter(WidgetRef ref, AuthNotifier authNotifier, String initialLo
         builder: (context, state) => const HomeScreen(),
       ),
       GoRoute(
+        path: '/new-scan',
+        builder: (context, state) => const NewScanScreen(),
+      ),
+      GoRoute(
         path: '/engagement/:id',
-        builder: (context, state) => _EngagementPlaceholder(
-          id: state.pathParameters['id']!,
-          name: state.extra as String?,
+        builder: (context, state) => EngagementDetailScreen(
+          engagementId: state.pathParameters['id']!,
         ),
+        routes: [
+          GoRoute(
+            path: 'findings',
+            builder: (context, state) => _FindingsPlaceholder(
+              engagementId: state.pathParameters['id']!,
+            ),
+          ),
+        ],
       ),
       GoRoute(
         path: '/settings',
@@ -170,19 +183,18 @@ class _ForgeAppState extends ConsumerState<ForgeApp> {
 }
 
 // ---------------------------------------------------------------------------
-// Phase-2 placeholders
+// Placeholders
 // ---------------------------------------------------------------------------
 
-class _EngagementPlaceholder extends StatelessWidget {
-  const _EngagementPlaceholder({required this.id, this.name});
-  final String id;
-  final String? name;
+class _FindingsPlaceholder extends StatelessWidget {
+  const _FindingsPlaceholder({required this.engagementId});
+  final String engagementId;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(name ?? id)),
-      body: const Center(child: Text('Detail view — Phase 3')),
+      appBar: AppBar(title: const Text('Findings')),
+      body: const Center(child: Text('Findings list — Phase 4')),
     );
   }
 }

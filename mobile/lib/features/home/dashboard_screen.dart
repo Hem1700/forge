@@ -15,6 +15,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final _api = EngagementsApi(ApiClient.instance);
   List<Engagement>? _engagements;
+  final Map<String, int> _findingCounts = {};
   bool _loading = true;
   String? _error;
 
@@ -31,10 +32,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     try {
       final list = await _api.list();
-      if (mounted) setState(() { _engagements = list; _loading = false; });
+      if (!mounted) return;
+      setState(() { _engagements = list; _loading = false; });
+      _loadFindingCounts(list);
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
+  }
+
+  Future<void> _loadFindingCounts(List<Engagement> list) async {
+    final complete = list
+        .where((e) => e.status == EngagementStatus.complete)
+        .take(5)
+        .toList();
+    final results = await Future.wait(
+      complete.map((e) => _api.findings(e.id).then((f) => (e.id, f.length))),
+      eagerError: false,
+    ).catchError((_) => <(String, int)>[]);
+    if (!mounted) return;
+    setState(() {
+      for (final (id, count) in results) {
+        _findingCounts[id] = count;
+      }
+    });
   }
 
   int get _activeCount =>
@@ -118,7 +138,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _EngagementCard(
                   engagement: e,
-                  onTap: () => context.push('/engagement/${e.id}', extra: e.targetUrl),
+                  findingsCount: _findingCounts[e.id],
+                  onTap: () => context.push('/engagement/${e.id}'),
                 ),
               )),
       ],
@@ -180,11 +201,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: ForgeGlowButton(
         label: 'New scan',
         icon: Icons.add,
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Coming in Phase 3')),
-          );
-        },
+        onPressed: () => context.push('/new-scan'),
       ),
     );
   }
@@ -302,9 +319,10 @@ class _MetricTile extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _EngagementCard extends StatelessWidget {
-  const _EngagementCard({required this.engagement, required this.onTap});
+  const _EngagementCard({required this.engagement, required this.onTap, this.findingsCount});
   final Engagement engagement;
   final VoidCallback onTap;
+  final int? findingsCount;
 
   @override
   Widget build(BuildContext context) {
@@ -339,6 +357,13 @@ class _EngagementCard extends StatelessWidget {
                       _StatusBadge(status: engagement.status),
                       const SizedBox(width: 6),
                       _TypeBadge(type: engagement.targetType),
+                      if (findingsCount != null && findingsCount! > 0) ...[
+                        const SizedBox(width: 6),
+                        _Badge(
+                          label: '$findingsCount findings',
+                          color: ForgeColors.warning,
+                        ),
+                      ],
                     ],
                   ),
                 ],
