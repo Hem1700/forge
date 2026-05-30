@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/engagements_api.dart';
 import '../../core/models/engagement.dart';
+import '../../core/storage/cache_storage.dart';
 import '../../core/theme/app_theme.dart';
 
 class EngagementsScreen extends StatefulWidget {
@@ -225,6 +226,7 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
           engagement: e,
           findingsCount: _findingCounts[e.id],
           onTap: () => context.push('/engagement/${e.id}'),
+          onLongPress: () => _showDeleteSheet(e),
         );
       },
     );
@@ -250,6 +252,94 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
     );
   }
 
+  Future<void> _showDeleteSheet(Engagement engagement) async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.delete_outline, color: ForgeColors.error, size: 20),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Delete engagement',
+                      style: TextStyle(
+                        color: cs.onSurface,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  engagement.displayName,
+                  style: TextStyle(
+                    color: cs.onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This will permanently delete all findings, events, and data for this scan.',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(backgroundColor: ForgeColors.error),
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        child: const Text('Delete', style: TextStyle(color: Colors.white)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _api.deleteEngagement(engagement.id);
+      await CacheStorage.instance.clearEngagement(engagement.id);
+      if (!mounted) return;
+      setState(() => _all.removeWhere((e) => e.id == engagement.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Engagement deleted')),
+      );
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete: $err')),
+      );
+    }
+  }
+
   Widget _buildSkeleton() {
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -266,16 +356,18 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
 // ---------------------------------------------------------------------------
 
 class _EngagementListCard extends StatelessWidget {
-  const _EngagementListCard({required this.engagement, required this.onTap, this.findingsCount});
+  const _EngagementListCard({required this.engagement, required this.onTap, this.findingsCount, this.onLongPress});
   final Engagement engagement;
   final VoidCallback onTap;
   final int? findingsCount;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(

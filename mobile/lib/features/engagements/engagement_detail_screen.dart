@@ -6,6 +6,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/engagements_api.dart';
 import '../../core/models/engagement.dart';
+import '../../core/storage/cache_storage.dart';
 import '../../core/theme/app_theme.dart';
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,95 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
     _sub?.cancel();
     _channel?.sink.close();
     super.dispose();
+  }
+
+  Future<void> _showDeleteSheet() async {
+    if (_engagement == null) return;
+    final engagement = _engagement!;
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.delete_outline, color: ForgeColors.error, size: 20),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Delete engagement',
+                      style: TextStyle(
+                        color: cs.onSurface,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  engagement.displayName,
+                  style: TextStyle(
+                    color: cs.onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This will permanently delete all findings, events, and data for this scan.',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(backgroundColor: ForgeColors.error),
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        child: const Text('Delete', style: TextStyle(color: Colors.white)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _api.deleteEngagement(widget.engagementId);
+      await CacheStorage.instance.clearEngagement(widget.engagementId);
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      context.pop();
+      messenger.showSnackBar(const SnackBar(content: Text('Engagement deleted')));
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete: $err')),
+      );
+    }
   }
 
   Future<void> _init() async {
@@ -372,6 +462,11 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
           ],
         ),
         actions: [
+          if (!_isRunning)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: ForgeColors.error),
+              onPressed: _showDeleteSheet,
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: _StatusPill(status: _liveStatus),

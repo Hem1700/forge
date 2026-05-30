@@ -132,6 +132,10 @@ class EngagementsApi {
       data: formData,
     );
   }
+
+  Future<void> deleteEngagement(String engagementId) async {
+    await _client.delete('/api/v1/engagements/$engagementId');
+  }
 }
 
 extension DioExceptionExt on DioException {

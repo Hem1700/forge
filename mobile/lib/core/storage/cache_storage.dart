@@ -50,6 +50,10 @@ class CacheStorage {
     }
   }
 
+  Future<void> clearEngagement(String id) async {
+    await Hive.deleteBoxFromDisk('findings_$id');
+  }
+
   Future<void> clear() async {
     await Hive.deleteBoxFromDisk(_boxEngagements);
   }
