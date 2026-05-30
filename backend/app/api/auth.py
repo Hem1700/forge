@@ -167,6 +167,21 @@ async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depe
     return TokenResponse(access_token=_make_token(user.id))
 
 
+class FCMTokenRequest(BaseModel):
+    token: str
+
+
+@router.post("/fcm-token", status_code=status.HTTP_200_OK)
+async def register_fcm_token(
+    body: FCMTokenRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    current_user.fcm_token = body.token
+    await db.commit()
+    return {"status": "ok"}
+
+
 @router.get("/me", response_model=UserResponse)
 async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> UserResponse:
     org_name: str | None = None

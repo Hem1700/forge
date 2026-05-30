@@ -58,6 +58,42 @@ class Finding {
   final String? triageStatus;
   final String? triageNotes;
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'severity': severity.name,
+        'status': _statusName(status),
+        'engagement_id': engagementId,
+        'created_at': createdAt.toIso8601String(),
+        'description': description,
+        'cvss_score': cvssScore,
+        'cwe_id': cweId,
+        'cve_id': cveId,
+        'affected_asset': affectedAsset,
+        'remediation_note': remediationNote,
+        'updated_at': updatedAt?.toIso8601String(),
+        'vulnerability_class': vulnerabilityClass,
+        'affected_surface': affectedSurface,
+        'evidence': evidence,
+        'reproduction_steps': reproductionSteps,
+        'recommendation': recommendation,
+        'confidence_score': confidenceScore,
+        'finding_type': findingType,
+        'chain_steps': chainSteps,
+        'component_finding_ids': componentFindingIds,
+        'triage_status': triageStatus ?? (isFalsePositive ? 'false_positive' : null),
+        'agent_type': agentType,
+        'triage_notes': triageNotes,
+      };
+
+  static String _statusName(FindingStatus s) => switch (s) {
+        FindingStatus.inProgress => 'in_progress',
+        FindingStatus.remediated => 'remediated',
+        FindingStatus.accepted => 'accepted',
+        FindingStatus.falsePositive => 'false_positive',
+        _ => 'open',
+      };
+
   factory Finding.fromJson(Map<String, dynamic> json) {
     final ts = json['triage_status'] as String?;
     final isFP = ts == 'false_positive' || (json['is_false_positive'] as bool? ?? false);

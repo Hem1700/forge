@@ -29,3 +29,4 @@ class User(Base):
     )
     position: Mapped[str | None] = mapped_column(String, nullable=True)
     is_platform_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    fcm_token: Mapped[str | None] = mapped_column(String, nullable=True)

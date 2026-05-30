@@ -1,8 +1,10 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/engagements_api.dart';
 import '../../core/models/engagement.dart';
+import '../../core/storage/cache_storage.dart';
 import '../../core/theme/app_theme.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -18,6 +20,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final Map<String, int> _findingCounts = {};
   bool _loading = true;
   String? _error;
+  bool _showingCached = false;
 
   @override
   void initState() {
@@ -26,16 +29,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() { _loading = true; _error = null; _showingCached = false; });
     try {
       final list = await _api.list();
       if (!mounted) return;
+      await CacheStorage.instance.saveEngagements(list);
       setState(() { _engagements = list; _loading = false; });
       _loadFindingCounts(list);
     } catch (e) {
+      if (e is DioException && e.isConnectionError) {
+        final cached = await CacheStorage.instance.getEngagements();
+        if (!mounted) return;
+        if (cached != null) {
+          setState(() {
+            _engagements = cached;
+            _loading = false;
+            _showingCached = true;
+          });
+          _loadFindingCounts(cached);
+          return;
+        }
+      }
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
   }
@@ -85,6 +99,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ],
                 ),
+                if (_showingCached)
+                  SliverToBoxAdapter(child: _CachedBanner()),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                   sliver: SliverToBoxAdapter(
@@ -447,6 +463,30 @@ class _Badge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cached data banner
+// ---------------------------------------------------------------------------
+
+class _CachedBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.orange.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: const Row(
+        children: [
+          Icon(Icons.cloud_off, size: 14, color: Colors.orange),
+          SizedBox(width: 8),
+          Text(
+            'Showing cached data',
+            style: TextStyle(color: Colors.orange, fontSize: 12),
+          ),
+        ],
       ),
     );
   }

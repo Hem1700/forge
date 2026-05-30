@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'core/notifications/notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/storage/secure_storage.dart';
 import 'features/admin/admin_screen.dart';
@@ -84,6 +85,7 @@ final initialRouteProvider = Provider<String>((ref) => '/onboarding');
 
 GoRouter _buildRouter(WidgetRef ref, AuthNotifier authNotifier, String initialLocation) {
   return GoRouter(
+    navigatorKey: appNavigatorKey,
     initialLocation: initialLocation,
     refreshListenable: authNotifier,
     redirect: (context, state) async {
@@ -173,6 +175,10 @@ class _ForgeAppState extends ConsumerState<ForgeApp> {
     super.initState();
     final authNotifier = ref.read(authNotifierProvider);
     _router = _buildRouter(ref, authNotifier, widget.initialRoute);
+    // Navigate to any route pending from a cold-start notification tap.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => NotificationService.instance.drainPendingRoute(),
+    );
   }
 
   @override

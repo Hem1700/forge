@@ -86,6 +86,17 @@ class AuthApi {
     }
   }
 
+  Future<void> registerFcmToken(String token) async {
+    try {
+      await _client.post<void>(
+        '/api/v1/auth/fcm-token',
+        data: {'token': token},
+      );
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
   Future<void> logout() async {
     try {
       await _client.post<void>('/auth/logout');

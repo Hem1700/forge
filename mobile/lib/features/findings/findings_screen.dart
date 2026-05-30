@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
@@ -9,6 +10,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/engagements_api.dart';
 import '../../core/models/engagement.dart';
 import '../../core/models/finding.dart';
+import '../../core/storage/cache_storage.dart';
 import '../../core/theme/app_theme.dart';
 
 // ─── Severity colour helpers ──────────────────────────────────────────────────
@@ -66,6 +68,7 @@ class AllFindingsTab extends StatefulWidget {
 class _AllFindingsTabState extends State<AllFindingsTab> {
   List<Engagement>? _engagements;
   String? _error;
+  bool _showingCached = false;
 
   @override
   void initState() {
@@ -74,11 +77,21 @@ class _AllFindingsTabState extends State<AllFindingsTab> {
   }
 
   Future<void> _load() async {
-    setState(() { _error = null; });
+    setState(() { _error = null; _showingCached = false; });
     try {
       final list = await EngagementsApi(ApiClient.instance).list();
-      if (mounted) setState(() => _engagements = list);
+      if (!mounted) return;
+      await CacheStorage.instance.saveEngagements(list);
+      setState(() => _engagements = list);
     } catch (e) {
+      if (e is DioException && e.isConnectionError) {
+        final cached = await CacheStorage.instance.getEngagements();
+        if (!mounted) return;
+        if (cached != null) {
+          setState(() { _engagements = cached; _showingCached = true; });
+          return;
+        }
+      }
       if (mounted) setState(() => _error = e.toString());
     }
   }
@@ -96,6 +109,22 @@ class _AllFindingsTabState extends State<AllFindingsTab> {
             title: Text('Findings'),
             floating: true,
           ),
+          if (_showingCached)
+            SliverToBoxAdapter(
+              child: Container(
+                color: Colors.orange.withValues(alpha: 0.12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: const Row(
+                  children: [
+                    Icon(Icons.cloud_off, size: 14, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Showing cached data',
+                        style: TextStyle(color: Colors.orange, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
           if (_error != null)
             SliverFillRemaining(
               child: Center(
@@ -260,6 +289,7 @@ class _FindingsScreenState extends State<FindingsScreen> {
   String? _typeFilter;
   bool _isDownloading = false;
   String? _expandedId;
+  bool _showingCached = false;
 
   @override
   void initState() {
@@ -268,14 +298,21 @@ class _FindingsScreenState extends State<FindingsScreen> {
   }
 
   Future<void> _loadFindings() async {
-    setState(() {
-      _findings = null;
-      _error = null;
-    });
+    setState(() { _findings = null; _error = null; _showingCached = false; });
     try {
       final list = await _api.findings(widget.engagementId);
-      if (mounted) setState(() => _findings = list);
+      if (!mounted) return;
+      await CacheStorage.instance.saveFindings(widget.engagementId, list);
+      setState(() => _findings = list);
     } catch (e) {
+      if (e is DioException && e.isConnectionError) {
+        final cached = await CacheStorage.instance.getFindings(widget.engagementId);
+        if (!mounted) return;
+        if (cached != null) {
+          setState(() { _findings = cached; _showingCached = true; });
+          return;
+        }
+      }
       if (mounted) setState(() => _error = e.toString());
     }
   }
@@ -424,7 +461,24 @@ class _FindingsScreenState extends State<FindingsScreen> {
               )
             : const Icon(Icons.download_outlined, color: ForgeColors.accent),
       ),
-      body: _error != null
+      body: Column(
+        children: [
+          if (_showingCached)
+            Container(
+              width: double.infinity,
+              color: Colors.orange.withValues(alpha: 0.12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: const Row(
+                children: [
+                  Icon(Icons.cloud_off, size: 14, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text('Showing cached data',
+                      style: TextStyle(color: Colors.orange, fontSize: 12)),
+                ],
+              ),
+            ),
+          Expanded(
+            child: _error != null
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -506,6 +560,9 @@ class _FindingsScreenState extends State<FindingsScreen> {
                           },
                         ),
             ),
+          ),        // closes Expanded
+        ],          // closes Column children
+      ),            // closes Column
     );
   }
 }

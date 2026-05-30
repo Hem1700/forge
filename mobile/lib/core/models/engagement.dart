@@ -30,6 +30,25 @@ class Engagement {
     }
   }
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'target_url': targetUrl,
+        'target_type': targetType,
+        'target_path': targetPath,
+        'status': _statusName(status),
+        'gate_status': gateStatus,
+        'created_at': createdAt.toIso8601String(),
+        'completed_at': completedAt?.toIso8601String(),
+      };
+
+  static String _statusName(EngagementStatus s) => switch (s) {
+        EngagementStatus.running => 'running',
+        EngagementStatus.pausedAtGate => 'paused_at_gate',
+        EngagementStatus.complete => 'complete',
+        EngagementStatus.aborted => 'aborted',
+        _ => 'pending',
+      };
+
   factory Engagement.fromJson(Map<String, dynamic> json) => Engagement(
         id: json['id'].toString(),
         targetUrl: json['target_url'] as String,
