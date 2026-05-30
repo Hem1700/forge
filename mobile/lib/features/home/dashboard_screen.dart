@@ -15,11 +15,14 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class DashboardScreenState extends State<DashboardScreen> {
-  void refresh() => _load();
+  void refresh() => _load(force: true);
+
   final _api = EngagementsApi(ApiClient.instance);
-  List<Engagement>? _engagements;
+  List<Engagement> _engagements = [];
   final Map<String, int> _findingCounts = {};
-  bool _loading = true;
+  bool _loading = false;
+  bool _loaded = false;
+  DateTime? _lastLoad;
   String? _error;
   bool _showingCached = false;
 
@@ -29,29 +32,57 @@ class DashboardScreenState extends State<DashboardScreen> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() { _loading = true; _error = null; _showingCached = false; });
+  Future<void> _load({bool force = false}) async {
+    if (_loading) return;
+    if (!force &&
+        _loaded &&
+        _lastLoad != null &&
+        DateTime.now().difference(_lastLoad!) < const Duration(seconds: 10)) {
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _showingCached = false;
+    });
+
     try {
       final list = await _api.list();
       if (!mounted) return;
-      await CacheStorage.instance.saveEngagements(list);
-      setState(() { _engagements = list; _loading = false; });
+      setState(() {
+        _engagements = list;
+        _loading = false;
+        _loaded = true;
+        _lastLoad = DateTime.now();
+        _error = null;
+      });
+      CacheStorage.instance.saveEngagements(list);
       _loadFindingCounts(list);
     } catch (e) {
-      if (e is DioException && e.isConnectionError) {
-        final cached = await CacheStorage.instance.getEngagements();
-        if (!mounted) return;
-        if (cached != null) {
+      if (!mounted) return;
+      if (!_loaded || _engagements.isEmpty) {
+        if (e is DioException && e.isConnectionError) {
+          final cached = await CacheStorage.instance.getEngagements();
+          if (!mounted) return;
           setState(() {
-            _engagements = cached;
+            _engagements = cached ?? [];
             _loading = false;
-            _showingCached = true;
+            _loaded = cached != null;
+            _showingCached = cached != null;
+            _error = cached != null ? null : e.toString();
           });
-          _loadFindingCounts(cached);
-          return;
+          if (cached != null) _loadFindingCounts(cached);
+        } else {
+          setState(() {
+            _loading = false;
+            _error = e.toString();
+          });
         }
+      } else {
+        setState(() => _loading = false);
       }
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
   }
 
@@ -73,7 +104,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   }
 
   int get _activeCount =>
-      (_engagements ?? []).where((e) => e.status == EngagementStatus.running).length;
+      _engagements.where((e) => e.status == EngagementStatus.running).length;
 
   int get _criticalCount => 0;
 
@@ -84,7 +115,7 @@ class DashboardScreenState extends State<DashboardScreen> {
       children: [
         Expanded(
           child: RefreshIndicator(
-            onRefresh: _load,
+            onRefresh: () => _load(force: true),
             color: ForgeColors.accent,
             backgroundColor: cs.surface,
             child: CustomScrollView(
@@ -105,11 +136,11 @@ class DashboardScreenState extends State<DashboardScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                   sliver: SliverToBoxAdapter(
-                    child: _loading
-                        ? _buildSkeleton()
+                    child: _loaded
+                        ? _buildContent()
                         : _error != null
                             ? _buildError()
-                            : _buildContent(),
+                            : _buildSkeleton(),
                   ),
                 ),
               ],
@@ -123,8 +154,7 @@ class DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildContent() {
     final cs = Theme.of(context).colorScheme;
-    final engagements = _engagements ?? [];
-    final recent = engagements.take(5).toList();
+    final recent = _engagements.take(5).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,7 +171,7 @@ class DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        if (recent.isEmpty)
+        if (!_loading && _engagements.isEmpty)
           Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 32),
@@ -170,7 +200,7 @@ class DashboardScreenState extends State<DashboardScreen> {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 60),
         child: GestureDetector(
-          onTap: _load,
+          onTap: () => _load(force: true),
           child: Text(
             'Could not load engagements.\nTap to retry.',
             textAlign: TextAlign.center,
@@ -223,7 +253,7 @@ class DashboardScreenState extends State<DashboardScreen> {
         icon: Icons.add,
         onPressed: () async {
           await context.push('/new-scan');
-          if (mounted) _load();
+          if (mounted) _load(force: true);
         },
       ),
     );
