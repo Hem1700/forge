@@ -319,7 +319,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ],
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 24),
+
+                  // Create account link
+                  Center(
+                    child: TextButton(
+                      onPressed: () => context.push('/register'),
+                      child: const Text.rich(
+                        TextSpan(
+                          text: 'New here? ',
+                          style: TextStyle(color: ForgeColors.textSecondary, fontSize: 14),
+                          children: [
+                            TextSpan(
+                              text: 'Create account',
+                              style: TextStyle(color: ForgeColors.accent, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
 
                   // Server footer
                   Center(

@@ -42,6 +42,26 @@ class AuthApi {
     }
   }
 
+  Future<AuthResponse> register(String email, String password, String orgName) async {
+    try {
+      final res = await _client.post<Map<String, dynamic>>(
+        '/api/v1/auth/register',
+        data: {'email': email, 'password': password, 'org_name': orgName},
+      );
+      final token = (res.data!['access_token'] as String?) ?? '';
+      await SecureStorage.instance.saveToken(token);
+      try {
+        final user = await me();
+        return AuthResponse(token: token, user: user);
+      } catch (_) {
+        await SecureStorage.instance.deleteToken();
+        rethrow;
+      }
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
   Future<AuthResponse> loginWithApiKey(String apiKey) async {
     try {
       // Store key temporarily so the interceptor sends it

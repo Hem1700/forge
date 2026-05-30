@@ -8,7 +8,7 @@ class EngagementsApi {
   final ApiClient _client;
 
   Future<List<Engagement>> list() async {
-    final res = await _client.get<List<dynamic>>('/engagements');
+    final res = await _client.get<List<dynamic>>('/api/v1/engagements/');
     return (res.data ?? [])
         .cast<Map<String, dynamic>>()
         .map(Engagement.fromJson)
@@ -16,7 +16,7 @@ class EngagementsApi {
   }
 
   Future<Engagement> get(String id) async {
-    final res = await _client.get<Map<String, dynamic>>('/engagements/$id');
+    final res = await _client.get<Map<String, dynamic>>('/api/v1/engagements/$id');
     return Engagement.fromJson(res.data!);
   }
 
@@ -26,7 +26,7 @@ class EngagementsApi {
     if (status != null) params['status'] = status;
 
     final res = await _client.get<List<dynamic>>(
-      '/engagements/$engagementId/findings',
+      '/api/v1/engagements/$engagementId/findings',
       queryParams: params.isEmpty ? null : params,
     );
     return (res.data ?? [])
@@ -37,7 +37,7 @@ class EngagementsApi {
 
   Future<Finding> getFinding(String engagementId, String findingId) async {
     final res = await _client.get<Map<String, dynamic>>(
-      '/engagements/$engagementId/findings/$findingId',
+      '/api/v1/engagements/$engagementId/findings/$findingId',
     );
     return Finding.fromJson(res.data!);
   }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/storage/secure_storage.dart';
 import 'features/auth/login_screen.dart';
+import 'features/auth/register_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 
@@ -91,7 +92,9 @@ GoRouter _buildRouter(WidgetRef ref, AuthNotifier authNotifier, String initialLo
       final status = authNotifier.status;
       if (status == AuthStatus.unknown) return null;
 
-      final onAuth = state.matchedLocation == '/login' || state.matchedLocation == '/onboarding';
+      final onAuth = state.matchedLocation == '/login' ||
+          state.matchedLocation == '/register' ||
+          state.matchedLocation == '/onboarding';
       if (status == AuthStatus.unauthenticated && !onAuth) return '/login';
       if (status == AuthStatus.authenticated && onAuth) return '/home';
 
@@ -107,6 +110,10 @@ GoRouter _buildRouter(WidgetRef ref, AuthNotifier authNotifier, String initialLo
         builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
         path: '/home',
         builder: (context, state) => const HomeScreen(),
       ),
@@ -114,6 +121,7 @@ GoRouter _buildRouter(WidgetRef ref, AuthNotifier authNotifier, String initialLo
         path: '/engagement/:id',
         builder: (context, state) => _EngagementPlaceholder(
           id: state.pathParameters['id']!,
+          name: state.extra as String?,
         ),
       ),
       GoRoute(
@@ -166,14 +174,15 @@ class _ForgeAppState extends ConsumerState<ForgeApp> {
 // ---------------------------------------------------------------------------
 
 class _EngagementPlaceholder extends StatelessWidget {
-  const _EngagementPlaceholder({required this.id});
+  const _EngagementPlaceholder({required this.id, this.name});
   final String id;
+  final String? name;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Engagement $id')),
-      body: const Center(child: Text('Phase 2 — Engagement detail')),
+      appBar: AppBar(title: Text(name ?? id)),
+      body: const Center(child: Text('Detail view — Phase 3')),
     );
   }
 }
