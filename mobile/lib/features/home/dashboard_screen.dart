@@ -11,10 +11,11 @@ class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  State<DashboardScreen> createState() => DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class DashboardScreenState extends State<DashboardScreen> {
+  void refresh() => _load();
   final _api = EngagementsApi(ApiClient.instance);
   List<Engagement>? _engagements;
   final Map<String, int> _findingCounts = {};
@@ -220,7 +221,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: ForgeGlowButton(
         label: 'New scan',
         icon: Icons.add,
-        onPressed: () => context.push('/new-scan'),
+        onPressed: () async {
+          await context.push('/new-scan');
+          if (mounted) _load();
+        },
       ),
     );
   }

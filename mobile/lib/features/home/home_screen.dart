@@ -16,19 +16,21 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   late int _selectedIndex;
+  final _dashKey = GlobalKey<DashboardScreenState>();
 
-  static const _pages = [
-    DashboardScreen(),
-    EngagementsScreen(),
-    AllFindingsTab(),
-    OrgScreen(),
-    SettingsScreen(),
-  ];
+  late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
-    _selectedIndex = widget.initialTab?.clamp(0, _pages.length - 1) ?? 0;
+    _selectedIndex = widget.initialTab?.clamp(0, 4) ?? 0;
+    _pages = [
+      DashboardScreen(key: _dashKey),
+      const EngagementsScreen(),
+      const AllFindingsTab(),
+      const OrgScreen(),
+      const SettingsScreen(),
+    ];
   }
 
   @override
@@ -43,7 +45,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         child: NavigationBar(
           selectedIndex: _selectedIndex,
-          onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+          onDestinationSelected: (i) {
+            if (i == 0 && _selectedIndex != 0) {
+              _dashKey.currentState?.refresh();
+            }
+            setState(() => _selectedIndex = i);
+          },
           backgroundColor: cs.surface,
           surfaceTintColor: Colors.transparent,
           destinations: const [
