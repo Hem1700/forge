@@ -147,6 +147,11 @@ async def worker_health():
     return {"status": "up", "stats": raw}
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "FORGE"}
+
+
 app.include_router(api_keys.router)
 app.include_router(auth.router)
 app.include_router(engagements.router)

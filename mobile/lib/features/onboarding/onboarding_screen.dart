@@ -40,7 +40,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         receiveTimeout: const Duration(seconds: 10),
       ));
       final res = await dio.get<dynamic>('$url/health');
-      if (res.statusCode == 200) {
+      final status = res.statusCode ?? 0;
+      if (status >= 200 && status < 300) {
         await SecureStorage.instance.saveServerUrl(url);
         await ApiClient.instance.init(url);
         if (mounted) context.go('/login');
