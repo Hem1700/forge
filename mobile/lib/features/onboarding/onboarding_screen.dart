@@ -80,8 +80,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: ForgeColors.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -109,10 +109,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     'SECURITY PLATFORM',
                     style: TextStyle(
-                      color: ForgeColors.textTertiary,
+                      color: cs.onSurfaceVariant,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 4,
@@ -121,10 +121,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
                   const SizedBox(height: 40),
 
-                  const Text(
+                  Text(
                     'Enter your server address to get started',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: ForgeColors.textSecondary, fontSize: 14, height: 1.5),
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14, height: 1.5),
                   ),
 
                   const SizedBox(height: 24),
@@ -135,7 +135,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     keyboardType: TextInputType.url,
                     autocorrect: false,
                     enableSuggestions: false,
-                    style: const TextStyle(color: ForgeColors.textPrimary, fontSize: 15),
+                    style: TextStyle(color: cs.onSurface, fontSize: 15),
                     decoration: const InputDecoration(
                       hintText: 'https://forge.yourcompany.com',
                       prefixIcon: Icon(Icons.dns_outlined, size: 20),
@@ -196,9 +196,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
                   const SizedBox(height: 40),
 
-                  const Text(
+                  Text(
                     'v1.0.0',
-                    style: TextStyle(color: ForgeColors.textTertiary, fontSize: 11),
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
                   ),
                   const SizedBox(height: 24),
                 ],

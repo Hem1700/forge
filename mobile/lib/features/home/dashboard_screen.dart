@@ -64,20 +64,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Expanded(
           child: RefreshIndicator(
             onRefresh: _load,
             color: ForgeColors.accent,
-            backgroundColor: ForgeColors.surface,
+            backgroundColor: cs.surface,
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverAppBar(
                   title: const Text('Dashboard'),
                   floating: true,
-                  backgroundColor: ForgeColors.background,
                   actions: [
                     IconButton(
                       icon: const Icon(Icons.notifications_outlined),
@@ -105,6 +105,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildContent() {
+    final cs = Theme.of(context).colorScheme;
     final engagements = _engagements ?? [];
     final recent = engagements.take(5).toList();
 
@@ -113,10 +114,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         _MetricGrid(activeCount: _activeCount, criticalCount: _criticalCount),
         const SizedBox(height: 24),
-        const Text(
+        Text(
           'Recent engagements',
           style: TextStyle(
-            color: ForgeColors.textPrimary,
+            color: cs.onSurface,
             fontSize: 15,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.2,
@@ -124,12 +125,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: 12),
         if (recent.isEmpty)
-          const Center(
+          Center(
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
+              padding: const EdgeInsets.symmetric(vertical: 32),
               child: Text(
                 'No scans yet.',
-                style: TextStyle(color: ForgeColors.textTertiary),
+                style: TextStyle(color: cs.onSurfaceVariant),
               ),
             ),
           )
@@ -147,15 +148,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildError() {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 60),
         child: GestureDetector(
           onTap: _load,
-          child: const Text(
+          child: Text(
             'Could not load engagements.\nTap to retry.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: ForgeColors.textSecondary, height: 1.5),
+            style: TextStyle(color: cs.onSurfaceVariant, height: 1.5),
           ),
         ),
       ),
@@ -195,8 +197,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildNewScanButton() {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: ForgeColors.background,
+      color: cs.surface,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
       child: ForgeGlowButton(
         label: 'New scan',
@@ -218,6 +221,7 @@ class _MetricGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Row(
@@ -249,7 +253,7 @@ class _MetricGrid extends StatelessWidget {
                 label: 'Budget used',
                 value: '--',
                 icon: Icons.account_balance_wallet_outlined,
-                color: ForgeColors.textSecondary,
+                color: cs.onSurfaceVariant,
               ),
             ),
             const SizedBox(width: 12),
@@ -282,12 +286,13 @@ class _MetricTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: ForgeColors.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ForgeColors.border),
+        border: Border.all(color: cs.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,8 +301,8 @@ class _MetricTile extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             value,
-            style: const TextStyle(
-              color: ForgeColors.textPrimary,
+            style: TextStyle(
+              color: cs.onSurface,
               fontSize: 24,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.5,
@@ -306,7 +311,7 @@ class _MetricTile extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(color: ForgeColors.textSecondary, fontSize: 12),
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
           ),
         ],
       ),
@@ -326,14 +331,15 @@ class _EngagementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: ForgeColors.surface,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: ForgeColors.border),
+          border: Border.all(color: cs.outline),
         ),
         child: Row(
           children: [
@@ -343,8 +349,8 @@ class _EngagementCard extends StatelessWidget {
                 children: [
                   Text(
                     engagement.displayName,
-                    style: const TextStyle(
-                      color: ForgeColors.textPrimary,
+                    style: TextStyle(
+                      color: cs.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -372,10 +378,10 @@ class _EngagementCard extends StatelessWidget {
             const SizedBox(width: 12),
             Text(
               _timeAgo(engagement.createdAt),
-              style: const TextStyle(color: ForgeColors.textTertiary, fontSize: 12),
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, size: 16, color: ForgeColors.textTertiary),
+            Icon(Icons.chevron_right, size: 16, color: cs.onSurfaceVariant),
           ],
         ),
       ),
@@ -397,12 +403,13 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final (label, color) = switch (status) {
       EngagementStatus.running => ('Running', ForgeColors.accent),
       EngagementStatus.complete => ('Complete', ForgeColors.success),
       EngagementStatus.pending => ('Queued', ForgeColors.warning),
       EngagementStatus.aborted => ('Failed', ForgeColors.error),
-      EngagementStatus.pausedAtGate => ('Paused', ForgeColors.textSecondary),
+      EngagementStatus.pausedAtGate => ('Paused', cs.onSurfaceVariant),
     };
     return _Badge(label: label, color: color);
   }
@@ -483,13 +490,14 @@ class _ShimmerBoxState extends State<_ShimmerBox> with SingleTickerProviderState
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return FadeTransition(
       opacity: _anim,
       child: Container(
         width: widget.width,
         height: widget.height,
         decoration: BoxDecoration(
-          color: ForgeColors.surface2,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(10),
         ),
       ),

@@ -57,10 +57,10 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final filtered = _filtered;
 
     return Scaffold(
-      backgroundColor: ForgeColors.background,
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
@@ -68,7 +68,6 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
             const SliverAppBar(
               title: Text('Platform Admin'),
               floating: true,
-              backgroundColor: ForgeColors.background,
             ),
             SliverPersistentHeader(
               pinned: true,
@@ -88,8 +87,8 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                           color: ForgeColors.error, size: 48),
                       const SizedBox(height: 12),
                       Text(_error!,
-                          style: const TextStyle(
-                              color: ForgeColors.textSecondary)),
+                          style: TextStyle(
+                              color: cs.onSurfaceVariant)),
                       const SizedBox(height: 16),
                       TextButton(onPressed: _load, child: const Text('Retry')),
                     ],
@@ -97,10 +96,10 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                 ),
               )
             else if (filtered.isEmpty)
-              const SliverFillRemaining(
+              SliverFillRemaining(
                 child: Center(
                   child: Text('No users found',
-                      style: TextStyle(color: ForgeColors.textSecondary)),
+                      style: TextStyle(color: cs.onSurfaceVariant)),
                 ),
               )
             else
@@ -123,13 +122,14 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   }
 
   void _showUserSheet(BuildContext context, OrgUser user) {
+    final cs = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
-      backgroundColor: ForgeColors.surface,
+      backgroundColor: cs.surface,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        side: BorderSide(color: ForgeColors.border),
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        side: BorderSide(color: cs.outline),
       ),
       builder: (ctx) => _UserSheet(
         user: user,
@@ -183,6 +183,7 @@ class _UserTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
@@ -205,8 +206,8 @@ class _UserTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             user.email,
-                            style: const TextStyle(
-                                color: ForgeColors.textPrimary,
+                            style: TextStyle(
+                                color: cs.onSurface,
                                 fontWeight: FontWeight.w500,
                                 fontSize: 14),
                             overflow: TextOverflow.ellipsis,
@@ -239,14 +240,14 @@ class _UserTile extends StatelessWidget {
                         _RoleBadgeSmall(role: user.role),
                         if (user.orgName != null) ...[
                           const SizedBox(width: 8),
-                          const Icon(Icons.business,
-                              size: 11, color: ForgeColors.textTertiary),
+                          Icon(Icons.business,
+                              size: 11, color: cs.onSurfaceVariant),
                           const SizedBox(width: 3),
                           Expanded(
                             child: Text(
                               user.orgName!,
-                              style: const TextStyle(
-                                  color: ForgeColors.textTertiary,
+                              style: TextStyle(
+                                  color: cs.onSurfaceVariant,
                                   fontSize: 12),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -257,8 +258,8 @@ class _UserTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right,
-                  size: 18, color: ForgeColors.textTertiary),
+              Icon(Icons.chevron_right,
+                  size: 18, color: cs.onSurfaceVariant),
             ],
           ),
         ),
@@ -282,6 +283,7 @@ class _UserSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.4,
@@ -294,7 +296,7 @@ class _UserSheet extends StatelessWidget {
             height: 4,
             margin: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
-              color: ForgeColors.border,
+              color: cs.outline,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -317,15 +319,15 @@ class _UserSheet extends StatelessWidget {
                         children: [
                           Text(
                             user.email,
-                            style: const TextStyle(
-                                color: ForgeColors.textPrimary,
+                            style: TextStyle(
+                                color: cs.onSurface,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15),
                           ),
                           if (user.orgName != null)
                             Text(user.orgName!,
-                                style: const TextStyle(
-                                    color: ForgeColors.textSecondary,
+                                style: TextStyle(
+                                    color: cs.onSurfaceVariant,
                                     fontSize: 13)),
                         ],
                       ),
@@ -336,18 +338,18 @@ class _UserSheet extends StatelessWidget {
                 // Platform admin toggle (stub)
                 Container(
                   decoration: BoxDecoration(
-                    color: ForgeColors.surface2,
+                    color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: ForgeColors.border),
+                    border: Border.all(color: cs.outline),
                   ),
                   child: ListTile(
                     leading: const Icon(Icons.admin_panel_settings_outlined,
                         color: ForgeColors.accent),
-                    title: const Text('Platform admin',
-                        style: TextStyle(color: ForgeColors.textPrimary)),
-                    subtitle: const Text('Grants access to this admin panel',
+                    title: Text('Platform admin',
+                        style: TextStyle(color: cs.onSurface)),
+                    subtitle: Text('Grants access to this admin panel',
                         style: TextStyle(
-                            color: ForgeColors.textSecondary, fontSize: 12)),
+                            color: cs.onSurfaceVariant, fontSize: 12)),
                     trailing: Switch(
                       value: user.isPlatformAdmin,
                       onChanged: (_) => onPlatformAdminToggle(),
@@ -356,10 +358,10 @@ class _UserSheet extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text(
+                Text(
                   'CHANGE ROLE',
                   style: TextStyle(
-                    color: ForgeColors.textSecondary,
+                    color: cs.onSurfaceVariant,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
@@ -368,9 +370,9 @@ class _UserSheet extends StatelessWidget {
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: ForgeColors.surface2,
+                    color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: ForgeColors.border),
+                    border: Border.all(color: cs.outline),
                   ),
                   child: ListView.separated(
                     shrinkWrap: true,
@@ -381,8 +383,8 @@ class _UserSheet extends StatelessWidget {
                       final r = _allRoles[i];
                       return ListTile(
                         title: Text(r,
-                            style: const TextStyle(
-                                color: ForgeColors.textPrimary)),
+                            style: TextStyle(
+                                color: cs.onSurface)),
                         trailing: user.role == r
                             ? const Icon(Icons.check,
                                 color: ForgeColors.accent)
@@ -434,16 +436,16 @@ class _RoleBadgeSmall extends StatelessWidget {
   const _RoleBadgeSmall({required this.role});
   final String role;
 
-  static Color _color(String role) => switch (role) {
+  static Color _color(String role, Color fallback) => switch (role) {
         'super_admin' => const Color(0xFFE5A832),
         'admin' => ForgeColors.accent,
         'analyst' => ForgeColors.success,
-        _ => ForgeColors.textTertiary,
+        _ => fallback,
       };
 
   @override
   Widget build(BuildContext context) {
-    final c = _color(role);
+    final c = _color(role, Theme.of(context).colorScheme.onSurfaceVariant);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -473,12 +475,13 @@ class _SearchBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: ForgeColors.background,
+      color: cs.surface,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: TextField(
         controller: controller,
-        style: const TextStyle(color: ForgeColors.textPrimary),
+        style: TextStyle(color: cs.onSurface),
         decoration: InputDecoration(
           hintText: 'Search users or orgs…',
           prefixIcon: const Icon(Icons.search, size: 20),

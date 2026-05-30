@@ -57,11 +57,11 @@ class _OrgScreenState extends ConsumerState<OrgScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final currentUser = ref.watch(currentUserProvider);
     final canManage = currentUser?.isAdmin ?? false;
 
     return Scaffold(
-      backgroundColor: ForgeColors.background,
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
@@ -69,13 +69,12 @@ class _OrgScreenState extends ConsumerState<OrgScreen> {
             SliverAppBar(
               title: Text(
                 currentUser?.organization ?? 'Organization',
-                style: const TextStyle(color: ForgeColors.textPrimary),
+                style: TextStyle(color: cs.onSurface),
               ),
               floating: true,
-              backgroundColor: ForgeColors.background,
               bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(1),
-                child: Container(height: 1, color: ForgeColors.border),
+                child: Container(height: 1, color: cs.outline),
               ),
             ),
             if (_loading)
@@ -92,7 +91,7 @@ class _OrgScreenState extends ConsumerState<OrgScreen> {
                           color: ForgeColors.error, size: 48),
                       const SizedBox(height: 12),
                       Text(_error!,
-                          style: const TextStyle(color: ForgeColors.textSecondary)),
+                          style: TextStyle(color: cs.onSurfaceVariant)),
                       const SizedBox(height: 16),
                       TextButton(onPressed: _load, child: const Text('Retry')),
                     ],
@@ -137,7 +136,7 @@ class _OrgScreenState extends ConsumerState<OrgScreen> {
           ? FloatingActionButton(
               onPressed: _showInviteDialog,
               backgroundColor: ForgeColors.accent,
-              foregroundColor: ForgeColors.background,
+              foregroundColor: cs.onPrimary,
               child: const Icon(Icons.person_add),
             )
           : null,
@@ -205,26 +204,27 @@ class _MembersList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     if (members.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: ForgeColors.surface,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: ForgeColors.border),
+          border: Border.all(color: cs.outline),
         ),
-        child: const Center(
+        child: Center(
           child: Text('No members found',
-              style: TextStyle(color: ForgeColors.textSecondary)),
+              style: TextStyle(color: cs.onSurfaceVariant)),
         ),
       );
     }
 
     return Container(
       decoration: BoxDecoration(
-        color: ForgeColors.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ForgeColors.border),
+        border: Border.all(color: cs.outline),
       ),
       child: ListView.separated(
         shrinkWrap: true,
@@ -238,12 +238,12 @@ class _MembersList extends StatelessWidget {
             leading: _AvatarCircle(initials: m.initials),
             title: Text(
               m.displayName,
-              style: const TextStyle(
-                  color: ForgeColors.textPrimary, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                  color: cs.onSurface, fontWeight: FontWeight.w500),
             ),
             subtitle: Text(m.email,
-                style: const TextStyle(
-                    color: ForgeColors.textSecondary, fontSize: 12)),
+                style: TextStyle(
+                    color: cs.onSurfaceVariant, fontSize: 12)),
             trailing: _RoleBadge(role: m.role),
             onLongPress: (canManage && !isSelf)
                 ? () => _showRoleSheet(ctx, m)
@@ -255,12 +255,13 @@ class _MembersList extends StatelessWidget {
   }
 
   void _showRoleSheet(BuildContext context, OrgUser member) {
+    final cs = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
-      backgroundColor: ForgeColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        side: BorderSide(color: ForgeColors.border),
+      backgroundColor: cs.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        side: BorderSide(color: cs.outline),
       ),
       builder: (ctx) => _RoleSheet(
         member: member,
@@ -280,6 +281,7 @@ class _RoleSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
       child: Column(
@@ -288,8 +290,8 @@ class _RoleSheet extends StatelessWidget {
         children: [
           Text(
             'Change role — ${member.email}',
-            style: const TextStyle(
-                color: ForgeColors.textPrimary,
+            style: TextStyle(
+                color: cs.onSurface,
                 fontWeight: FontWeight.w600,
                 fontSize: 16),
           ),
@@ -297,7 +299,7 @@ class _RoleSheet extends StatelessWidget {
           ..._roles.map((role) => ListTile(
                 leading: _RoleBadge(role: role),
                 title: Text(role,
-                    style: const TextStyle(color: ForgeColors.textPrimary)),
+                    style: TextStyle(color: cs.onSurface)),
                 trailing: member.role == role
                     ? const Icon(Icons.check, color: ForgeColors.accent)
                     : null,
@@ -338,12 +340,13 @@ class _LlmUsageCard extends StatelessWidget {
         ? 1
         : rows.map((r) => r.totalTokens).reduce((a, b) => a > b ? a : b);
 
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: ForgeColors.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ForgeColors.border),
+        border: Border.all(color: cs.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,13 +356,13 @@ class _LlmUsageCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Monthly budget',
+                Text('Monthly budget',
                     style: TextStyle(
-                        color: ForgeColors.textSecondary, fontSize: 13)),
+                        color: cs.onSurfaceVariant, fontSize: 13)),
                 Text(
                   '\$${budgetUsed.toStringAsFixed(2)} / \$${budgetLimit.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                      color: ForgeColors.textPrimary,
+                  style: TextStyle(
+                      color: cs.onSurface,
                       fontWeight: FontWeight.w600,
                       fontSize: 13),
                 ),
@@ -376,13 +379,13 @@ class _LlmUsageCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total cost (all time)',
+                Text('Total cost (all time)',
                     style: TextStyle(
-                        color: ForgeColors.textSecondary, fontSize: 13)),
+                        color: cs.onSurfaceVariant, fontSize: 13)),
                 Text(
                   '\$${totalCost.toStringAsFixed(4)}',
-                  style: const TextStyle(
-                      color: ForgeColors.textPrimary,
+                  style: TextStyle(
+                      color: cs.onSurface,
                       fontWeight: FontWeight.w600,
                       fontSize: 13),
                 ),
@@ -392,17 +395,17 @@ class _LlmUsageCard extends StatelessWidget {
           ],
           // Task breakdown
           if (rows.isEmpty)
-            const Center(
+            Center(
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text('No usage data',
-                    style: TextStyle(color: ForgeColors.textTertiary)),
+                    style: TextStyle(color: cs.onSurfaceVariant)),
               ),
             )
           else ...[
-            const Text('Top tasks by token usage',
+            Text('Top tasks by token usage',
                 style: TextStyle(
-                    color: ForgeColors.textSecondary,
+                    color: cs.onSurfaceVariant,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.4)),
@@ -425,6 +428,7 @@ class _TaskUsageRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final fraction = maxTokens > 0 ? row.totalTokens / maxTokens : 0.0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -437,15 +441,15 @@ class _TaskUsageRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   row.task.replaceAll('_', ' '),
-                  style: const TextStyle(
-                      color: ForgeColors.textPrimary, fontSize: 13),
+                  style: TextStyle(
+                      color: cs.onSurface, fontSize: 13),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               Text(
                 '${_formatTokens(row.totalTokens)} tokens',
-                style: const TextStyle(
-                    color: ForgeColors.textSecondary, fontSize: 12),
+                style: TextStyle(
+                    color: cs.onSurfaceVariant, fontSize: 12),
               ),
             ],
           ),
@@ -472,11 +476,12 @@ class _BarFill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return LayoutBuilder(builder: (ctx, constraints) {
       return Container(
         height: height,
         decoration: BoxDecoration(
-          color: ForgeColors.surface2,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(4),
         ),
         child: FractionallySizedBox(
@@ -518,26 +523,27 @@ class _InviteDialogState extends State<_InviteDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return AlertDialog(
       title: const Text('Invite member'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          Text(
             'Select a role for the invite link. Anyone with the link can join your org.',
-            style: TextStyle(color: ForgeColors.textSecondary, fontSize: 13),
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             initialValue: _role,
-            dropdownColor: ForgeColors.surface2,
+            dropdownColor: cs.surfaceContainerHighest,
             decoration: const InputDecoration(labelText: 'Role'),
             items: _roles
                 .map((r) => DropdownMenuItem(
                       value: r,
                       child: Text(r,
-                          style: const TextStyle(
-                              color: ForgeColors.textPrimary)),
+                          style: TextStyle(
+                              color: cs.onSurface)),
                     ))
                 .toList(),
             onChanged: (v) => setState(() => _role = v ?? _role),
@@ -606,16 +612,16 @@ class _RoleBadge extends StatelessWidget {
   const _RoleBadge({required this.role});
   final String role;
 
-  static Color _color(String role) => switch (role) {
+  static Color _color(String role, Color fallback) => switch (role) {
         'super_admin' => const Color(0xFFE5A832),
         'admin' => ForgeColors.accent,
         'analyst' => ForgeColors.success,
-        _ => ForgeColors.textTertiary,
+        _ => fallback,
       };
 
   @override
   Widget build(BuildContext context) {
-    final color = _color(role);
+    final color = _color(role, Theme.of(context).colorScheme.onSurfaceVariant);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -639,12 +645,13 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
         Text(
           title.toUpperCase(),
-          style: const TextStyle(
-            color: ForgeColors.textSecondary,
+          style: TextStyle(
+            color: cs.onSurfaceVariant,
             fontSize: 12,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.8,

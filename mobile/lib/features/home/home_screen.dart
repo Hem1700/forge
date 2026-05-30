@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/theme/app_theme.dart';
 import '../engagements/engagements_screen.dart';
 import '../findings/findings_screen.dart';
 import '../org/org_screen.dart';
@@ -34,18 +33,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: ForgeColors.background,
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: ForgeColors.surface,
-          border: Border(top: BorderSide(color: ForgeColors.border)),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          border: Border(top: BorderSide(color: cs.outline)),
         ),
         child: NavigationBar(
           selectedIndex: _selectedIndex,
           onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-          backgroundColor: ForgeColors.surface,
+          backgroundColor: cs.surface,
           surfaceTintColor: Colors.transparent,
           destinations: const [
             NavigationDestination(

@@ -152,12 +152,13 @@ class _NewScanScreenState extends State<NewScanScreen>
   }
 
   void _showTierSheet() {
+    final cs = Theme.of(context).colorScheme;
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: ForgeColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        side: BorderSide(color: ForgeColors.border),
+      backgroundColor: cs.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        side: BorderSide(color: cs.outline),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -167,17 +168,17 @@ class _NewScanScreenState extends State<NewScanScreen>
             Container(
               width: 36, height: 4,
               decoration: BoxDecoration(
-                color: ForgeColors.textTertiary,
+                color: cs.onSurfaceVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             const SizedBox(height: 16),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text('Model tier',
-                  style: TextStyle(color: ForgeColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+                  style: TextStyle(color: cs.onSurface, fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
             const SizedBox(height: 4),
@@ -185,7 +186,7 @@ class _NewScanScreenState extends State<NewScanScreen>
               ListTile(
                 title: Text(_tierLabel(t)),
                 subtitle: Text(_tierDesc(t),
-                  style: const TextStyle(color: ForgeColors.textTertiary, fontSize: 12)),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
                 trailing: _tier == t
                     ? const Icon(Icons.check, color: ForgeColors.accent, size: 18)
                     : null,
@@ -212,17 +213,17 @@ class _NewScanScreenState extends State<NewScanScreen>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: ForgeColors.background,
       appBar: AppBar(
         title: const Text('New Scan'),
         bottom: TabBar(
           controller: _tabs,
           tabs: const [Tab(text: 'Web'), Tab(text: 'OS'), Tab(text: 'Codebase')],
           labelColor: ForgeColors.accent,
-          unselectedLabelColor: ForgeColors.textTertiary,
+          unselectedLabelColor: cs.onSurfaceVariant,
           indicatorColor: ForgeColors.accent,
-          dividerColor: ForgeColors.border,
+          dividerColor: cs.outline,
         ),
       ),
       body: TabBarView(
@@ -233,6 +234,7 @@ class _NewScanScreenState extends State<NewScanScreen>
   }
 
   Widget _buildWebTab() {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -264,18 +266,18 @@ class _NewScanScreenState extends State<NewScanScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: ForgeColors.surface,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: ForgeColors.border),
+                border: Border.all(color: cs.outline),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.memory, size: 16, color: ForgeColors.textSecondary),
+                  Icon(Icons.memory, size: 16, color: cs.onSurfaceVariant),
                   const SizedBox(width: 10),
                   Text(_tierLabel(_tier),
-                    style: const TextStyle(color: ForgeColors.textPrimary, fontSize: 14)),
+                    style: TextStyle(color: cs.onSurface, fontSize: 14)),
                   const Spacer(),
-                  const Icon(Icons.expand_more, size: 16, color: ForgeColors.textSecondary),
+                  Icon(Icons.expand_more, size: 16, color: cs.onSurfaceVariant),
                 ],
               ),
             ),
@@ -300,6 +302,7 @@ class _NewScanScreenState extends State<NewScanScreen>
   }
 
   Widget _buildOsTab() {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -354,8 +357,8 @@ class _NewScanScreenState extends State<NewScanScreen>
             TextField(
               controller: _osKeyCtrl,
               maxLines: 6,
-              style: const TextStyle(
-                fontFamily: 'monospace', fontSize: 12, color: ForgeColors.textPrimary,
+              style: TextStyle(
+                fontFamily: 'monospace', fontSize: 12, color: cs.onSurface,
               ),
               decoration: const InputDecoration(
                 hintText: '-----BEGIN OPENSSH PRIVATE KEY-----\n...',
@@ -396,6 +399,7 @@ class _NewScanScreenState extends State<NewScanScreen>
   }
 
   Widget _buildCodebaseTab() {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -445,25 +449,25 @@ class _NewScanScreenState extends State<NewScanScreen>
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: ForgeColors.surface,
+                  color: cs.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: _zipFile != null
                         ? ForgeColors.accent.withValues(alpha: 0.4)
-                        : ForgeColors.border,
+                        : cs.outline,
                   ),
                 ),
                 child: Row(
                   children: [
                     Icon(Icons.upload_file,
-                      color: _zipFile != null ? ForgeColors.accent : ForgeColors.textTertiary,
+                      color: _zipFile != null ? ForgeColors.accent : cs.onSurfaceVariant,
                       size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         _zipFile?.name ?? 'Select ZIP file…',
                         style: TextStyle(
-                          color: _zipFile != null ? ForgeColors.textPrimary : ForgeColors.textTertiary,
+                          color: _zipFile != null ? cs.onSurface : cs.onSurfaceVariant,
                           fontSize: 14,
                         ),
                         maxLines: 1,
@@ -473,7 +477,7 @@ class _NewScanScreenState extends State<NewScanScreen>
                     if (_zipFile != null)
                       GestureDetector(
                         onTap: () => setState(() => _zipFile = null),
-                        child: const Icon(Icons.close, color: ForgeColors.textTertiary, size: 16),
+                        child: Icon(Icons.close, color: cs.onSurfaceVariant, size: 16),
                       ),
                   ],
                 ),
@@ -500,8 +504,10 @@ class _NewScanScreenState extends State<NewScanScreen>
 
   Widget _label(String text) => Text(
     text,
-    style: const TextStyle(
-      color: ForgeColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500,
+    style: TextStyle(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
     ),
   );
 }
@@ -514,22 +520,23 @@ class _ToggleBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? ForgeColors.accentDim : ForgeColors.surface,
+          color: selected ? ForgeColors.accentDim : cs.surface,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: selected ? ForgeColors.accent.withValues(alpha: 0.4) : ForgeColors.border,
+            color: selected ? ForgeColors.accent.withValues(alpha: 0.4) : cs.outline,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? ForgeColors.accent : ForgeColors.textSecondary,
+            color: selected ? ForgeColors.accent : cs.onSurfaceVariant,
             fontSize: 13,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),

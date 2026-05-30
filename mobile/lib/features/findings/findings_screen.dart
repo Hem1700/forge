@@ -13,28 +13,28 @@ import '../../core/theme/app_theme.dart';
 
 // ─── Severity colour helpers ──────────────────────────────────────────────────
 
-Color _borderColor(FindingSeverity s) => switch (s) {
+Color _borderColor(FindingSeverity s, BuildContext context) => switch (s) {
       FindingSeverity.critical => const Color(0xFFCF6679),
       FindingSeverity.high => const Color(0xFFBA7517),
       FindingSeverity.medium => const Color(0xFFB8B000),
       FindingSeverity.low => const Color(0xFF555555),
-      _ => ForgeColors.border,
+      _ => Theme.of(context).colorScheme.outline,
     };
 
-Color _badgeBg(FindingSeverity s) => switch (s) {
+Color _badgeBg(FindingSeverity s, BuildContext context) => switch (s) {
       FindingSeverity.critical => const Color(0xFF4D1F27),
       FindingSeverity.high => const Color(0xFF3D2800),
       FindingSeverity.medium => const Color(0xFF2F2E00),
       FindingSeverity.low => const Color(0xFF1E1E1E),
-      _ => ForgeColors.surface2,
+      _ => Theme.of(context).colorScheme.surfaceContainerHighest,
     };
 
-Color _badgeFg(FindingSeverity s) => switch (s) {
+Color _badgeFg(FindingSeverity s, BuildContext context) => switch (s) {
       FindingSeverity.critical => const Color(0xFFCF6679),
       FindingSeverity.high => const Color(0xFFBA7517),
       FindingSeverity.medium => const Color(0xFFB8B000),
       FindingSeverity.low => const Color(0xFF888888),
-      _ => ForgeColors.textTertiary,
+      _ => Theme.of(context).colorScheme.onSurfaceVariant,
     };
 
 String _severityLabel(FindingSeverity s) => switch (s) {
@@ -85,16 +85,16 @@ class _AllFindingsTabState extends State<AllFindingsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return RefreshIndicator(
       color: ForgeColors.accent,
-      backgroundColor: ForgeColors.surface,
+      backgroundColor: cs.surface,
       onRefresh: _load,
       child: CustomScrollView(
         slivers: [
           const SliverAppBar(
             title: Text('Findings'),
             floating: true,
-            backgroundColor: ForgeColors.background,
           ),
           if (_error != null)
             SliverFillRemaining(
@@ -104,7 +104,7 @@ class _AllFindingsTabState extends State<AllFindingsTab> {
                   children: [
                     const Icon(Icons.error_outline, color: ForgeColors.error, size: 40),
                     const SizedBox(height: 12),
-                    const Text('Failed to load', style: TextStyle(color: ForgeColors.textPrimary)),
+                    Text('Failed to load', style: TextStyle(color: cs.onSurface)),
                     const SizedBox(height: 16),
                     TextButton(onPressed: _load, child: const Text('Retry')),
                   ],
@@ -118,18 +118,18 @@ class _AllFindingsTabState extends State<AllFindingsTab> {
               ),
             )
           else if (_engagements!.isEmpty)
-            const SliverFillRemaining(
+            SliverFillRemaining(
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.bug_report_outlined, size: 52, color: ForgeColors.textTertiary),
-                    SizedBox(height: 16),
+                    Icon(Icons.bug_report_outlined, size: 52, color: cs.onSurfaceVariant),
+                    const SizedBox(height: 16),
                     Text('No engagements yet',
-                        style: TextStyle(color: ForgeColors.textSecondary, fontSize: 15)),
-                    SizedBox(height: 6),
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 15)),
+                    const SizedBox(height: 6),
                     Text('Start a scan to see findings here',
-                        style: TextStyle(color: ForgeColors.textTertiary, fontSize: 13)),
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
                   ],
                 ),
               ),
@@ -152,11 +152,11 @@ class _EngagementRow extends StatelessWidget {
   const _EngagementRow({required this.engagement});
   final Engagement engagement;
 
-  Color get _statusColor => switch (engagement.status) {
+  Color _statusColor(BuildContext context) => switch (engagement.status) {
         EngagementStatus.complete => ForgeColors.success,
         EngagementStatus.running => ForgeColors.accent,
         EngagementStatus.aborted => ForgeColors.error,
-        _ => ForgeColors.textTertiary,
+        _ => Theme.of(context).colorScheme.onSurfaceVariant,
       };
 
   String get _statusLabel => switch (engagement.status) {
@@ -169,12 +169,14 @@ class _EngagementRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final statusColor = _statusColor(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: ForgeColors.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ForgeColors.border),
+        border: Border.all(color: cs.outline),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -189,8 +191,8 @@ class _EngagementRow extends StatelessWidget {
         ),
         title: Text(
           engagement.displayName,
-          style: const TextStyle(
-              color: ForgeColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w500),
+          style: TextStyle(
+              color: cs.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -201,20 +203,20 @@ class _EngagementRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: _statusColor.withValues(alpha: 0.12),
+                  color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   _statusLabel,
                   style: TextStyle(
-                      color: _statusColor, fontSize: 10, fontWeight: FontWeight.w600),
+                      color: statusColor, fontSize: 10, fontWeight: FontWeight.w600),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   engagement.targetType,
-                  style: const TextStyle(color: ForgeColors.textTertiary, fontSize: 11),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -223,7 +225,7 @@ class _EngagementRow extends StatelessWidget {
           ),
         ),
         trailing:
-            const Icon(Icons.chevron_right, color: ForgeColors.textTertiary, size: 20),
+            Icon(Icons.chevron_right, color: cs.onSurfaceVariant, size: 20),
         onTap: () => context.push(
           '/engagement/${engagement.id}/findings',
           extra: engagement.targetUrl,
@@ -288,12 +290,13 @@ class _FindingsScreenState extends State<FindingsScreen> {
   }
 
   Future<void> _showFilterSheet() async {
+    final cs = Theme.of(context).colorScheme;
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: ForgeColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        side: BorderSide(color: ForgeColors.border),
+      backgroundColor: cs.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        side: BorderSide(color: cs.outline),
       ),
       isScrollControlled: true,
       builder: (_) => _FilterSheet(
@@ -353,13 +356,12 @@ class _FindingsScreenState extends State<FindingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final filtered = _filtered;
     final hasFilter = _severityFilter != null || _typeFilter != null;
 
     return Scaffold(
-      backgroundColor: ForgeColors.background,
       appBar: AppBar(
-        backgroundColor: ForgeColors.background,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -368,9 +370,9 @@ class _FindingsScreenState extends State<FindingsScreen> {
             if (widget.targetUrl != null)
               Text(
                 widget.targetUrl!,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 11,
-                    color: ForgeColors.textTertiary,
+                    color: cs.onSurfaceVariant,
                     fontWeight: FontWeight.w400),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -401,7 +403,7 @@ class _FindingsScreenState extends State<FindingsScreen> {
           IconButton(
             icon: Icon(
               Icons.filter_list,
-              color: hasFilter ? ForgeColors.accent : ForgeColors.textSecondary,
+              color: hasFilter ? ForgeColors.accent : cs.onSurfaceVariant,
             ),
             tooltip: 'Filter',
             onPressed: _showFilterSheet,
@@ -431,12 +433,12 @@ class _FindingsScreenState extends State<FindingsScreen> {
                   children: [
                     const Icon(Icons.error_outline, color: ForgeColors.error, size: 40),
                     const SizedBox(height: 12),
-                    const Text('Failed to load findings',
-                        style: TextStyle(color: ForgeColors.textPrimary, fontSize: 16)),
+                    Text('Failed to load findings',
+                        style: TextStyle(color: cs.onSurface, fontSize: 16)),
                     const SizedBox(height: 6),
                     Text(_error!,
-                        style: const TextStyle(
-                            color: ForgeColors.textTertiary, fontSize: 12)),
+                        style: TextStyle(
+                            color: cs.onSurfaceVariant, fontSize: 12)),
                     const SizedBox(height: 20),
                     TextButton(
                         onPressed: _loadFindings, child: const Text('Retry')),
@@ -446,7 +448,7 @@ class _FindingsScreenState extends State<FindingsScreen> {
             )
           : RefreshIndicator(
               color: ForgeColors.accent,
-              backgroundColor: ForgeColors.surface,
+              backgroundColor: cs.surface,
               onRefresh: _loadFindings,
               child: _findings == null
                   ? ListView.builder(
@@ -461,22 +463,22 @@ class _FindingsScreenState extends State<FindingsScreen> {
                           children: [
                             SizedBox(
                               height: MediaQuery.of(context).size.height * 0.6,
-                              child: const Center(
+                              child: Center(
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.check_circle_outline,
+                                    const Icon(Icons.check_circle_outline,
                                         size: 52,
                                         color: ForgeColors.success),
-                                    SizedBox(height: 16),
+                                    const SizedBox(height: 16),
                                     Text('No findings',
                                         style: TextStyle(
-                                            color: ForgeColors.textPrimary,
+                                            color: cs.onSurface,
                                             fontSize: 16)),
-                                    SizedBox(height: 6),
+                                    const SizedBox(height: 6),
                                     Text('All clear for this engagement',
                                         style: TextStyle(
-                                            color: ForgeColors.textTertiary,
+                                            color: cs.onSurfaceVariant,
                                             fontSize: 13)),
                                   ],
                                 ),
@@ -542,6 +544,7 @@ class _FilterSheetState extends State<_FilterSheet> {
     required VoidCallback onTap,
     Color? color,
   }) {
+    final cs = Theme.of(context).colorScheme;
     final c = color ?? ForgeColors.accent;
     return GestureDetector(
       onTap: onTap,
@@ -549,14 +552,14 @@ class _FilterSheetState extends State<_FilterSheet> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? c.withValues(alpha: 0.15) : ForgeColors.surface2,
+          color: selected ? c.withValues(alpha: 0.15) : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: selected ? c : ForgeColors.border),
+          border: Border.all(color: selected ? c : cs.outline),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? c : ForgeColors.textSecondary,
+            color: selected ? c : cs.onSurfaceVariant,
             fontSize: 13,
             fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
           ),
@@ -567,6 +570,7 @@ class _FilterSheetState extends State<_FilterSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: EdgeInsets.only(
         left: 24,
@@ -580,10 +584,10 @@ class _FilterSheetState extends State<_FilterSheet> {
         children: [
           Row(
             children: [
-              const Text(
+              Text(
                 'Filter Findings',
                 style: TextStyle(
-                    color: ForgeColors.textPrimary,
+                    color: cs.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w600),
               ),
@@ -598,9 +602,9 @@ class _FilterSheetState extends State<_FilterSheet> {
             ],
           ),
           const SizedBox(height: 16),
-          const Text('Severity',
+          Text('Severity',
               style: TextStyle(
-                  color: ForgeColors.textSecondary,
+                  color: cs.onSurfaceVariant,
                   fontSize: 13,
                   fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
@@ -613,14 +617,14 @@ class _FilterSheetState extends State<_FilterSheet> {
                   label: s == null ? 'All' : '${s[0].toUpperCase()}${s.substring(1)}',
                   selected: _severity == s,
                   onTap: () => setState(() => _severity = s),
-                  color: s == null ? null : _badgeFg(_parseSeverityStr(s)),
+                  color: s == null ? null : _badgeFg(_parseSeverityStr(s), context),
                 ),
             ],
           ),
           const SizedBox(height: 16),
-          const Text('Type',
+          Text('Type',
               style: TextStyle(
-                  color: ForgeColors.textSecondary,
+                  color: cs.onSurfaceVariant,
                   fontSize: 13,
                   fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
@@ -643,7 +647,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               onPressed: () => widget.onApply(_severity, _type),
               style: ElevatedButton.styleFrom(
                 backgroundColor: ForgeColors.accent,
-                foregroundColor: ForgeColors.background,
+                foregroundColor: cs.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
@@ -682,17 +686,18 @@ class _FindingCardState extends State<_FindingCard> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final f = widget.finding;
-    final bc = _borderColor(f.severity);
+    final bc = _borderColor(f.severity, context);
 
     return GestureDetector(
       onTap: widget.onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF0d0f16),
+          color: cs.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: ForgeColors.border),
+          border: Border.all(color: cs.outline),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(14),
@@ -714,8 +719,8 @@ class _FindingCardState extends State<_FindingCard> {
                             if (f.agentType != null)
                               Text(
                                 f.agentType!,
-                                style: const TextStyle(
-                                    color: ForgeColors.textTertiary, fontSize: 11),
+                                style: TextStyle(
+                                    color: cs.onSurfaceVariant, fontSize: 11),
                               ),
                             const Spacer(),
                             Icon(
@@ -723,15 +728,15 @@ class _FindingCardState extends State<_FindingCard> {
                                   ? Icons.expand_less
                                   : Icons.expand_more,
                               size: 18,
-                              color: ForgeColors.textTertiary,
+                              color: cs.onSurfaceVariant,
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         Text(
                           f.vulnerabilityClass ?? f.title,
-                          style: const TextStyle(
-                            color: ForgeColors.textPrimary,
+                          style: TextStyle(
+                            color: cs.onSurface,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -752,8 +757,8 @@ class _FindingCardState extends State<_FindingCard> {
                                   f.description ?? '',
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      color: ForgeColors.textSecondary,
+                                  style: TextStyle(
+                                      color: cs.onSurfaceVariant,
                                       fontSize: 11),
                                 ),
                           secondChild: _ExpandedBody(
@@ -797,6 +802,7 @@ class _ExpandedBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final f = finding;
     final rec = f.recommendation ?? f.remediationNote;
 
@@ -809,24 +815,24 @@ class _ExpandedBody extends StatelessWidget {
           _ChainSteps(steps: f.chainSteps!),
 
         if (f.description != null && f.description!.isNotEmpty) ...[
-          _sectionLabel('Description'),
+          _sectionLabel('Description', context),
           const SizedBox(height: 4),
           Text(
             f.description!,
-            style: const TextStyle(color: ForgeColors.textSecondary, fontSize: 12),
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
           ),
           const SizedBox(height: 12),
         ],
 
         if (f.evidence.isNotEmpty) ...[
-          _sectionLabel('Evidence'),
+          _sectionLabel('Evidence', context),
           const SizedBox(height: 4),
           _EvidenceBlock(evidence: f.evidence),
           const SizedBox(height: 12),
         ],
 
         if (f.reproductionSteps.isNotEmpty) ...[
-          _sectionLabel('Reproduction Steps'),
+          _sectionLabel('Reproduction Steps', context),
           const SizedBox(height: 4),
           for (int i = 0; i < f.reproductionSteps.length; i++)
             Padding(
@@ -844,8 +850,8 @@ class _ExpandedBody extends StatelessWidget {
                   Expanded(
                     child: Text(
                       f.reproductionSteps[i].toString(),
-                      style: const TextStyle(
-                          color: ForgeColors.textSecondary, fontSize: 12),
+                      style: TextStyle(
+                          color: cs.onSurfaceVariant, fontSize: 12),
                     ),
                   ),
                 ],
@@ -855,7 +861,7 @@ class _ExpandedBody extends StatelessWidget {
         ],
 
         if (rec != null && rec.isNotEmpty) ...[
-          _sectionLabel('Recommendation'),
+          _sectionLabel('Recommendation', context),
           const SizedBox(height: 4),
           Container(
             width: double.infinity,
@@ -867,8 +873,8 @@ class _ExpandedBody extends StatelessWidget {
             ),
             child: Text(
               rec,
-              style: const TextStyle(
-                  color: ForgeColors.textSecondary, fontSize: 12),
+              style: TextStyle(
+                  color: cs.onSurfaceVariant, fontSize: 12),
             ),
           ),
           const SizedBox(height: 12),
@@ -893,18 +899,18 @@ class _ExpandedBody extends StatelessWidget {
               ),
             const Spacer(),
             marking
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: ForgeColors.textTertiary),
+                        strokeWidth: 2, color: cs.onSurfaceVariant),
                   )
                 : TextButton(
                     onPressed: onMarkFalsePositive,
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 0),
                       foregroundColor: f.isFalsePositive
-                          ? ForgeColors.textTertiary
+                          ? cs.onSurfaceVariant
                           : ForgeColors.error,
                       textStyle: const TextStyle(fontSize: 12),
                     ),
@@ -918,10 +924,10 @@ class _ExpandedBody extends StatelessWidget {
     );
   }
 
-  Widget _sectionLabel(String text) => Text(
+  Widget _sectionLabel(String text, BuildContext context) => Text(
         text,
-        style: const TextStyle(
-          color: ForgeColors.textTertiary,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
           fontSize: 11,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
@@ -937,15 +943,16 @@ class _ChainSteps extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Attack Chain',
             style: TextStyle(
-                color: ForgeColors.textTertiary,
+                color: cs.onSurfaceVariant,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5),
@@ -981,8 +988,8 @@ class _ChainSteps extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 3),
                       child: Text(
                         steps[i],
-                        style: const TextStyle(
-                            color: ForgeColors.textSecondary, fontSize: 12),
+                        style: TextStyle(
+                            color: cs.onSurfaceVariant, fontSize: 12),
                       ),
                     ),
                   ),
@@ -1010,6 +1017,7 @@ class _EvidenceBlock extends StatelessWidget {
       return e.toString();
     }).join('\n\n');
 
+    final cs = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(10),
@@ -1020,9 +1028,9 @@ class _EvidenceBlock extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'monospace',
-          color: ForgeColors.textSecondary,
+          color: cs.onSurfaceVariant,
           fontSize: 11,
           height: 1.5,
         ),
@@ -1042,14 +1050,14 @@ class _SeverityBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: _badgeBg(severity),
+        color: _badgeBg(severity, context),
         borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: _badgeFg(severity).withValues(alpha: 0.4)),
+        border: Border.all(color: _badgeFg(severity, context).withValues(alpha: 0.4)),
       ),
       child: Text(
         _severityLabel(severity),
         style: TextStyle(
-          color: _badgeFg(severity),
+          color: _badgeFg(severity, context),
           fontSize: 10,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.5,
@@ -1091,6 +1099,7 @@ class _ShimmerCardState extends State<_ShimmerCard>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return AnimatedBuilder(
       animation: _opacity,
       builder: (context, _) => Opacity(
@@ -1099,18 +1108,18 @@ class _ShimmerCardState extends State<_ShimmerCard>
           margin: const EdgeInsets.only(bottom: 10),
           height: 88,
           decoration: BoxDecoration(
-            color: ForgeColors.surface,
+            color: cs.surface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: ForgeColors.border),
+            border: Border.all(color: cs.outline),
           ),
           child: Row(
             children: [
               Container(
                 width: 3,
-                decoration: const BoxDecoration(
-                  color: ForgeColors.border,
+                decoration: BoxDecoration(
+                  color: cs.outline,
                   borderRadius:
-                      BorderRadius.horizontal(left: Radius.circular(14)),
+                      const BorderRadius.horizontal(left: Radius.circular(14)),
                 ),
               ),
               Expanded(
@@ -1123,7 +1132,7 @@ class _ShimmerCardState extends State<_ShimmerCard>
                         height: 14,
                         width: 60,
                         decoration: BoxDecoration(
-                          color: ForgeColors.surface2,
+                          color: cs.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -1132,7 +1141,7 @@ class _ShimmerCardState extends State<_ShimmerCard>
                         height: 12,
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          color: ForgeColors.surface2,
+                          color: cs.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -1141,7 +1150,7 @@ class _ShimmerCardState extends State<_ShimmerCard>
                         height: 10,
                         width: 140,
                         decoration: BoxDecoration(
-                          color: ForgeColors.surface2,
+                          color: cs.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),

@@ -302,8 +302,8 @@ class _AccountTile extends StatelessWidget {
         radius: 22,
         child: Text(
           initials,
-          style: const TextStyle(
-            color: ForgeColors.background,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 16,
           ),

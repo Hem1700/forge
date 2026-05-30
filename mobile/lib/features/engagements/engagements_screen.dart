@@ -72,6 +72,7 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         _buildHeader(),
@@ -79,7 +80,7 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
           child: RefreshIndicator(
             onRefresh: _load,
             color: ForgeColors.accent,
-            backgroundColor: ForgeColors.surface,
+            backgroundColor: cs.surface,
             child: _loading
                 ? _buildSkeleton()
                 : _error != null
@@ -92,8 +93,9 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
   }
 
   Widget _buildHeader() {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: ForgeColors.background,
+      color: cs.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -104,10 +106,10 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     'Engagements',
                     style: TextStyle(
-                      color: ForgeColors.textPrimary,
+                      color: cs.onSurface,
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.5,
@@ -117,7 +119,7 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
                   if (_all.isNotEmpty)
                     Text(
                       '${_all.length}',
-                      style: const TextStyle(color: ForgeColors.textTertiary, fontSize: 14),
+                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
                     ),
                 ],
               ),
@@ -128,7 +130,7 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: TextField(
               controller: _searchController,
-              style: const TextStyle(color: ForgeColors.textPrimary, fontSize: 14),
+              style: TextStyle(color: cs.onSurface, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search by target…',
                 prefixIcon: const Icon(Icons.search, size: 18),
@@ -186,6 +188,7 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
   }
 
   Widget _buildList() {
+    final cs = Theme.of(context).colorScheme;
     final items = _filtered;
     if (items.isEmpty) {
       return ListView(
@@ -195,13 +198,13 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
           Center(
             child: Column(
               children: [
-                const Icon(Icons.radar_outlined, size: 48, color: ForgeColors.textTertiary),
+                Icon(Icons.radar_outlined, size: 48, color: cs.onSurfaceVariant),
                 const SizedBox(height: 16),
                 Text(
                   _searchController.text.isNotEmpty || _filterStatus != null
                       ? 'No matching scans.'
                       : 'No scans yet. Tap + to start one.',
-                  style: const TextStyle(color: ForgeColors.textTertiary, fontSize: 14),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -228,6 +231,7 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
   }
 
   Widget _buildError() {
+    final cs = Theme.of(context).colorScheme;
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
@@ -235,10 +239,10 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
         Center(
           child: GestureDetector(
             onTap: _load,
-            child: const Text(
+            child: Text(
               'Could not load engagements.\nTap to retry.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: ForgeColors.textSecondary, height: 1.5),
+              style: TextStyle(color: cs.onSurfaceVariant, height: 1.5),
             ),
           ),
         ),
@@ -268,14 +272,15 @@ class _EngagementListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: ForgeColors.surface,
+          color: cs.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: ForgeColors.border),
+          border: Border.all(color: cs.outline),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,8 +290,8 @@ class _EngagementListCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     engagement.displayName,
-                    style: const TextStyle(
-                      color: ForgeColors.textPrimary,
+                    style: TextStyle(
+                      color: cs.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -297,17 +302,17 @@ class _EngagementListCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   _timeAgo(engagement.createdAt),
-                  style: const TextStyle(color: ForgeColors.textTertiary, fontSize: 12),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right, size: 16, color: ForgeColors.textTertiary),
+                Icon(Icons.chevron_right, size: 16, color: cs.onSurfaceVariant),
               ],
             ),
             if (engagement.targetPath != null) ...[
               const SizedBox(height: 2),
               Text(
                 engagement.targetPath!,
-                style: const TextStyle(color: ForgeColors.textTertiary, fontSize: 12),
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -356,6 +361,7 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final activeColor = color ?? ForgeColors.accent;
     return GestureDetector(
       onTap: onTap,
@@ -363,16 +369,16 @@ class _FilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? activeColor.withValues(alpha: 0.15) : ForgeColors.surface,
+          color: selected ? activeColor.withValues(alpha: 0.15) : cs.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? activeColor.withValues(alpha: 0.4) : ForgeColors.border,
+            color: selected ? activeColor.withValues(alpha: 0.4) : cs.outline,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? activeColor : ForgeColors.textSecondary,
+            color: selected ? activeColor : cs.onSurfaceVariant,
             fontSize: 13,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
@@ -392,12 +398,13 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final (label, color) = switch (status) {
       EngagementStatus.running => ('Running', ForgeColors.accent),
       EngagementStatus.complete => ('Complete', ForgeColors.success),
       EngagementStatus.pending => ('Queued', ForgeColors.warning),
       EngagementStatus.aborted => ('Failed', ForgeColors.error),
-      EngagementStatus.pausedAtGate => ('Paused', ForgeColors.textSecondary),
+      EngagementStatus.pausedAtGate => ('Paused', cs.onSurfaceVariant),
     };
     return _Badge(label: label, color: color);
   }
@@ -477,12 +484,13 @@ class _ShimmerBoxState extends State<_ShimmerBox> with SingleTickerProviderState
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return FadeTransition(
       opacity: _anim,
       child: Container(
         height: widget.height,
         decoration: BoxDecoration(
-          color: ForgeColors.surface2,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(10),
         ),
       ),

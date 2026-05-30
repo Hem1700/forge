@@ -117,6 +117,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _showApiKeyDialog() {
+    final cs = Theme.of(context).colorScheme;
     final controller = TextEditingController();
     showDialog<void>(
       context: context,
@@ -126,17 +127,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Enter your FORGE API key',
-              style: TextStyle(color: ForgeColors.textSecondary, fontSize: 13),
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
               obscureText: true,
               autofocus: true,
-              style: const TextStyle(
-                color: ForgeColors.textPrimary,
+              style: TextStyle(
+                color: cs.onSurface,
                 fontFamily: 'monospace',
                 fontSize: 14,
               ),
@@ -180,12 +181,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final displayUrl = _serverUrl != null
         ? Uri.tryParse(_serverUrl!)?.host ?? _serverUrl!
         : '';
 
     return Scaffold(
-      backgroundColor: ForgeColors.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -199,10 +200,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 40),
 
                   // Header
-                  const Text(
+                  Text(
                     'Sign in',
                     style: TextStyle(
-                      color: ForgeColors.textPrimary,
+                      color: cs.onSurface,
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.5,
@@ -211,7 +212,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'to $displayUrl',
-                    style: const TextStyle(color: ForgeColors.textSecondary, fontSize: 15),
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
                   ),
 
                   const SizedBox(height: 36),
@@ -222,7 +223,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     keyboardType: TextInputType.emailAddress,
                     autocorrect: false,
                     textInputAction: TextInputAction.next,
-                    style: const TextStyle(color: ForgeColors.textPrimary, fontSize: 15),
+                    style: TextStyle(color: cs.onSurface, fontSize: 15),
                     decoration: const InputDecoration(
                       labelText: 'Email',
                       hintText: 'you@company.com',
@@ -242,7 +243,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     controller: _passwordController,
                     obscureText: !_passwordVisible,
                     textInputAction: TextInputAction.done,
-                    style: const TextStyle(color: ForgeColors.textPrimary, fontSize: 15),
+                    style: TextStyle(color: cs.onSurface, fontSize: 15),
                     decoration: InputDecoration(
                       labelText: 'Password',
                       prefixIcon: const Icon(Icons.lock_outline, size: 20),
@@ -281,7 +282,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: Text(
                           'or',
                           style: TextStyle(
-                            color: ForgeColors.textTertiary,
+                            color: cs.onSurfaceVariant,
                             fontSize: 13,
                           ),
                         ),
@@ -325,11 +326,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Center(
                     child: TextButton(
                       onPressed: () => context.push('/register'),
-                      child: const Text.rich(
+                      child: Text.rich(
                         TextSpan(
                           text: 'New here? ',
-                          style: TextStyle(color: ForgeColors.textSecondary, fontSize: 14),
-                          children: [
+                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
+                          children: const [
                             TextSpan(
                               text: 'Create account',
                               style: TextStyle(color: ForgeColors.accent, fontWeight: FontWeight.w600),
@@ -348,11 +349,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       alignment: WrapAlignment.center,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        const Icon(Icons.dns_outlined, size: 13, color: ForgeColors.textTertiary),
+                        Icon(Icons.dns_outlined, size: 13, color: cs.onSurfaceVariant),
                         const SizedBox(width: 4),
                         Text(
                           displayUrl,
-                          style: const TextStyle(color: ForgeColors.textTertiary, fontSize: 12),
+                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
                         ),
                         const SizedBox(width: 4),
                         GestureDetector(

@@ -81,12 +81,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final displayUrl = _serverUrl != null
         ? Uri.tryParse(_serverUrl!)?.host ?? _serverUrl!
         : '';
 
     return Scaffold(
-      backgroundColor: ForgeColors.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -100,10 +100,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 40),
 
                   // Header
-                  const Text(
+                  Text(
                     'Create account',
                     style: TextStyle(
-                      color: ForgeColors.textPrimary,
+                      color: cs.onSurface,
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.5,
@@ -112,7 +112,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'on $displayUrl',
-                    style: const TextStyle(color: ForgeColors.textSecondary, fontSize: 15),
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 15),
                   ),
 
                   const SizedBox(height: 36),
@@ -122,7 +122,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     controller: _orgNameController,
                     keyboardType: TextInputType.text,
                     textInputAction: TextInputAction.next,
-                    style: const TextStyle(color: ForgeColors.textPrimary, fontSize: 15),
+                    style: TextStyle(color: cs.onSurface, fontSize: 15),
                     decoration: const InputDecoration(
                       labelText: 'Organization name',
                       hintText: 'ACME Security',
@@ -142,7 +142,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     keyboardType: TextInputType.emailAddress,
                     autocorrect: false,
                     textInputAction: TextInputAction.next,
-                    style: const TextStyle(color: ForgeColors.textPrimary, fontSize: 15),
+                    style: TextStyle(color: cs.onSurface, fontSize: 15),
                     decoration: const InputDecoration(
                       labelText: 'Email',
                       hintText: 'you@company.com',
@@ -162,7 +162,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     controller: _passwordController,
                     obscureText: !_passwordVisible,
                     textInputAction: TextInputAction.next,
-                    style: const TextStyle(color: ForgeColors.textPrimary, fontSize: 15),
+                    style: TextStyle(color: cs.onSurface, fontSize: 15),
                     decoration: InputDecoration(
                       labelText: 'Password',
                       prefixIcon: const Icon(Icons.lock_outline, size: 20),
@@ -188,7 +188,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     controller: _confirmController,
                     obscureText: !_confirmVisible,
                     textInputAction: TextInputAction.done,
-                    style: const TextStyle(color: ForgeColors.textPrimary, fontSize: 15),
+                    style: TextStyle(color: cs.onSurface, fontSize: 15),
                     decoration: InputDecoration(
                       labelText: 'Confirm password',
                       prefixIcon: const Icon(Icons.lock_outline, size: 20),
@@ -223,11 +223,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   Center(
                     child: TextButton(
                       onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
-                      child: const Text.rich(
+                      child: Text.rich(
                         TextSpan(
                           text: 'Already have an account? ',
-                          style: TextStyle(color: ForgeColors.textSecondary, fontSize: 14),
-                          children: [
+                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
+                          children: const [
                             TextSpan(
                               text: 'Sign in',
                               style: TextStyle(color: ForgeColors.accent, fontWeight: FontWeight.w600),

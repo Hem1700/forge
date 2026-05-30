@@ -229,8 +229,9 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   }
 
   _LogEntry? _eventToLogEntry(_WsEvent ev) {
+    final cs = Theme.of(context).colorScheme;
     String? text;
-    var color = ForgeColors.textSecondary;
+    var color = cs.onSurfaceVariant;
 
     switch (ev.type) {
       case 'agent_started':
@@ -281,7 +282,7 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
         final detail = ev.payload['detail'] as String?;
         if (detail == null || detail.isEmpty) return null;
         text = detail;
-        color = ForgeColors.textTertiary;
+        color = cs.onSurfaceVariant;
       default:
         return null;
     }
@@ -338,10 +339,10 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     if (_loading) {
       return Scaffold(
-        backgroundColor: ForgeColors.background,
-        appBar: AppBar(backgroundColor: ForgeColors.background),
+        appBar: AppBar(),
         body: const Center(child: CircularProgressIndicator(color: ForgeColors.accent)),
       );
     }
@@ -349,16 +350,14 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
     final target = _engagement?.displayName ?? widget.engagementId;
 
     return Scaffold(
-      backgroundColor: ForgeColors.background,
       appBar: AppBar(
-        backgroundColor: ForgeColors.background,
         title: Row(
           children: [
             Expanded(
               child: Text(
                 target,
                 style: TextStyle(
-                  color: _isRunning ? ForgeColors.accent : ForgeColors.textPrimary,
+                  color: _isRunning ? ForgeColors.accent : cs.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
                 ),
@@ -403,8 +402,9 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   }
 
   Widget _buildMetrics() {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: ForgeColors.surface,
+      color: cs.surface,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
@@ -417,7 +417,7 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
           _MetricItem(
             label: 'Findings',
             value: '$_findingsCount',
-            color: _findingsCount > 0 ? ForgeColors.warning : ForgeColors.textSecondary,
+            color: _findingsCount > 0 ? ForgeColors.warning : cs.onSurfaceVariant,
           ),
         ],
       ),
@@ -425,19 +425,20 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   }
 
   Widget _buildAgentsCard() {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: ForgeColors.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ForgeColors.border),
+        border: Border.all(color: cs.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('AGENTS',
+          Text('AGENTS',
             style: TextStyle(
-              color: ForgeColors.textTertiary,
+              color: cs.onSurfaceVariant,
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.8,
@@ -453,13 +454,14 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   }
 
   Widget _buildLog() {
+    final cs = Theme.of(context).colorScheme;
     if (_log.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 40),
           child: Text(
             _isRunning ? 'Waiting for events…' : 'No events.',
-            style: const TextStyle(color: ForgeColors.textTertiary, fontSize: 14),
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
           ),
         ),
       );
@@ -467,9 +469,9 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('EVENTS',
+        Text('EVENTS',
           style: TextStyle(
-            color: ForgeColors.textTertiary,
+            color: cs.onSurfaceVariant,
             fontSize: 11,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.8,
@@ -481,11 +483,12 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   }
 
   Widget _buildBottomBar() {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-      decoration: const BoxDecoration(
-        color: ForgeColors.background,
-        border: Border(top: BorderSide(color: ForgeColors.border)),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(top: BorderSide(color: cs.outline)),
       ),
       child: ForgeGlowButton(
         label: 'View findings',
@@ -573,7 +576,7 @@ class _AgentDotWidgetState extends State<_AgentDotWidget>
     _AgentStatus.running => ForgeColors.accent,
     _AgentStatus.done => ForgeColors.success,
     _AgentStatus.failed => ForgeColors.error,
-    _AgentStatus.waiting => ForgeColors.textTertiary,
+    _AgentStatus.waiting => Theme.of(context).colorScheme.onSurfaceVariant,
   };
 
   @override
@@ -594,11 +597,12 @@ class _AgentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final (badgeLabel, badgeColor) = switch (agent.status) {
       _AgentStatus.running => ('Running', ForgeColors.accent),
       _AgentStatus.done => ('Done', ForgeColors.success),
       _AgentStatus.failed => ('Failed', ForgeColors.error),
-      _AgentStatus.waiting => ('Waiting', ForgeColors.textTertiary),
+      _AgentStatus.waiting => ('Waiting', cs.onSurfaceVariant),
     };
     return Row(
       children: [
@@ -606,7 +610,7 @@ class _AgentRow extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: Text(agent.label,
-            style: const TextStyle(color: ForgeColors.textPrimary, fontSize: 13)),
+            style: TextStyle(color: cs.onSurface, fontSize: 13)),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -628,6 +632,7 @@ class _LogRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final h = entry.timestamp.hour.toString().padLeft(2, '0');
     final m = entry.timestamp.minute.toString().padLeft(2, '0');
     final s = entry.timestamp.second.toString().padLeft(2, '0');
@@ -637,8 +642,8 @@ class _LogRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('$h:$m:$s',
-            style: const TextStyle(
-              color: ForgeColors.textTertiary, fontSize: 11, fontFamily: 'monospace',
+            style: TextStyle(
+              color: cs.onSurfaceVariant, fontSize: 11, fontFamily: 'monospace',
             )),
           const SizedBox(width: 10),
           Expanded(
@@ -659,11 +664,12 @@ class _MetricItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-          style: const TextStyle(color: ForgeColors.textTertiary, fontSize: 11)),
+          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
         const SizedBox(height: 2),
         Text(value,
           style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w600)),
@@ -678,12 +684,13 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final (label, color) = switch (status) {
       EngagementStatus.running => ('Running', ForgeColors.accent),
       EngagementStatus.complete => ('Complete', ForgeColors.success),
       EngagementStatus.pending => ('Queued', ForgeColors.warning),
       EngagementStatus.aborted => ('Failed', ForgeColors.error),
-      EngagementStatus.pausedAtGate => ('Paused', ForgeColors.textSecondary),
+      EngagementStatus.pausedAtGate => ('Paused', cs.onSurfaceVariant),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
