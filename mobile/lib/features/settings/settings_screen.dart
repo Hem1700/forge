@@ -110,13 +110,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final user = ref.watch(currentUserProvider);
 
     return Scaffold(
-      backgroundColor: ForgeColors.background,
       body: CustomScrollView(
         slivers: [
           const SliverAppBar(
             title: Text('Settings'),
             floating: true,
-            backgroundColor: ForgeColors.background,
           ),
           if (!_prefsLoaded)
             const SliverFillRemaining(
@@ -132,7 +130,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.business_outlined),
-                      title: Text(user?.organization ?? 'Organization'),
+                      title: Text(user?.organization ?? 'My organization'),
                       trailing: const Icon(Icons.chevron_right, size: 20),
                       onTap: () => context.go('/home'),
                     ),
@@ -143,12 +141,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       child: Row(
                         children: [
-                          const Icon(Icons.dark_mode_outlined,
-                              color: ForgeColors.textSecondary),
+                          Icon(Icons.dark_mode_outlined,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant),
                           const SizedBox(width: 16),
-                          const Expanded(
+                          Expanded(
                             child: Text('Dark mode',
-                                style: TextStyle(color: ForgeColors.textPrimary)),
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
                           ),
                           _DarkModeSegment(
                             value: _darkMode,
@@ -256,6 +254,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _buildSection(String title, List<Widget> children) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -263,8 +262,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
             title,
-            style: const TextStyle(
-              color: ForgeColors.textSecondary,
+            style: TextStyle(
+              color: cs.onSurfaceVariant,
               fontSize: 13,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.5,
@@ -273,9 +272,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         Container(
           decoration: BoxDecoration(
-            color: ForgeColors.surface,
+            color: cs.surface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: ForgeColors.border),
+            border: Border.all(color: cs.outline),
           ),
           child: Column(children: children),
         ),
@@ -311,10 +310,10 @@ class _AccountTile extends StatelessWidget {
         ),
       ),
       title: Text(name,
-          style: const TextStyle(
-              color: ForgeColors.textPrimary, fontWeight: FontWeight.w600)),
+          style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600)),
       subtitle: Text(email,
-          style: const TextStyle(color: ForgeColors.textSecondary, fontSize: 13)),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13)),
       trailing: const Icon(Icons.chevron_right, size: 20),
       onTap: () => _showEditProfileStub(context),
     );
@@ -344,13 +343,14 @@ class _NotifTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ListTile(
-      leading: Icon(icon),
-      title: Text(label),
+      leading: Icon(icon, color: cs.onSurfaceVariant),
+      title: Text(label, style: TextStyle(color: cs.onSurface)),
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeThumbColor: ForgeColors.accent,
+        activeThumbColor: cs.primary,
       ),
     );
   }
@@ -366,13 +366,14 @@ class _DarkModeSegment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SegmentedButton<DarkModePreference>(
       style: SegmentedButton.styleFrom(
-        backgroundColor: ForgeColors.surface2,
-        foregroundColor: ForgeColors.textSecondary,
-        selectedForegroundColor: ForgeColors.accent,
-        selectedBackgroundColor: ForgeColors.accentDim,
-        side: const BorderSide(color: ForgeColors.border),
+        backgroundColor: cs.surfaceContainerHighest,
+        foregroundColor: cs.onSurfaceVariant,
+        selectedForegroundColor: cs.primary,
+        selectedBackgroundColor: cs.primaryContainer,
+        side: BorderSide(color: cs.outline),
         textStyle: const TextStyle(fontSize: 12),
         padding: const EdgeInsets.symmetric(horizontal: 10),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,

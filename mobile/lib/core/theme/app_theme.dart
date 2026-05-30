@@ -39,10 +39,10 @@ class AppTheme {
       errorContainer: Color(0xFFFFDADE),
       onErrorContainer: Color(0xFF410002),
       surface: Colors.white,
-      onSurface: Color(0xFF0D0F16),
+      onSurface: Color(0xFF0D1117),
       surfaceContainerHighest: Color(0xFFEEF0F8),
       onSurfaceVariant: Color(0xFF4A5273),
-      outline: Color(0xFFDDE0ED),
+      outline: Color(0xFFE2E8F0),
       outlineVariant: Color(0xFF8890A8),
       shadow: Colors.black,
       scrim: Colors.black54,
@@ -54,11 +54,11 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: const Color(0xFFF4F6FC),
-      canvasColor: const Color(0xFFF4F6FC),
+      scaffoldBackgroundColor: const Color(0xFFF0F4F8),
+      canvasColor: const Color(0xFFF0F4F8),
 
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFFF4F6FC),
+        backgroundColor: Color(0xFFF0F4F8),
         foregroundColor: Color(0xFF0D0F16),
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -76,7 +76,7 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: Color(0xFFDDE0ED), width: 1),
+          side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
         margin: EdgeInsets.zero,
       ),
@@ -92,11 +92,11 @@ class AppTheme {
         suffixIconColor: const Color(0xFF4A5273),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFDDE0ED)),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFDDE0ED)),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -135,7 +135,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFF4A5273),
-          side: const BorderSide(color: Color(0xFFDDE0ED)),
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -181,7 +181,7 @@ class AppTheme {
       ),
 
       dividerTheme: const DividerThemeData(
-        color: Color(0xFFDDE0ED),
+        color: Color(0xFFE2E8F0),
         thickness: 1,
         space: 1,
       ),
@@ -190,7 +190,7 @@ class AppTheme {
         backgroundColor: const Color(0xFFEEF0F8),
         selectedColor: const Color(0xFFCCF2F8),
         labelStyle: const TextStyle(color: Color(0xFF4A5273), fontSize: 13),
-        side: const BorderSide(color: Color(0xFFDDE0ED)),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
@@ -208,7 +208,7 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: Color(0xFFDDE0ED)),
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
         titleTextStyle: const TextStyle(
           color: Color(0xFF0D0F16),
