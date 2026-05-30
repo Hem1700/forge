@@ -182,7 +182,7 @@ class _ForgeAppState extends ConsumerState<ForgeApp> {
     return MaterialApp.router(
       title: 'FORGE',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
+      theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: _router,
