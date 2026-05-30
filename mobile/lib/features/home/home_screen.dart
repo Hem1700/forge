@@ -1,30 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../core/api/auth_api.dart';
-import '../../core/api/api_client.dart';
 import '../../core/theme/app_theme.dart';
-import '../../app.dart';
-import 'dashboard_screen.dart';
 import '../engagements/engagements_screen.dart';
 import '../findings/findings_screen.dart';
+import '../org/org_screen.dart';
+import '../settings/settings_screen.dart';
+import 'dashboard_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.initialTab});
+  final int? initialTab;
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
 
-  final _pages = const [
+  static const _pages = [
     DashboardScreen(),
     EngagementsScreen(),
     AllFindingsTab(),
-    _ProfileTab(),
+    OrgScreen(),
+    SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.initialTab?.clamp(0, _pages.length - 1) ?? 0;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,58 +64,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               label: 'Findings',
             ),
             NavigationDestination(
-              icon: Icon(Icons.person_outlined),
-              selectedIcon: Icon(Icons.person),
-              label: 'Profile',
+              icon: Icon(Icons.group_outlined),
+              selectedIcon: Icon(Icons.group),
+              label: 'Org',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings),
+              label: 'Settings',
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Profile tab
-// ---------------------------------------------------------------------------
-
-class _ProfileTab extends ConsumerWidget {
-  const _ProfileTab();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return CustomScrollView(
-      slivers: [
-        const SliverAppBar(
-          title: Text('Profile'),
-          floating: true,
-          backgroundColor: ForgeColors.background,
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.all(16),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              ListTile(
-                leading: const Icon(Icons.settings_outlined),
-                title: const Text('Settings'),
-                trailing: const Icon(Icons.chevron_right, size: 20),
-                onTap: () => context.push('/settings'),
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.logout, color: ForgeColors.error),
-                title: const Text('Sign out', style: TextStyle(color: ForgeColors.error)),
-                onTap: () async {
-                  final authApi = AuthApi(ApiClient.instance);
-                  await authApi.logout();
-                  ref.read(authNotifierProvider).setUnauthenticated();
-                  if (context.mounted) context.go('/login');
-                },
-              ),
-            ]),
-          ),
-        ),
-      ],
     );
   }
 }

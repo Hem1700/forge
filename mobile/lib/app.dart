@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/storage/secure_storage.dart';
+import 'features/admin/admin_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/register_screen.dart';
 import 'features/engagements/engagement_detail_screen.dart';
@@ -10,6 +11,7 @@ import 'features/engagements/new_scan_screen.dart';
 import 'features/findings/findings_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'features/settings/settings_screen.dart';
 
 // ---------------------------------------------------------------------------
 // Providers
@@ -141,7 +143,11 @@ GoRouter _buildRouter(WidgetRef ref, AuthNotifier authNotifier, String initialLo
       ),
       GoRoute(
         path: '/settings',
-        builder: (context, state) => const _SettingsPlaceholder(),
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/admin',
+        builder: (context, state) => const AdminScreen(),
       ),
     ],
   );
@@ -184,18 +190,3 @@ class _ForgeAppState extends ConsumerState<ForgeApp> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Placeholders
-// ---------------------------------------------------------------------------
-
-class _SettingsPlaceholder extends StatelessWidget {
-  const _SettingsPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: const Center(child: Text('Phase 2 — Settings')),
-    );
-  }
-}
