@@ -86,6 +86,21 @@ class AuthApi {
     }
   }
 
+  Future<User> updateMe({String? email, String? position}) async {
+    try {
+      final data = <String, dynamic>{};
+      if (email != null) data['email'] = email;
+      if (position != null) data['position'] = position;
+      final res = await _client.patch<Map<String, dynamic>>(
+        '/api/v1/auth/me',
+        data: data,
+      );
+      return User.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw _mapError(e);
+    }
+  }
+
   Future<void> registerFcmToken(String token) async {
     try {
       await _client.post<void>(

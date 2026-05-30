@@ -182,8 +182,7 @@ async def register_fcm_token(
     return {"status": "ok"}
 
 
-@router.get("/me", response_model=UserResponse)
-async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> UserResponse:
+async def _serialize_user(user: User, db: AsyncSession) -> UserResponse:
     org_name: str | None = None
     if user.org_id:
         org = (await db.execute(select(Organization).where(Organization.id == user.org_id))).scalar_one_or_none()
@@ -199,3 +198,33 @@ async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(
         position=user.position,
         is_platform_admin=user.is_platform_admin,
     )
+
+
+@router.get("/me", response_model=UserResponse)
+async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> UserResponse:
+    return await _serialize_user(user, db)
+
+
+class UpdateMeRequest(BaseModel):
+    email: str | None = None
+    position: str | None = None
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    body: UpdateMeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    if body.email is not None and body.email != current_user.email:
+        taken = (
+            await db.execute(select(User).where(User.email == body.email))
+        ).scalar_one_or_none()
+        if taken:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        current_user.email = body.email
+    if body.position is not None:
+        current_user.position = body.position
+    await db.commit()
+    await db.refresh(current_user)
+    return await _serialize_user(current_user, db)

@@ -7,6 +7,7 @@ class User {
     this.avatarUrl,
     this.organization,
     this.isPlatformAdmin = false,
+    this.position,
   });
 
   final String id;
@@ -16,6 +17,7 @@ class User {
   final String? avatarUrl;
   final String? organization;
   final bool isPlatformAdmin;
+  final String? position;
 
   factory User.fromJson(Map<String, dynamic> json) => User(
         id: json['id'].toString(),
@@ -25,6 +27,7 @@ class User {
         avatarUrl: json['avatar_url'] as String?,
         organization: json['org_name'] as String? ?? json['organization'] as String?,
         isPlatformAdmin: json['is_platform_admin'] as bool? ?? false,
+        position: json['position'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -35,7 +38,19 @@ class User {
         if (avatarUrl != null) 'avatar_url': avatarUrl,
         if (organization != null) 'organization': organization,
         'is_platform_admin': isPlatformAdmin,
+        if (position != null) 'position': position,
       };
+
+  User copyWith({String? email, String? position}) => User(
+        id: id,
+        email: email ?? this.email,
+        name: email ?? name,
+        role: role,
+        avatarUrl: avatarUrl,
+        organization: organization,
+        isPlatformAdmin: isPlatformAdmin,
+        position: position ?? this.position,
+      );
 
   bool get isAdmin => role == 'admin' || role == 'super_admin';
   bool get isManager => role == 'manager' || isAdmin;

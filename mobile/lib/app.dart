@@ -12,6 +12,7 @@ import 'features/engagements/new_scan_screen.dart';
 import 'features/findings/findings_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'features/settings/edit_profile_screen.dart';
 import 'features/settings/settings_screen.dart';
 
 // ---------------------------------------------------------------------------
@@ -146,6 +147,10 @@ GoRouter _buildRouter(WidgetRef ref, AuthNotifier authNotifier, String initialLo
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/profile/edit',
+        builder: (context, state) => const EditProfileScreen(),
       ),
       GoRoute(
         path: '/admin',

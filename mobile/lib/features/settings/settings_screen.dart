@@ -316,13 +316,7 @@ class _AccountTile extends StatelessWidget {
       subtitle: Text(email,
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13)),
       trailing: const Icon(Icons.chevron_right, size: 20),
-      onTap: () => _showEditProfileStub(context),
-    );
-  }
-
-  void _showEditProfileStub(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Edit profile — coming soon')),
+      onTap: () => context.push('/profile/edit'),
     );
   }
 }
