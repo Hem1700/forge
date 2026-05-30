@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../app.dart';
 import 'dashboard_screen.dart';
 import '../engagements/engagements_screen.dart';
+import '../findings/findings_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -21,7 +22,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _pages = const [
     DashboardScreen(),
     EngagementsScreen(),
-    _FindingsTab(),
+    AllFindingsTab(),
     _ProfileTab(),
   ];
 
@@ -64,35 +65,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Findings tab — Phase 3
-// ---------------------------------------------------------------------------
-
-class _FindingsTab extends StatelessWidget {
-  const _FindingsTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        const SliverAppBar(
-          title: Text('Findings'),
-          floating: true,
-          backgroundColor: ForgeColors.background,
-        ),
-        const SliverFillRemaining(
-          child: Center(
-            child: Text(
-              'Phase 3 — findings list',
-              style: TextStyle(color: ForgeColors.textTertiary),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

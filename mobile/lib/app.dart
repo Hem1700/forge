@@ -7,6 +7,7 @@ import 'features/auth/login_screen.dart';
 import 'features/auth/register_screen.dart';
 import 'features/engagements/engagement_detail_screen.dart';
 import 'features/engagements/new_scan_screen.dart';
+import 'features/findings/findings_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 
@@ -131,8 +132,9 @@ GoRouter _buildRouter(WidgetRef ref, AuthNotifier authNotifier, String initialLo
         routes: [
           GoRoute(
             path: 'findings',
-            builder: (context, state) => _FindingsPlaceholder(
+            builder: (context, state) => FindingsScreen(
               engagementId: state.pathParameters['id']!,
+              targetUrl: state.extra as String?,
             ),
           ),
         ],
@@ -185,19 +187,6 @@ class _ForgeAppState extends ConsumerState<ForgeApp> {
 // ---------------------------------------------------------------------------
 // Placeholders
 // ---------------------------------------------------------------------------
-
-class _FindingsPlaceholder extends StatelessWidget {
-  const _FindingsPlaceholder({required this.engagementId});
-  final String engagementId;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Findings')),
-      body: const Center(child: Text('Findings list — Phase 4')),
-    );
-  }
-}
 
 class _SettingsPlaceholder extends StatelessWidget {
   const _SettingsPlaceholder();

@@ -36,6 +36,34 @@ class EngagementsApi {
         .toList();
   }
 
+  Future<List<Finding>> getFindings(
+    String engagementId, {
+    String? severity,
+    String? findingType,
+  }) async {
+    final all = await findings(engagementId);
+    return all.where((f) {
+      if (severity != null && f.severity.name != severity) return false;
+      if (findingType != null && f.findingType != findingType) return false;
+      return true;
+    }).toList();
+  }
+
+  Future<void> markFalsePositive(String findingId, bool value) async {
+    await _client.patch<dynamic>(
+      '/api/v1/findings/$findingId/triage',
+      data: {'status': value ? 'false_positive' : 'unreviewed'},
+    );
+  }
+
+  Future<Uint8List> downloadReport(String engagementId) async {
+    final res = await _client.dio.post<List<int>>(
+      '/api/v1/engagements/$engagementId/report/pdf',
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return Uint8List.fromList(res.data!);
+  }
+
   Future<Finding> getFinding(String engagementId, String findingId) async {
     final res = await _client.get<Map<String, dynamic>>(
       '/api/v1/engagements/$engagementId/findings/$findingId',

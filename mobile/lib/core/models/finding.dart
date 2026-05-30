@@ -16,6 +16,19 @@ class Finding {
     this.affectedAsset,
     this.remediationNote,
     this.updatedAt,
+    this.vulnerabilityClass,
+    this.affectedSurface,
+    this.evidence = const [],
+    this.reproductionSteps = const [],
+    this.recommendation,
+    this.confidenceScore,
+    this.findingType = 'regular',
+    this.chainSteps,
+    this.componentFindingIds,
+    this.isFalsePositive = false,
+    this.agentType,
+    this.triageStatus,
+    this.triageNotes,
   });
 
   final String id;
@@ -31,24 +44,53 @@ class Finding {
   final String? affectedAsset;
   final String? remediationNote;
   final DateTime? updatedAt;
+  final String? vulnerabilityClass;
+  final String? affectedSurface;
+  final List<dynamic> evidence;
+  final List<dynamic> reproductionSteps;
+  final String? recommendation;
+  final double? confidenceScore;
+  final String findingType;
+  final List<String>? chainSteps;
+  final List<String>? componentFindingIds;
+  final bool isFalsePositive;
+  final String? agentType;
+  final String? triageStatus;
+  final String? triageNotes;
 
-  factory Finding.fromJson(Map<String, dynamic> json) => Finding(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        severity: _parseSeverity(json['severity'] as String? ?? 'info'),
-        status: _parseStatus(json['status'] as String? ?? 'open'),
-        engagementId: json['engagement_id'] as String,
-        createdAt: DateTime.parse(json['created_at'] as String),
-        description: json['description'] as String?,
-        cvssScore: (json['cvss_score'] as num?)?.toDouble(),
-        cweId: json['cwe_id'] as String?,
-        cveId: json['cve_id'] as String?,
-        affectedAsset: json['affected_asset'] as String?,
-        remediationNote: json['remediation_note'] as String?,
-        updatedAt: json['updated_at'] != null
-            ? DateTime.parse(json['updated_at'] as String)
-            : null,
-      );
+  factory Finding.fromJson(Map<String, dynamic> json) {
+    final ts = json['triage_status'] as String?;
+    final isFP = ts == 'false_positive' || (json['is_false_positive'] as bool? ?? false);
+
+    return Finding(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      severity: _parseSeverity(json['severity'] as String? ?? 'info'),
+      status: _parseStatus(json['status'] as String? ?? ts ?? 'open'),
+      engagementId: json['engagement_id'] as String,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      description: json['description'] as String?,
+      cvssScore: (json['cvss_score'] as num?)?.toDouble(),
+      cweId: json['cwe_id'] as String?,
+      cveId: json['cve_id'] as String?,
+      affectedAsset: json['affected_asset'] as String? ?? json['affected_surface'] as String?,
+      remediationNote: json['remediation_note'] as String? ?? json['recommendation'] as String?,
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'] as String) : null,
+      vulnerabilityClass: json['vulnerability_class'] as String?,
+      affectedSurface: json['affected_surface'] as String?,
+      evidence: (json['evidence'] as List<dynamic>?) ?? const [],
+      reproductionSteps: (json['reproduction_steps'] as List<dynamic>?) ?? const [],
+      recommendation: json['recommendation'] as String?,
+      confidenceScore: (json['confidence_score'] as num?)?.toDouble(),
+      findingType: json['finding_type'] as String? ?? 'regular',
+      chainSteps: (json['chain_steps'] as List<dynamic>?)?.cast<String>(),
+      componentFindingIds: (json['component_finding_ids'] as List<dynamic>?)?.cast<String>(),
+      isFalsePositive: isFP,
+      agentType: json['agent_type'] as String?,
+      triageStatus: ts,
+      triageNotes: json['triage_notes'] as String?,
+    );
+  }
 
   static FindingSeverity _parseSeverity(String v) => switch (v) {
         'critical' => FindingSeverity.critical,
@@ -67,4 +109,5 @@ class Finding {
       };
 
   bool get isOpen => status == FindingStatus.open || status == FindingStatus.inProgress;
+  bool get isChain => findingType == 'chain';
 }
