@@ -11,6 +11,20 @@ import '../../core/storage/cache_storage.dart';
 import '../../core/theme/app_theme.dart';
 
 // ---------------------------------------------------------------------------
+// Terminal log color constants
+// ---------------------------------------------------------------------------
+
+const _kTermBg     = Color(0xFF050508);
+const _kTermBorder = Color(0xFF0E3A42);
+const _kTagCrit    = Color(0xFFF87171);
+const _kTagFind    = Color(0xFFFBBF24);
+const _kTagDone    = Color(0xFF4ADE80);
+const _kTagCyan    = Color(0xFF06B6D4);
+const _kTagFail    = Color(0xFFF87171);
+const _kTagInfo    = Color(0xFF444A60);
+const _kMsgCyan    = Color(0xFF8890A8);
+
+// ---------------------------------------------------------------------------
 // Internal models
 // ---------------------------------------------------------------------------
 
@@ -45,10 +59,16 @@ class _AgentModel {
 }
 
 class _LogEntry {
-  final DateTime timestamp;
-  final String text;
-  final Color color;
-  const _LogEntry({required this.timestamp, required this.text, required this.color});
+  final String tag;
+  final Color tagColor;
+  final String message;
+  final Color messageColor;
+  const _LogEntry({
+    required this.tag,
+    required this.tagColor,
+    required this.message,
+    required this.messageColor,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +85,7 @@ class EngagementDetailScreen extends StatefulWidget {
 
 class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   final _api = EngagementsApi(ApiClient.instance);
+  final _scrollController = ScrollController();
 
   Engagement? _engagement;
   bool _loading = true;
@@ -74,7 +95,7 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   int _findingsCount = 0;
 
   final List<_AgentModel> _agents = [];
-  final List<_LogEntry> _log = []; // _log[0] = newest
+  final List<_LogEntry> _log = []; // oldest-first (newest at end)
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _sub;
@@ -89,7 +110,20 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   void dispose() {
     _sub?.cancel();
     _channel?.sink.close();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _showDeleteSheet() async {
@@ -207,11 +241,12 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
           final entry = _eventToLogEntry(ev);
           if (entry != null) tempLog.add(entry);
         }
-        // tempLog is oldest-first; reverse so newest is at index 0
+        // tempLog is oldest-first; keep that order for terminal display (newest at end)
         if (mounted) {
           setState(() {
-            _log.addAll(tempLog.reversed);
+            _log.addAll(tempLog);
           });
+          _scrollToBottom();
         }
       } catch (_) {}
 
@@ -247,8 +282,9 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
       setState(() {
         _applyEvent(ev);
         final entry = _eventToLogEntry(ev);
-        if (entry != null) _log.insert(0, entry);
+        if (entry != null) _log.add(entry); // append: newest at end
       });
+      _scrollToBottom();
     } catch (_) {}
   }
 
@@ -309,6 +345,7 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
         }
 
       case 'finding_discovered':
+      case 'finding_created':
         _findingsCount++;
 
       case 'campaign_complete':
@@ -321,65 +358,91 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   }
 
   _LogEntry? _eventToLogEntry(_WsEvent ev) {
-    final cs = Theme.of(context).colorScheme;
-    String? text;
-    var color = cs.onSurfaceVariant;
-
     switch (ev.type) {
       case 'agent_started':
-        text = '→ ${_agentLabel(ev.payload)} started';
-        color = ForgeColors.accent;
+        return _LogEntry(
+          tag: 'AGNT', tagColor: _kTagCyan,
+          message: '${_agentLabel(ev.payload)}: started',
+          messageColor: _kMsgCyan,
+        );
       case 'os_agent_started':
         final t = ev.payload['agent_type'] as String? ?? 'agent';
-        text = '→ ${_agentTypeLabel(t)} started';
-        color = ForgeColors.accent;
+        return _LogEntry(
+          tag: 'AGNT', tagColor: _kTagCyan,
+          message: '${_agentTypeLabel(t)}: started',
+          messageColor: _kMsgCyan,
+        );
       case 'agent_completed':
-        final label = ev.payload['phase'] as String? ?? ev.payload['agent_type'] as String? ?? 'agent';
+        final label = ev.payload['phase'] as String? ??
+            ev.payload['agent_type'] as String? ?? 'agent';
         final n = ev.payload['findings_count'] as int? ?? ev.payload['findings'] as int?;
-        text = '✓ ${_phaseName(label)} complete${n != null ? ' ($n findings)' : ''}';
-        color = ForgeColors.success;
+        return _LogEntry(
+          tag: 'DONE', tagColor: _kTagDone,
+          message: '${_phaseName(label)}: complete${n != null ? ' ($n findings)' : ''}',
+          messageColor: _kTagDone,
+        );
       case 'os_agent_complete':
         final t = ev.payload['agent_type'] as String? ?? 'agent';
         final n = ev.payload['findings'] as int?;
-        text = '✓ ${_agentTypeLabel(t)} complete${n != null ? ' ($n findings)' : ''}';
-        color = ForgeColors.success;
+        return _LogEntry(
+          tag: 'DONE', tagColor: _kTagDone,
+          message: '${_agentTypeLabel(t)}: complete${n != null ? ' ($n findings)' : ''}',
+          messageColor: _kTagDone,
+        );
       case 'finding_discovered':
+      case 'finding_created':
         final f = ev.payload['finding'] as Map<String, dynamic>?;
         final sev = (f?['severity'] as String? ?? '').toLowerCase();
         final title = f?['title'] as String? ??
-            f?['vulnerability_class'] as String? ??
-            'Finding';
-        text = '⚠  $title';
-        color = (sev == 'critical' || sev == 'high') ? ForgeColors.error : ForgeColors.accent;
+            f?['vulnerability_class'] as String? ?? 'Finding';
+        final isCrit = sev == 'critical';
+        return _LogEntry(
+          tag: isCrit ? 'CRIT' : 'FIND',
+          tagColor: isCrit ? _kTagCrit : _kTagFind,
+          message: title,
+          messageColor: isCrit ? _kTagCrit : _kTagFind,
+        );
       case 'campaign_complete':
       case 'os_pipeline_complete':
-        text = '● Scan complete';
-        color = ForgeColors.success;
+        return const _LogEntry(
+          tag: 'DONE', tagColor: _kTagDone,
+          message: 'scan complete', messageColor: _kTagDone,
+        );
       case 'os_modeling_started':
-        text = '→ OS fingerprinting…';
-        color = ForgeColors.accent;
+        return const _LogEntry(
+          tag: 'SCAN', tagColor: _kTagCyan,
+          message: 'fingerprinting target', messageColor: _kMsgCyan,
+        );
       case 'os_modeling_complete':
-        final pkgs = ev.payload['packages'] as int? ?? 0;
-        text = '✓ OS model ready — $pkgs packages';
-        color = ForgeColors.success;
+        return const _LogEntry(
+          tag: 'SCAN', tagColor: _kTagCyan,
+          message: 'fingerprint complete', messageColor: _kMsgCyan,
+        );
       case 'os_modeling_failed':
-        text = '✗ OS fingerprint failed: ${ev.payload['error'] ?? ''}';
-        color = ForgeColors.error;
+        return _LogEntry(
+          tag: 'FAIL', tagColor: _kTagFail,
+          message: 'fingerprint failed: ${ev.payload['error'] ?? ''}',
+          messageColor: _kTagFail,
+        );
       case 'agent_failed':
       case 'os_agent_failed':
-        final label = ev.payload['agent_type'] as String? ?? ev.payload['error'] as String? ?? 'agent';
-        text = '✗ $label failed';
-        color = ForgeColors.error;
+        final label = ev.payload['agent_type'] as String? ??
+            ev.payload['error'] as String? ?? 'agent';
+        return _LogEntry(
+          tag: 'FAIL', tagColor: _kTagFail,
+          message: '$label: failed',
+          messageColor: _kTagFail,
+        );
       case 'progress':
         final detail = ev.payload['detail'] as String?;
         if (detail == null || detail.isEmpty) return null;
-        text = detail;
-        color = cs.onSurfaceVariant;
+        return _LogEntry(
+          tag: 'INFO', tagColor: _kTagInfo,
+          message: detail, messageColor: _kTagInfo,
+        );
       default:
         return null;
     }
-
-    return _LogEntry(timestamp: ev.timestamp, text: text, color: color);
   }
 
   int get _agentsActiveCount =>
@@ -481,6 +544,7 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
           const Divider(height: 1),
           Expanded(
             child: ListView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
@@ -552,30 +616,44 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   }
 
   Widget _buildLog() {
-    final cs = Theme.of(context).colorScheme;
-    if (_log.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 40),
-          child: Text(
-            _isRunning ? 'Waiting for events…' : 'No events.',
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
-          ),
-        ),
-      );
-    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('EVENTS',
+        const Text(
+          '// event log',
           style: TextStyle(
-            color: cs.onSurfaceVariant,
+            color: _kTagInfo,
             fontSize: 11,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.8,
-          )),
-        const SizedBox(height: 10),
-        ..._log.map((e) => _LogRow(entry: e)),
+            fontFamily: 'monospace',
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          decoration: BoxDecoration(
+            color: _kTermBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _kTermBorder),
+          ),
+          child: _log.isEmpty
+              ? const Text(
+                  'waiting for events...',
+                  style: TextStyle(
+                    color: _kTagInfo,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ..._log.map((e) => _TerminalRow(entry: e)),
+                    if (_isRunning) const _BlinkingCursor(),
+                  ],
+                ),
+        ),
       ],
     );
   }
@@ -724,31 +802,67 @@ class _AgentRow extends StatelessWidget {
   }
 }
 
-class _LogRow extends StatelessWidget {
-  const _LogRow({required this.entry});
+class _TerminalRow extends StatelessWidget {
+  const _TerminalRow({required this.entry});
   final _LogEntry entry;
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final h = entry.timestamp.hour.toString().padLeft(2, '0');
-    final m = entry.timestamp.minute.toString().padLeft(2, '0');
-    final s = entry.timestamp.second.toString().padLeft(2, '0');
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('$h:$m:$s',
-            style: TextStyle(
-              color: cs.onSurfaceVariant, fontSize: 11, fontFamily: 'monospace',
-            )),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(entry.text,
-              style: TextStyle(color: entry.color, fontSize: 13)),
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(fontSize: 11, fontFamily: 'monospace', height: 1.5),
+          children: [
+            TextSpan(
+              text: '[${entry.tag}]  ',
+              style: TextStyle(color: entry.tagColor),
+            ),
+            TextSpan(
+              text: entry.message,
+              style: TextStyle(color: entry.messageColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BlinkingCursor extends StatefulWidget {
+  const _BlinkingCursor();
+
+  @override
+  State<_BlinkingCursor> createState() => _BlinkingCursorState();
+}
+
+class _BlinkingCursorState extends State<_BlinkingCursor> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 530))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: FadeTransition(
+        opacity: Tween<double>(begin: 0.0, end: 1.0).animate(_ctrl),
+        child: const Text(
+          '▋',
+          style: TextStyle(
+            color: Color(0xFF06B6D4),
+            fontSize: 11,
+            fontFamily: 'monospace',
           ),
-        ],
+        ),
       ),
     );
   }
