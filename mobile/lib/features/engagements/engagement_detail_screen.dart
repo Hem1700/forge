@@ -6,6 +6,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/engagements_api.dart';
 import '../../core/models/engagement.dart';
+import '../../core/state/notifiers.dart';
 import '../../core/storage/cache_storage.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -169,6 +170,7 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
       await _api.deleteEngagement(widget.engagementId);
       await CacheStorage.instance.clearEngagement(widget.engagementId);
       if (!mounted) return;
+      engagementDeletedNotifier.value = widget.engagementId;
       final messenger = ScaffoldMessenger.of(context);
       context.pop();
       messenger.showSnackBar(const SnackBar(content: Text('Engagement deleted')));

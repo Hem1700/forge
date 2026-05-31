@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/engagements_api.dart';
 import '../../core/models/engagement.dart';
+import '../../core/state/notifiers.dart';
 import '../../core/storage/cache_storage.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -17,6 +18,16 @@ class DashboardScreen extends StatefulWidget {
 class DashboardScreenState extends State<DashboardScreen> {
   void refresh() => _load(force: true);
 
+  void _onDeleted() {
+    final id = engagementDeletedNotifier.value;
+    if (id != null && mounted) {
+      setState(() {
+        _engagements.removeWhere((e) => e.id == id);
+        _findingCounts.remove(id);
+      });
+    }
+  }
+
   final _api = EngagementsApi(ApiClient.instance);
   List<Engagement> _engagements = [];
   final Map<String, int> _findingCounts = {};
@@ -29,7 +40,14 @@ class DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    engagementDeletedNotifier.addListener(_onDeleted);
     _load();
+  }
+
+  @override
+  void dispose() {
+    engagementDeletedNotifier.removeListener(_onDeleted);
+    super.dispose();
   }
 
   Future<void> _load({bool force = false}) async {

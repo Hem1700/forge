@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/engagements_api.dart';
 import '../../core/models/engagement.dart';
+import '../../core/state/notifiers.dart';
 import '../../core/storage/cache_storage.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -26,14 +27,23 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
   @override
   void initState() {
     super.initState();
+    engagementDeletedNotifier.addListener(_onDeleted);
     _load();
     _searchController.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
+    engagementDeletedNotifier.removeListener(_onDeleted);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onDeleted() {
+    final id = engagementDeletedNotifier.value;
+    if (id != null && mounted) {
+      setState(() => _all.removeWhere((e) => e.id == id));
+    }
   }
 
   Future<void> _load() async {
@@ -328,6 +338,7 @@ class _EngagementsScreenState extends State<EngagementsScreen> {
       await _api.deleteEngagement(engagement.id);
       await CacheStorage.instance.clearEngagement(engagement.id);
       if (!mounted) return;
+      engagementDeletedNotifier.value = engagement.id;
       setState(() => _all.removeWhere((e) => e.id == engagement.id));
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Engagement deleted')),
