@@ -23,6 +23,8 @@ const _kTagCyan    = Color(0xFF06B6D4);
 const _kTagFail    = Color(0xFFF87171);
 const _kTagInfo    = Color(0xFF444A60);
 const _kMsgCyan    = Color(0xFF8890A8);
+const _kTagGate    = Color(0xFFFBBF24); // amber — gate / warn events
+const _kTimestamp  = Color(0xFF4B5268); // muted gray for timestamp prefix
 
 // ---------------------------------------------------------------------------
 // Internal models
@@ -63,11 +65,13 @@ class _LogEntry {
   final Color tagColor;
   final String message;
   final Color messageColor;
-  const _LogEntry({
+  final DateTime timestamp;
+  _LogEntry({
     required this.tag,
     required this.tagColor,
     required this.message,
     required this.messageColor,
+    required this.timestamp,
   });
 }
 
@@ -358,88 +362,177 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   }
 
   _LogEntry? _eventToLogEntry(_WsEvent ev) {
+    final ts = ev.timestamp;
     switch (ev.type) {
       case 'agent_started':
-        return _LogEntry(
-          tag: 'AGNT', tagColor: _kTagCyan,
-          message: '${_agentLabel(ev.payload)}: started',
-          messageColor: _kMsgCyan,
-        );
+        final phase = ev.payload['phase'] as String?;
+        final agentType = ev.payload['agent_type'] as String?;
+        final hypothesis = ev.payload['hypothesis'] as String?;
+        final String msg;
+        if (phase != null) {
+          msg = '${_phaseName(phase)} initializing — ${_phaseDescription(phase)}';
+        } else if (hypothesis != null) {
+          final truncated = hypothesis.length > 60 ? '${hypothesis.substring(0, 60)}…' : hypothesis;
+          msg = 'ProbeAgent initializing — testing: $truncated';
+        } else if (agentType != null) {
+          msg = '${_agentTypeLabel(agentType)} initializing — ${_agentTypeDescription(agentType)}';
+        } else {
+          msg = 'Agent initializing';
+        }
+        return _LogEntry(tag: 'AGNT', tagColor: _kTagCyan, message: msg, messageColor: _kMsgCyan, timestamp: ts);
+
       case 'os_agent_started':
         final t = ev.payload['agent_type'] as String? ?? 'agent';
         return _LogEntry(
           tag: 'AGNT', tagColor: _kTagCyan,
-          message: '${_agentTypeLabel(t)}: started',
-          messageColor: _kMsgCyan,
+          message: '${_agentTypeLabel(t)} scanning — ${_agentTypeDescription(t)}',
+          messageColor: _kMsgCyan, timestamp: ts,
         );
-      case 'agent_completed':
-        final label = ev.payload['phase'] as String? ??
-            ev.payload['agent_type'] as String? ?? 'agent';
-        final n = ev.payload['findings_count'] as int? ?? ev.payload['findings'] as int?;
+
+      case 'os_agents_started':
+        final types = (ev.payload['agents'] as List<dynamic>?)?.cast<String>() ?? [];
+        if (types.isEmpty) return null;
         return _LogEntry(
-          tag: 'DONE', tagColor: _kTagDone,
-          message: '${_phaseName(label)}: complete${n != null ? ' ($n findings)' : ''}',
-          messageColor: _kTagDone,
+          tag: 'SCAN', tagColor: _kTagCyan,
+          message: 'Launching ${types.length} parallel security agents',
+          messageColor: _kMsgCyan, timestamp: ts,
         );
+
+      case 'agent_completed':
+        final phase = ev.payload['phase'] as String?;
+        final agentType = ev.payload['agent_type'] as String?;
+        final n = ev.payload['findings_count'] as int? ?? ev.payload['findings'] as int?;
+        final String completionMsg;
+        if (phase != null) {
+          final detail = _phaseCompletionDetail(phase, ev.payload);
+          completionMsg = '${_phaseName(phase)} complete — $detail';
+        } else if (agentType != null) {
+          completionMsg = n != null
+              ? '${_agentTypeLabel(agentType)} complete — $n findings'
+              : '${_agentTypeLabel(agentType)} complete';
+        } else {
+          completionMsg = n != null ? 'Agent complete — $n findings' : 'Agent complete';
+        }
+        return _LogEntry(tag: 'DONE', tagColor: _kTagDone, message: completionMsg, messageColor: _kTagDone, timestamp: ts);
+
       case 'os_agent_complete':
         final t = ev.payload['agent_type'] as String? ?? 'agent';
         final n = ev.payload['findings'] as int?;
-        return _LogEntry(
-          tag: 'DONE', tagColor: _kTagDone,
-          message: '${_agentTypeLabel(t)}: complete${n != null ? ' ($n findings)' : ''}',
-          messageColor: _kTagDone,
-        );
+        final msg = n != null
+            ? '${_agentTypeLabel(t)} complete — $n findings'
+            : '${_agentTypeLabel(t)} complete';
+        return _LogEntry(tag: 'DONE', tagColor: _kTagDone, message: msg, messageColor: _kTagDone, timestamp: ts);
+
       case 'finding_discovered':
       case 'finding_created':
         final f = ev.payload['finding'] as Map<String, dynamic>?;
         final sev = (f?['severity'] as String? ?? '').toLowerCase();
         final title = f?['title'] as String? ??
+            f?['vulnerability'] as String? ??
             f?['vulnerability_class'] as String? ?? 'Finding';
+        final surface = f?['endpoint'] as String? ??
+            f?['file'] as String? ??
+            f?['affected_surface'] as String?;
         final isCrit = sev == 'critical';
+        final sevLabel = switch (sev) {
+          'critical' => 'Critical',
+          'high' => 'High',
+          'medium' => 'Medium',
+          'low' => 'Low',
+          _ => sev.isNotEmpty ? '${sev[0].toUpperCase()}${sev.substring(1)}' : 'Unknown',
+        };
+        final truncTitle = title.length > 60 ? '${title.substring(0, 60)}…' : title;
+        final surfacePart = (surface != null && surface.isNotEmpty && surface != 'unknown')
+            ? ' — $surface'
+            : '';
         return _LogEntry(
           tag: isCrit ? 'CRIT' : 'FIND',
           tagColor: isCrit ? _kTagCrit : _kTagFind,
-          message: title,
+          message: '$truncTitle ($sevLabel)$surfacePart',
           messageColor: isCrit ? _kTagCrit : _kTagFind,
+          timestamp: ts,
         );
+
       case 'campaign_complete':
       case 'os_pipeline_complete':
-        return const _LogEntry(
-          tag: 'DONE', tagColor: _kTagDone,
-          message: 'scan complete', messageColor: _kTagDone,
-        );
+        final status = ev.payload['status'] as String?;
+        if (status == 'budget_exceeded') {
+          return _LogEntry(tag: 'WARN', tagColor: _kTagGate, message: 'Budget limit reached — scan stopped', messageColor: _kTagGate, timestamp: ts);
+        }
+        if (status == 'rate_limited') {
+          return _LogEntry(tag: 'WAIT', tagColor: _kTagGate, message: 'Rate limited — queued, resuming shortly', messageColor: _kTagGate, timestamp: ts);
+        }
+        if (status == 'error') {
+          final err = ev.payload['error'] as String? ?? 'unknown error';
+          final truncErr = err.length > 80 ? '${err.substring(0, 80)}…' : err;
+          return _LogEntry(tag: 'FAIL', tagColor: _kTagFail, message: 'Scan failed — $truncErr', messageColor: _kTagFail, timestamp: ts);
+        }
+        final total = ev.payload['total_findings'] as int?;
+        final critCount = ev.payload['critical_count'] as int?;
+        final String doneMsg;
+        if (total != null && critCount != null && critCount > 0) {
+          doneMsg = 'Scan complete — $total findings, $critCount critical';
+        } else if (total != null) {
+          doneMsg = 'Scan complete — $total findings';
+        } else {
+          doneMsg = 'Scan complete';
+        }
+        return _LogEntry(tag: 'DONE', tagColor: _kTagDone, message: doneMsg, messageColor: _kTagDone, timestamp: ts);
+
       case 'os_modeling_started':
-        return const _LogEntry(
+        final host = ev.payload['host'] as String? ?? 'target';
+        return _LogEntry(
           tag: 'SCAN', tagColor: _kTagCyan,
-          message: 'fingerprinting target', messageColor: _kMsgCyan,
+          message: 'SSH connection established — collecting system fingerprint from $host',
+          messageColor: _kMsgCyan, timestamp: ts,
         );
+
       case 'os_modeling_complete':
-        return const _LogEntry(
-          tag: 'SCAN', tagColor: _kTagCyan,
-          message: 'fingerprint complete', messageColor: _kMsgCyan,
-        );
+        final packages = ev.payload['packages'] as int?;
+        final ports = ev.payload['open_ports'] as int?;
+        final String fpMsg;
+        if (packages != null && ports != null) {
+          fpMsg = 'Fingerprint complete — $packages packages, $ports open ports';
+        } else if (packages != null) {
+          fpMsg = 'Fingerprint complete — $packages packages';
+        } else {
+          fpMsg = 'Fingerprint complete';
+        }
+        return _LogEntry(tag: 'SCAN', tagColor: _kTagCyan, message: fpMsg, messageColor: _kMsgCyan, timestamp: ts);
+
       case 'os_modeling_failed':
+        final err = ev.payload['error'] as String? ?? 'unknown error';
         return _LogEntry(
           tag: 'FAIL', tagColor: _kTagFail,
-          message: 'fingerprint failed: ${ev.payload['error'] ?? ''}',
-          messageColor: _kTagFail,
+          message: 'Fingerprint failed — $err',
+          messageColor: _kTagFail, timestamp: ts,
         );
+
       case 'agent_failed':
       case 'os_agent_failed':
-        final label = ev.payload['agent_type'] as String? ??
-            ev.payload['error'] as String? ?? 'agent';
-        return _LogEntry(
-          tag: 'FAIL', tagColor: _kTagFail,
-          message: '$label: failed',
-          messageColor: _kTagFail,
-        );
+        final rawLabel = ev.payload['agent_type'] as String? ??
+            ev.payload['phase'] as String? ?? 'agent';
+        final err = ev.payload['error'] as String?;
+        final failLabel = _agentTypeLabel(rawLabel);
+        final failMsg = (err != null && err.isNotEmpty)
+            ? '$failLabel failed — $err'
+            : '$failLabel failed';
+        return _LogEntry(tag: 'FAIL', tagColor: _kTagFail, message: failMsg, messageColor: _kTagFail, timestamp: ts);
+
+      case 'gate_triggered':
+        return _LogEntry(tag: 'GATE', tagColor: _kTagGate, message: 'Paused at security gate — awaiting approval', messageColor: _kTagGate, timestamp: ts);
+
+      case 'budget_exceeded':
+        return _LogEntry(tag: 'WARN', tagColor: _kTagGate, message: 'Budget limit reached — scan stopped', messageColor: _kTagGate, timestamp: ts);
+
+      case 'rate_limit':
+        return _LogEntry(tag: 'WAIT', tagColor: _kTagGate, message: 'Rate limited — queued, resuming shortly', messageColor: _kTagGate, timestamp: ts);
+
       case 'progress':
         final detail = ev.payload['detail'] as String?;
         if (detail == null || detail.isEmpty) return null;
-        return _LogEntry(
-          tag: 'INFO', tagColor: _kTagInfo,
-          message: detail, messageColor: _kTagInfo,
-        );
+        return _LogEntry(tag: 'INFO', tagColor: _kTagInfo, message: detail, messageColor: _kTagInfo, timestamp: ts);
+
       default:
         return null;
     }
@@ -467,29 +560,72 @@ class _EngagementDetailScreenState extends State<EngagementDetailScreen> {
   }
 
   static String _phaseName(String s) => switch (s) {
-    'crawl' => 'Crawl',
+    'crawl' => 'Crawler',
     'campaign_planning' => 'Campaign Planner',
     'codebase_modeling' => 'Codebase Modeler',
-    'cve_research' => 'CVE Research',
+    'cve_research' => 'CVE Researcher',
     'exploit_script_gen' => 'Exploit Generator',
     'diff_execute' => 'Differential Tester',
+    'clone' => 'Repository Fetcher',
     _ => s,
   };
 
+  static String _phaseDescription(String s) => switch (s) {
+    'crawl' => 'mapping attack surface and endpoints',
+    'campaign_planning' => 'generating attack hypotheses from surface model',
+    'codebase_modeling' => 'parsing code structure and attack surfaces',
+    'cve_research' => 'querying OSV and NVD for advisories',
+    'exploit_script_gen' => 'generating weaponized PoC script',
+    'diff_execute' => 'running vuln vs patched differential test',
+    'clone' => 'fetching source code from repository',
+    _ => 'running',
+  };
+
+  static String _phaseCompletionDetail(String phase, Map<String, dynamic> payload) {
+    return switch (phase) {
+      'crawl' => payload['app_type'] != null ? 'detected ${payload['app_type']}' : 'surface mapped',
+      'campaign_planning' => payload['hypotheses'] != null ? '${payload['hypotheses']} hypotheses generated' : 'complete',
+      'codebase_modeling' => payload['attack_surfaces'] != null ? '${payload['attack_surfaces']} attack surfaces found' : 'complete',
+      'cve_research' => payload['package'] != null
+          ? 'advisory found — ${payload['package']} (first fixed: ${payload['first_fixed'] ?? 'unknown'})'
+          : 'complete',
+      'exploit_script_gen' => payload['language'] != null ? '${payload['language']} script generated' : 'complete',
+      'diff_execute' => payload['verdict'] != null ? 'verdict: ${payload['verdict']}' : 'complete',
+      'clone' => 'repository cloned',
+      _ => 'complete',
+    };
+  }
+
   static String _agentTypeLabel(String t) => switch (t) {
-    'privesc' => 'Priv Escalation',
-    'service_audit' => 'Service Audit',
-    'package_vuln' => 'Package Vulns',
-    'config_audit' => 'Config Audit',
-    'network_exposure' => 'Network Exposure',
-    'chain_discovery' => 'Attack Chains',
-    'code_analyzer' => 'Code Analyzer',
-    'dependency_scanner' => 'Dep Scanner',
-    'fuzzer' => 'Fuzzer',
-    'secret_scanner' => 'Secret Scanner',
-    'config_auditor' => 'Config Auditor',
-    'probe' => 'Probe',
+    'privesc' => 'PrivEscAgent',
+    'service_audit' => 'ServiceAuditAgent',
+    'package_vuln' => 'PackageVulnAgent',
+    'config_audit' => 'ConfigAuditAgent',
+    'network_exposure' => 'NetworkExposureAgent',
+    'chain_discovery' => 'ChainDiscoveryAgent',
+    'code_analyzer' => 'CodeAnalyzerAgent',
+    'dependency_scanner' => 'DependencyScannerAgent',
+    'fuzzer' => 'FuzzerAgent',
+    'secret_scanner' => 'SecretScannerAgent',
+    'config_auditor' => 'ConfigAuditorAgent',
+    'probe' => 'ProbeAgent',
     _ => t,
+  };
+
+  static String _agentTypeDescription(String t) => switch (t) {
+    'privesc' => 'SUID binaries, sudo misconfigs, kernel CVEs',
+    'service_audit' => 'exposed services and misconfigurations',
+    'package_vuln' => 'building SBOM, querying Trivy for CVEs',
+    'config_audit' => 'system configuration weaknesses',
+    'network_exposure' => 'open ports and firewall rules',
+    'chain_discovery' => 'correlating findings into attack chains',
+    'code_analyzer' => 'LLM-powered code review for vulnerabilities',
+    'dependency_scanner' => 'building SBOM, querying OSV for CVEs',
+    'fuzzer' => 'generating and running fuzz test cases',
+    'secret_scanner' => 'detecting hardcoded credentials and keys',
+    'config_auditor' => 'checking for insecure configurations',
+    'probe' => 'HTTP probe-based hypothesis testing',
+    _ => 'security analysis',
   };
 
   @override
@@ -808,12 +944,20 @@ class _TerminalRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final local = entry.timestamp.toLocal();
+    final ts = '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}:'
+        '${local.second.toString().padLeft(2, '0')}';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: RichText(
         text: TextSpan(
           style: const TextStyle(fontSize: 11, fontFamily: 'monospace', height: 1.5),
           children: [
+            TextSpan(
+              text: '$ts  ',
+              style: const TextStyle(color: _kTimestamp),
+            ),
             TextSpan(
               text: '[${entry.tag}]  ',
               style: TextStyle(color: entry.tagColor),
