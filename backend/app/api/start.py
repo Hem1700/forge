@@ -409,7 +409,11 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
                     continue
                 agent_type = result.get("agent_type", "unknown")
                 findings = result.get("findings", [])
-                await _broadcast(eid, "agent_completed", {"agent_type": agent_type, "findings_count": len(findings)})
+                await _broadcast(eid, "agent_completed", {
+                    "agent_type": agent_type,
+                    "findings_count": len(findings),
+                    "timed_out": result.get("timed_out", False),
+                })
                 batch_ids: list[uuid.UUID] = []
                 for f in findings:
                     # Match _save_finding's default so the live stream and DB agree.
@@ -831,6 +835,7 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
                 await _broadcast(eid, "os_agent_complete", {
                     "agent_type": agent.agent_type,
                     "findings": len(batch_ids),
+                    "timed_out": result.get("timed_out", False),
                 })
 
             await _stamp_agent_duration(db, agent_id, pipeline_start)
