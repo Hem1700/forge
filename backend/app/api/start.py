@@ -724,20 +724,27 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
             password=key_mat if target.auth_type == "password" else None,
         )
 
+        from app.api.os_rate_limit import _fingerprint_lock, FingerprintAlreadyRunningError
+
         await _broadcast(eid, "os_modeling_started", {"host": target.host})
         try:
-            modeler = OSModeler()
-            fp = await modeler.collect(target.host, target.port, target.username, auth)
-            target.fingerprint = fp.to_dict()
-            target.collected_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            await db.commit()
-            await _broadcast(eid, "os_modeling_complete", {
-                "host": target.host,
-                "packages": len(fp.packages),
-                "open_ports": len(fp.open_ports),
-                "suid_count": len(fp.suid_binaries),
-                "errors": len(fp.collection_errors),
-            })
+            async with _fingerprint_lock.acquire(target.host):
+                modeler = OSModeler()
+                fp = await modeler.collect(target.host, target.port, target.username, auth)
+                target.fingerprint = fp.to_dict()
+                target.collected_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                await db.commit()
+                await _broadcast(eid, "os_modeling_complete", {
+                    "host": target.host,
+                    "packages": len(fp.packages),
+                    "open_ports": len(fp.open_ports),
+                    "suid_count": len(fp.suid_binaries),
+                    "errors": len(fp.collection_errors),
+                })
+        except FingerprintAlreadyRunningError as e:
+            await _broadcast(eid, "os_modeling_failed", {"error": str(e), "reason": "concurrent_scan"})
+            await _finalize(engagement_id, db, eid, success=False)
+            return
         except Exception as e:
             logger.exception("os_pipeline: fingerprint collection failed for %s", engagement_id)
             await _broadcast(eid, "os_modeling_failed", {"error": str(e)})
