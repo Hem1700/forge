@@ -61,3 +61,16 @@ async def test_find_similar_techniques_works_when_qdrant_up():
     ])
     result = await kq.find_similar_techniques(description="sqli", attack_class="sql_injection")
     assert len(result) == 1
+
+
+@pytest.mark.asyncio
+async def test_find_similar_techniques_checks_availability_once_before_search():
+    """Happy path pings is_available exactly once and still calls search."""
+    from app.knowledge.query import KnowledgeQuery
+    kq = KnowledgeQuery()
+    kq.vector = AsyncMock()
+    kq.vector.is_available = AsyncMock(return_value=True)
+    kq.vector.search = AsyncMock(return_value=[])
+    await kq.find_similar_techniques(description="x", attack_class="sqli")
+    kq.vector.is_available.assert_awaited_once()
+    kq.vector.search.assert_awaited_once()

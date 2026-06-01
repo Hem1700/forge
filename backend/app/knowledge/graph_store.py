@@ -1,6 +1,10 @@
 # backend/app/knowledge/graph_store.py
+import logging
+
 from neo4j import AsyncGraphDatabase, AsyncDriver
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class GraphStore:
@@ -24,7 +28,8 @@ class GraphStore:
             async with driver.session() as session:
                 await session.run("RETURN 1")
             return True
-        except Exception:
+        except Exception as e:
+            logger.debug("Neo4j ping failed: %s", e)
             return False
 
     async def close(self):

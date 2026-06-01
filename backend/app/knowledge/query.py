@@ -53,6 +53,9 @@ class KnowledgeQuery:
         return confirmed / len(results)
 
     async def get_attack_chain(self, from_technique: str, to_technique: str) -> list[str] | None:
+        # NOTE: unlike ChainDiscoveryAgent (which falls back to in-memory path
+        # enumeration when Neo4j is down), KnowledgeQuery has no fallback data
+        # source, so it returns None when the graph is unavailable.
         if not await self.graph.is_available():
             logger.warning("Neo4j unavailable; no attack chain available")
             return None
