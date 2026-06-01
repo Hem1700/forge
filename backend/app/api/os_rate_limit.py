@@ -2,8 +2,11 @@
 """Per-host lock: prevent concurrent SSH fingerprinting of the same host.
 
 In-process async lock keyed by host string. Protects SSH targets from being
-hammered by two simultaneous fingerprint scans (a soft DoS guard). Scoped to a
-single worker process — sufficient because OS pipelines run in the Arq worker.
+hammered by two simultaneous fingerprint scans (a soft DoS guard). Guards only
+within a single worker process. If FORGE runs multiple Arq workers, the same
+host can still be scanned concurrently across workers; a cross-process lock
+(Redis SETNX or a DB advisory lock) would be required for a hard guarantee.
+In-process scope is intentional here as a soft DoS guard.
 """
 from __future__ import annotations
 
@@ -35,8 +38,14 @@ class FingerprintLock:
                 self._locks[host] = lock
             if lock.locked():
                 raise FingerprintAlreadyRunningError(host)
-        async with lock:
+            # Acquire while still holding the guard so check-and-acquire is
+            # atomic. The lock is free here (we'd have raised otherwise), so
+            # acquire() returns immediately and does not block the guard.
+            await lock.acquire()
+        try:
             yield
+        finally:
+            lock.release()
 
 
 # Module-level singleton shared across all pipeline coroutines in this worker process.
