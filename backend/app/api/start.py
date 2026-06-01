@@ -97,6 +97,29 @@ async def _stamp_agent_duration(
     )
 
 
+_DEFAULT_AGENT_TIMEOUT = 300  # seconds — max wall-clock per agent _execute()
+
+
+async def _execute_with_timeout(agent, task: dict, timeout_seconds: float = _DEFAULT_AGENT_TIMEOUT) -> dict:
+    """Run agent._execute(task) with a wall-clock timeout.
+
+    On timeout, logs a warning and returns a normal-shaped result with empty
+    findings and timed_out=True, so a single hung agent cannot block the whole
+    pipeline. Only asyncio.TimeoutError is handled here; any other exception
+    propagates so the caller's gather(return_exceptions=True) handles it.
+    """
+    try:
+        return await asyncio.wait_for(agent._execute(task), timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Agent %s timed out after %ss for engagement %s",
+            getattr(agent, "agent_type", "unknown"),
+            timeout_seconds,
+            getattr(agent, "engagement_id", "unknown"),
+        )
+        return {"agent_type": getattr(agent, "agent_type", "unknown"), "findings": [], "timed_out": True}
+
+
 async def _judge_findings_async(
     engagement_id_str: str,
     finding_ids: list[uuid.UUID],
@@ -374,7 +397,7 @@ async def _run_codebase_pipeline(engagement_id: uuid.UUID) -> None:
             for agent in agents:
                 await _broadcast(eid, "agent_started", {"agent_id": agent.agent_id, "agent_type": agent.agent_type})
 
-            results = await asyncio.gather(*[a._execute(task) for a in agents], return_exceptions=True)
+            results = await asyncio.gather(*[_execute_with_timeout(a, task) for a in agents], return_exceptions=True)
 
             task_id, agent_id = await _ensure_placeholder_task_agent(db, engagement_id)
             await db.commit()
@@ -782,7 +805,7 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
 
             pipeline_start = datetime.now(timezone.utc)
             results = await asyncio.gather(
-                *[agent._execute(agent_task) for agent in agents],
+                *[_execute_with_timeout(agent, agent_task) for agent in agents],
                 return_exceptions=True,
             )
 
