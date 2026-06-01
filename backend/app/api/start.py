@@ -83,12 +83,17 @@ async def _stamp_agent_duration(
     started_at: datetime,
 ) -> None:
     """Record completion time and duration_ms on the agent row."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     ms = max(0, int((now - started_at).total_seconds() * 1000))
     await db.execute(
         update(Agent)
         .where(Agent.id == agent_id)
-        .values(completed_at=now, duration_ms=ms, status=AgentStatus.completed)
+        .values(
+            started_at=started_at,
+            completed_at=now,
+            duration_ms=ms,
+            status=AgentStatus.completed,
+        )
     )
 
 
@@ -768,7 +773,7 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
 
             await _broadcast(eid, "os_agents_started", {"agents": [a.agent_type for a in agents]})
 
-            pipeline_start = datetime.utcnow()
+            pipeline_start = datetime.now(timezone.utc)
             results = await asyncio.gather(
                 *[agent._execute(agent_task) for agent in agents],
                 return_exceptions=True,

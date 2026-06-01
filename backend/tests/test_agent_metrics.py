@@ -26,12 +26,20 @@ def test_agent_model_has_timing_columns():
 
 @pytest.mark.asyncio
 async def test_stamp_agent_duration_issues_update():
-    """_stamp_agent_duration() issues an UPDATE with a non-negative duration_ms."""
+    """_stamp_agent_duration() issues an UPDATE setting started_at, completed_at,
+    a non-negative duration_ms, and status=completed."""
     from unittest.mock import AsyncMock
     from app.api.start import _stamp_agent_duration
+    from app.models.agent import AgentStatus
 
     mock_db = AsyncMock()
     agent_id = uuid.uuid4()
-    started = datetime.utcnow()
+    started = datetime.now(timezone.utc)
     await _stamp_agent_duration(mock_db, agent_id, started)
+
     mock_db.execute.assert_awaited_once()
+    stmt = mock_db.execute.call_args.args[0]
+    params = stmt.compile().params
+    assert params["duration_ms"] >= 0
+    assert params["status"] == AgentStatus.completed
+    assert params["started_at"] == started
