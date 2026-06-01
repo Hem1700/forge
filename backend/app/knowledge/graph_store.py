@@ -17,6 +17,16 @@ class GraphStore:
             )
         return self._driver
 
+    async def is_available(self) -> bool:
+        """Ping Neo4j. Returns False (never raises) if unavailable."""
+        try:
+            driver = await self._get_driver()
+            async with driver.session() as session:
+                await session.run("RETURN 1")
+            return True
+        except Exception:
+            return False
+
     async def close(self):
         if self._driver:
             await self._driver.close()

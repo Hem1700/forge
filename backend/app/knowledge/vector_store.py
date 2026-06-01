@@ -32,6 +32,15 @@ class VectorStore:
                 )
         return self._client
 
+    async def is_available(self) -> bool:
+        """Ping Qdrant. Returns False (never raises) if unavailable."""
+        try:
+            client = await self._get_client()
+            await client.get_collections()
+            return True
+        except Exception:
+            return False
+
     async def _embed(self, text: str) -> list[float]:
         """Deterministic hash-based embedding for dev. Replace with real embeddings in production."""
         import hashlib
