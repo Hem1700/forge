@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from enum import Enum as PyEnum
-from sqlalchemy import String, DateTime, JSON, Enum as SAEnum, ForeignKey, Uuid
+from sqlalchemy import String, DateTime, JSON, Enum as SAEnum, ForeignKey, Uuid, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -43,3 +43,6 @@ class Agent(Base):
     tools: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     terminated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -77,6 +77,21 @@ async def _ensure_placeholder_task_agent(
     return task_row.id, agent.id
 
 
+async def _stamp_agent_duration(
+    db: AsyncSession,
+    agent_id: uuid.UUID,
+    started_at: datetime,
+) -> None:
+    """Record completion time and duration_ms on the agent row."""
+    now = datetime.utcnow()
+    ms = max(0, int((now - started_at).total_seconds() * 1000))
+    await db.execute(
+        update(Agent)
+        .where(Agent.id == agent_id)
+        .values(completed_at=now, duration_ms=ms, status=AgentStatus.completed)
+    )
+
+
 async def _judge_findings_async(
     engagement_id_str: str,
     finding_ids: list[uuid.UUID],
@@ -753,6 +768,7 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
 
             await _broadcast(eid, "os_agents_started", {"agents": [a.agent_type for a in agents]})
 
+            pipeline_start = datetime.utcnow()
             results = await asyncio.gather(
                 *[agent._execute(agent_task) for agent in agents],
                 return_exceptions=True,
@@ -781,6 +797,9 @@ async def _run_os_pipeline(engagement_id: uuid.UUID, org_id: uuid.UUID | None = 
                     "agent_type": agent.agent_type,
                     "findings": len(batch_ids),
                 })
+
+            await _stamp_agent_duration(db, agent_id, pipeline_start)
+            await db.commit()
 
             # Collect all raw findings for chain discovery
             all_raw_findings: list[dict] = []
