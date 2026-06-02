@@ -147,6 +147,10 @@ forge org llm tiers
 - **Qdrant** — vector similarity search for cross-engagement technique recall
 - **Neo4j** — attack-pattern knowledge graph; used by `ChainDiscoveryAgent` for graph traversal with in-memory DFS fallback
 
+#### Neo4j Schema
+
+Two graph schemas are maintained: a global `:Technique` knowledge graph (cross-engagement, persistent) and a per-scan `:OsFinding` engagement graph (ephemeral, written by `ChainDiscoveryAgent`). Both graphs use `ENABLES` / `LEADS_TO` directed relationships for path traversal. Full node labels, property names, relationship rules, and Cypher examples are documented in [docs/neo4j-schema.md](neo4j-schema.md).
+
 ---
 
 ## OS Pipeline — Agent Detail

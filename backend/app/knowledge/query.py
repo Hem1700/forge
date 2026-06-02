@@ -1,6 +1,10 @@
 # backend/app/knowledge/query.py
+import logging
+
 from app.knowledge.vector_store import VectorStore
 from app.knowledge.graph_store import GraphStore
+
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeQuery:
@@ -15,6 +19,9 @@ class KnowledgeQuery:
         tech_stack: list[str] | None = None,
         top_k: int = 5,
     ) -> list[dict]:
+        if not await self.vector.is_available():
+            logger.warning("Qdrant unavailable; returning no similar techniques")
+            return []
         filter_payload = {}
         if attack_class:
             filter_payload["attack_class"] = attack_class
@@ -32,6 +39,9 @@ class KnowledgeQuery:
 
     async def hit_rate(self, attack_class: str, tech_stack: list[str] | None = None) -> float:
         """Return historical success rate for an attack class."""
+        if not await self.vector.is_available():
+            logger.warning("Qdrant unavailable; hit_rate defaulting to 0.0")
+            return 0.0
         results = await self.vector.search(
             query=attack_class,
             top_k=50,
@@ -43,4 +53,10 @@ class KnowledgeQuery:
         return confirmed / len(results)
 
     async def get_attack_chain(self, from_technique: str, to_technique: str) -> list[str] | None:
+        # NOTE: unlike ChainDiscoveryAgent (which falls back to in-memory path
+        # enumeration when Neo4j is down), KnowledgeQuery has no fallback data
+        # source, so it returns None when the graph is unavailable.
+        if not await self.graph.is_available():
+            logger.warning("Neo4j unavailable; no attack chain available")
+            return None
         return await self.graph.shortest_path(from_technique, to_technique)

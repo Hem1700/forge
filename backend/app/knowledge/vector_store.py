@@ -1,4 +1,5 @@
 # backend/app/knowledge/vector_store.py
+import logging
 import uuid as _uuid_module
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
@@ -13,6 +14,8 @@ from app.config import settings
 
 VECTOR_SIZE = 1536
 
+logger = logging.getLogger(__name__)
+
 
 class VectorStore:
     def __init__(self, url: str = None, collection: str = "forge_knowledge"):
@@ -22,15 +25,26 @@ class VectorStore:
 
     async def _get_client(self) -> AsyncQdrantClient:
         if self._client is None:
-            self._client = AsyncQdrantClient(url=self._url)
-            collections = await self._client.get_collections()
+            client = AsyncQdrantClient(url=self._url)
+            collections = await client.get_collections()
             names = [c.name for c in collections.collections]
             if self._collection not in names:
-                await self._client.create_collection(
+                await client.create_collection(
                     collection_name=self._collection,
                     vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
                 )
+            self._client = client  # cache only after init completes
         return self._client
+
+    async def is_available(self) -> bool:
+        """Ping Qdrant. Returns False (never raises) if unavailable."""
+        try:
+            client = await self._get_client()
+            await client.get_collections()
+            return True
+        except Exception as e:
+            logger.debug("Qdrant ping failed: %s", e)
+            return False
 
     async def _embed(self, text: str) -> list[float]:
         """Deterministic hash-based embedding for dev. Replace with real embeddings in production."""

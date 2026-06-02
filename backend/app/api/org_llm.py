@@ -446,6 +446,47 @@ async def get_usage(
     }
 
 
+@router.get("/latency-stats")
+async def get_latency_stats(
+    since: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Per-task-type LLM latency percentiles (p50/p95/avg/min/max) and token
+    distribution, computed from LLMUsageEvent.duration_ms for the caller's org."""
+    from app.brain.usage_stats import aggregate_latency_stats
+
+    query = select(
+        LLMUsageEvent.task,
+        LLMUsageEvent.duration_ms,
+        LLMUsageEvent.input_tokens,
+        LLMUsageEvent.output_tokens,
+    ).where(LLMUsageEvent.org_id == current_user.org_id)
+
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since)
+            query = query.where(LLMUsageEvent.created_at >= since_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="since must be ISO datetime")
+
+    rows = (await db.execute(query)).all()
+    row_dicts = [
+        {
+            "task": r.task,
+            "duration_ms": r.duration_ms,
+            "input_tokens": r.input_tokens,
+            "output_tokens": r.output_tokens,
+        }
+        for r in rows
+    ]
+    stats = aggregate_latency_stats(row_dicts)
+    return {
+        "tasks": stats,
+        "total_calls": sum(s["calls"] for s in stats),
+    }
+
+
 @router.get("/audit")
 async def get_audit_log(
     limit: int = 100,
