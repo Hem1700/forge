@@ -8,9 +8,13 @@ class ApiClient {
 
   late final Dio _dio;
   bool _initialized = false;
+  // Guards against multiple concurrent 401s each firing the callback and
+  // triggering redundant GoRouter navigation events on the same build cycle.
+  bool _authErrorPending = false;
 
   // Called once the server URL is known; also re-called on URL change.
   Future<void> init(String serverUrl) async {
+    _authErrorPending = false;
     _dio = Dio(BaseOptions(
       baseUrl: serverUrl.endsWith('/') ? serverUrl.substring(0, serverUrl.length - 1) : serverUrl,
       connectTimeout: const Duration(seconds: 15),
@@ -32,7 +36,8 @@ class ApiClient {
         handler.next(options);
       },
       onError: (error, handler) async {
-        if (error.response?.statusCode == 401) {
+        if (error.response?.statusCode == 401 && !_authErrorPending) {
+          _authErrorPending = true;
           await SecureStorage.instance.deleteToken();
           // Signal that re-auth is needed via the global auth state.
           // GoRouter redirect handles navigation on next build.

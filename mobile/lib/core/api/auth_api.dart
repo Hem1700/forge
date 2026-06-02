@@ -114,7 +114,7 @@ class AuthApi {
 
   Future<void> logout() async {
     try {
-      await _client.post<void>('/auth/logout');
+      await _client.post<void>('/api/v1/auth/logout');
     } catch (_) {
       // Best-effort; always clear local storage
     } finally {

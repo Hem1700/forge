@@ -200,6 +200,12 @@ async def _serialize_user(user: User, db: AsyncSession) -> UserResponse:
     )
 
 
+@router.post("/logout", status_code=204)
+async def logout(_: User = Depends(get_current_user)) -> None:
+    """Stateless JWT logout — the client discards the token. No server-side action needed."""
+    return None
+
+
 @router.get("/me", response_model=UserResponse)
 async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> UserResponse:
     return await _serialize_user(user, db)
