@@ -105,3 +105,21 @@ async def test_me_with_valid_token(client):
     assert data["email"] == "a@b.com"
     assert "hashed_password" not in data
     assert data["org_name"] == "TestOrg"
+
+
+async def test_logout_authenticated(client):
+    reg = await client.post("/api/v1/auth/register", json={"email": "a@b.com", "password": "pass", **REG})
+    token = reg.json()["access_token"]
+    r = await client.post("/api/v1/auth/logout", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 204
+    assert r.content == b""
+
+
+async def test_logout_unauthenticated(client):
+    r = await client.post("/api/v1/auth/logout")
+    assert r.status_code == 401
+
+
+async def test_logout_invalid_token(client):
+    r = await client.post("/api/v1/auth/logout", headers={"Authorization": "Bearer not-a-real-token"})
+    assert r.status_code == 401

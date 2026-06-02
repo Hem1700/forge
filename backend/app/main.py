@@ -148,7 +148,7 @@ async def worker_health():
 
 
 @app.get("/health")
-async def health():
+async def health_simple():
     return {"status": "ok", "service": "FORGE"}
 
 

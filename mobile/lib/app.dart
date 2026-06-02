@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'core/api/api_client.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/storage/secure_storage.dart';
@@ -180,6 +181,11 @@ class _ForgeAppState extends ConsumerState<ForgeApp> {
     super.initState();
     final authNotifier = ref.read(authNotifierProvider);
     _router = _buildRouter(ref, authNotifier, widget.initialRoute);
+    // When any API call returns 401 (expired/invalid token), clear auth state
+    // so GoRouter's refreshListenable fires and redirects to /login.
+    ApiClient.instance.setAuthErrorCallback(() {
+      authNotifier.setUnauthenticated();
+    });
     // Navigate to any route pending from a cold-start notification tap.
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => NotificationService.instance.drainPendingRoute(),
